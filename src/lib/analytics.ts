@@ -12,6 +12,7 @@ export type Deal = {
   status: string | null;
   normalized_value_usd: number | null;
   stake_percent: number | null;
+  value_raw: string | null;
   created_at: string;
 };
 
@@ -29,7 +30,7 @@ export async function fetchDeals(): Promise<Deal[]> {
   const { data } = await supabase
     .from("deals")
     .select(
-      "id,deal_date,buyer,target,sector,country,deal_type,status,normalized_value_usd,stake_percent,created_at"
+      "id,deal_date,buyer,target,sector,country,deal_type,status,normalized_value_usd,stake_percent,value_raw,created_at"
     )
     .order("deal_date", { ascending: false, nullsFirst: false })
     .limit(5000);
