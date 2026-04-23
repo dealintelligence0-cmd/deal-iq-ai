@@ -2,7 +2,7 @@
 import { normalizeDate } from "./dates";
 import { cleanCompany, companyKey } from "./companies";
 import { cleanSector } from "./sectors";
-import { parseValue } from "./value";
+import { parseValue, parseValueIntelligence } from "./value";
 
 export type RawDeal = {
   id?: string;
@@ -94,11 +94,21 @@ export function cleanseRow(row: RawDeal): CleansedDeal {
     cleaned.country = String(row.country).trim().replace(/\s+/g, " ") || null;
   }
 
-  // Value
+ // Value
   if (row.value_raw) {
-    const v = parseValue(row.value_raw);
+    const v = parseValueIntelligence(row.value_raw);
     cleaned.normalized_value_usd = v.normalizedUsd;
     cleaned.confidence_score = v.confidence;
+
+    // If parser extracted an inline stake, override any column stake
+    if (v.stakeDetected !== null && (cleaned.stake_percent === null || cleaned.stake_percent === undefined)) {
+      cleaned.stake_percent = v.stakeDetected;
+    }
+    // Prefer implied 100% EV when stake < 100
+    if (v.impliedHundredPctUsd !== null) {
+      cleaned.normalized_value_usd = v.impliedHundredPctUsd;
+    }
+
     if (v.normalizedUsd === null) {
       exc.push({ field: "value_raw", severity: "warn", message: "Could not parse deal value", rawValue: String(row.value_raw) });
     } else if (v.normalizedUsd > 5e11) {
