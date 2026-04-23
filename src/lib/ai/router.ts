@@ -1,43 +1,45 @@
 
 
-import { callProvider, type ChatMessage, type ChatResult, type ProviderId, PROVIDERS } from "./providers";
+import { callProvider, probeBestModel, type ChatMessage, type ChatResult, type ProviderId, type Tier } from "./providers";
 
 export type RouteConfig = {
-  tier: "bulk" | "premium";
+  tier: Tier;
   primaryProvider: ProviderId;
   primaryKey: string | null;
+  primaryModel?: string;           // resolved at Save time
   fallbackProvider?: ProviderId;
   fallbackKey?: string | null;
+  fallbackModel?: string;
 };
 
 export async function routedCall(
-  cfg: RouteConfig,
-  messages: ChatMessage[],
-  maxTokens = 1024
+  cfg: RouteConfig, messages: ChatMessage[], maxTokens = 1024
 ): Promise<ChatResult & { viaFallback: boolean }> {
-  const primaryModel =
-    cfg.tier === "bulk"
-      ? PROVIDERS[cfg.primaryProvider].defaultBulkModel
-      : PROVIDERS[cfg.primaryProvider].defaultPremiumModel;
+  // Use cached model if we have it; else probe on demand.
+  let pModel = cfg.primaryModel;
+  if (!pModel) {
+    const p = await probeBestModel(cfg.primaryProvider, cfg.tier, cfg.primaryKey);
+    if (!p.ok) throw new Error(p.error ?? "probe failed");
+    pModel = p.model!;
+  }
   try {
-    const res = await callProvider(cfg.primaryProvider, primaryModel, cfg.primaryKey, messages, maxTokens);
+    const res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
     return { ...res, viaFallback: false };
-  } catch (primaryErr) {
-    if (!cfg.fallbackProvider) {
-      // Last resort: free rules
-      const res = await callProvider("free", "rules-v1", null, messages, maxTokens);
-      return { ...res, viaFallback: true };
+  } catch {
+    if (cfg.fallbackProvider) {
+      let fModel = cfg.fallbackModel;
+      if (!fModel) {
+        const p = await probeBestModel(cfg.fallbackProvider, cfg.tier, cfg.fallbackKey ?? null);
+        if (p.ok) fModel = p.model!;
+      }
+      if (fModel) {
+        try {
+          const res = await callProvider(cfg.fallbackProvider, fModel, cfg.fallbackKey ?? null, messages, maxTokens);
+          return { ...res, viaFallback: true };
+        } catch { /* fall through */ }
+      }
     }
-    const fbModel =
-      cfg.tier === "bulk"
-        ? PROVIDERS[cfg.fallbackProvider].defaultBulkModel
-        : PROVIDERS[cfg.fallbackProvider].defaultPremiumModel;
-    try {
-      const res = await callProvider(cfg.fallbackProvider, fbModel, cfg.fallbackKey ?? null, messages, maxTokens);
-      return { ...res, viaFallback: true };
-    } catch {
-      const res = await callProvider("free", "rules-v1", null, messages, maxTokens);
-      return { ...res, viaFallback: true };
-    }
+    const res = await callProvider("free", "rules-v1", null, messages, maxTokens);
+    return { ...res, viaFallback: true };
   }
 }
