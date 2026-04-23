@@ -1,5 +1,3 @@
-
-
 import type { Deal } from "@/lib/analytics";
 
 export type Intelligence = {
@@ -230,4 +228,113 @@ function tsaNeeds(d: Deal): string[] {
   const t: string[] = [];
   if (d.stake_percent !== 100) {
     t.push("IT systems & data access (3–6 months)");
-    t.push("Finance & accounting close
+    t.push("Finance & accounting close support (2 quarters)");
+  } else {
+    t.push("IT infrastructure cutover (6–12 months)");
+    t.push("ERP migration plan (9–18 months)");
+  }
+  if (d.sector === "Technology") {
+    t.push("Engineering platform handover and knowledge transfer");
+  }
+  if (d.sector === "Healthcare") {
+    t.push("Regulatory licensing transition (FDA/local health authority)");
+    t.push("Clinical data custody and patient privacy continuity");
+  }
+  if (d.country && d.country.toLowerCase() !== "usa") {
+    t.push("Local payroll and statutory filings during transition");
+  }
+  t.push("HR benefits administration bridge (12 months typical)");
+  return t;
+}
+
+// ---------- Regulatory risks ----------
+function regulatoryRisks(d: Deal): Intelligence["regulatoryRisks"] {
+  const r: Intelligence["regulatoryRisks"] = [];
+  const size = d.normalized_value_usd ?? 0;
+
+  if (size > 1e8) {
+    r.push({
+      risk: "HSR antitrust filing required in US; merger review expected",
+      severity: size > 5e9 ? "High" : "Medium",
+    });
+  }
+  if (d.country && d.country.toLowerCase() !== "usa" && size > 1e8) {
+    r.push({ risk: "Local foreign-direct-investment screening", severity: "Medium" });
+  }
+  if (d.sector === "Technology") {
+    r.push({ risk: "Data protection (GDPR/CCPA) and national-security review", severity: "Medium" });
+  }
+  if (d.sector === "Healthcare") {
+    r.push({ risk: "FDA approvals, HIPAA compliance, clinical trial continuity", severity: "High" });
+  }
+  if (d.sector === "Financial Services") {
+    r.push({ risk: "Banking/securities regulator change-of-control approvals", severity: "High" });
+  }
+  if (r.length === 0) {
+    r.push({ risk: "Standard deal approvals expected; no major regulatory red flags identified", severity: "Low" });
+  }
+  return r;
+}
+
+// ---------- Comparables ----------
+function comparables(deal: Deal, all: Deal[]): Deal[] {
+  if (!deal.sector) return [];
+  const target = deal.normalized_value_usd ?? 0;
+  return all
+    .filter((d) => d.id !== deal.id && d.sector === deal.sector)
+    .map((d) => ({
+      d,
+      score:
+        (d.country === deal.country ? 2 : 0) +
+        (d.deal_type === deal.deal_type ? 1 : 0) +
+        (target > 0 && d.normalized_value_usd
+          ? 3 - Math.min(3, Math.abs(Math.log10(d.normalized_value_usd) - Math.log10(target)))
+          : 0),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map((x) => x.d);
+}
+
+// ---------- Advisory score ----------
+function advisoryScore(d: Deal): Intelligence["advisoryScore"] {
+  const factors: { label: string; weight: number; contribution: number }[] = [];
+  let total = 0;
+
+  // Deal size → 40%
+  const size = d.normalized_value_usd ?? 0;
+  const sizeScore = size >= 5e9 ? 100 : size >= 1e9 ? 80 : size >= 1e8 ? 60 : size >= 1e7 ? 40 : 20;
+  factors.push({ label: "Transaction size", weight: 40, contribution: sizeScore * 0.4 });
+  total += sizeScore * 0.4;
+
+  // Data quality proxy → 20%
+  const filled = [d.deal_date, d.buyer, d.target, d.sector, d.country, d.deal_type, d.normalized_value_usd].filter(Boolean).length;
+  const dataScore = (filled / 7) * 100;
+  factors.push({ label: "Data completeness", weight: 20, contribution: dataScore * 0.2 });
+  total += dataScore * 0.2;
+
+  // Status → 20% (live/announced worth most)
+  const statusScore = d.status === "live" ? 100 : d.status === "announced" ? 85 : d.status === "rumor" ? 60 : d.status === "closed" ? 30 : 10;
+  factors.push({ label: "Deal momentum", weight: 20, contribution: statusScore * 0.2 });
+  total += statusScore * 0.2;
+
+  // Sector attractiveness → 20%
+  const hotSectors = ["Technology", "Healthcare", "Financial Services"];
+  const sectorScore = hotSectors.includes(d.sector ?? "") ? 100 : d.sector ? 60 : 30;
+  factors.push({ label: "Sector attractiveness", weight: 20, contribution: sectorScore * 0.2 });
+  total += sectorScore * 0.2;
+
+  const score = Math.round(total);
+  const grade: Intelligence["advisoryScore"]["grade"] =
+    score >= 90 ? "A+" : score >= 80 ? "A" : score >= 65 ? "B" : score >= 50 ? "C" : "D";
+
+  return { score, grade, factors };
+}
+
+function fmtUsd(v: number): string {
+  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `$${(v / 1e3).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
+}
