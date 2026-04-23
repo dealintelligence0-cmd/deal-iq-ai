@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { callProvider, PROVIDERS, type ProviderId } from "@/lib/ai/providers";
+import { probeBestModel, type ProviderId, type Tier } from "@/lib/ai/providers";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -11,23 +11,16 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { kind, provider, inlineKey } = await req.json() as {
-    kind: "bulk" | "premium";
-    provider: ProviderId;
-    inlineKey?: string;
+    kind: Tier; provider: ProviderId; inlineKey?: string;
   };
 
   let apiKey: string | null = inlineKey ?? null;
 
-  // If no inline key provided, fetch encrypted key for this user
   if (!apiKey && provider !== "free") {
     const admin = createAdminClient();
-    const col = kind === "bulk" ? "bulk_key_encrypted" : "premium_key_encrypted";
-    const { data: row } = await admin
-      .from("ai_settings")
-      .select(col)
-      .eq("user_id", user.id)
-      .single();
-    const cipher = (row as Record<string, unknown>)?.[col] as unknown;
+    const col = kind === "fast" ? "bulk_key_encrypted" : "premium_key_encrypted";
+    const { data: row } = await admin.from("ai_settings").select(col).eq("user_id", user.id).single();
+    const cipher = (row as Record<string, unknown>)?.[col];
     if (cipher) {
       const { data: decrypted } = await admin.rpc("decrypt_key", { cipher });
       apiKey = decrypted as string | null;
@@ -35,26 +28,20 @@ export async function POST(req: Request) {
   }
 
   if (provider !== "free" && !apiKey) {
-    return NextResponse.json({ error: "No key saved for this provider" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "No key saved" }, { status: 200 });
   }
 
-  const model = kind === "bulk" ? PROVIDERS[provider].defaultBulkModel : PROVIDERS[provider].defaultPremiumModel;
-  const testPrompt = PROVIDERS[provider].testPrompt || "ping";
+  const probe = await probeBestModel(provider, kind, apiKey);
 
-  try {
-    const res = await callProvider(provider, model, apiKey, [
-      { role: "user", content: testPrompt },
-    ], 32);
+  if (probe.ok && probe.model) {
+    // Cache winner in ai_settings
+    const admin = createAdminClient();
+    const col = kind === "fast" ? "bulk_model" : "premium_model";
+    await admin.from("ai_settings").update({ [col]: probe.model }).eq("user_id", user.id);
     return NextResponse.json({
-      ok: true,
-      provider, model,
-      reply: res.text.slice(0, 120),
-      inputTokens: res.inputTokens,
-      outputTokens: res.outputTokens,
-      costUsd: res.costUsd,
+      ok: true, provider, model: probe.model, tried: probe.tried,
     });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 200 });
   }
+
+  return NextResponse.json({ ok: false, error: probe.error, tried: probe.tried }, { status: 200 });
 }
