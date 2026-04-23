@@ -249,8 +249,10 @@ export default function PipelinePage() {
                     <td className="px-4 py-3 text-slate-700">{d.target ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-600">{d.sector ?? "—"}</td>
                     <td className="px-4 py-3 text-slate-600">{d.country ?? "—"}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-800">
-                      {d.normalized_value_usd ? formatUsdShort(d.normalized_value_usd) : "—"}
+                   <td className="px-4 py-3 text-right font-mono text-slate-800">
+                      {d.normalized_value_usd != null && d.normalized_value_usd > 0
+                        ? formatUsdShort(d.normalized_value_usd)
+                        : (d.value_raw ?? "—")}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${statusStyle[d.status ?? ""] ?? "bg-slate-100 text-slate-700"}`}>
