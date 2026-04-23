@@ -179,9 +179,8 @@ export function cleanseRow(row: RawDeal): CleansedDeal {
     }
   }
 
-  // Status
-  if (cleaned.status && !["rumor", "announced", "live", "closed", "dropped"].includes(cleaned.status)) {
-    cleaned.status = "announced";
+  // Status — force into allowed set
+  cleaned.status = normalizeStatus(row.status);
   }
 
   // Data quality = filled required + filled optional + no errors
@@ -234,4 +233,14 @@ export function cleanseBatch(rows: RawDeal[]): {
   }
 
   return { results, duplicatesRemoved, blanksRemoved };
+}
+function normalizeStatus(raw: unknown): "rumor" | "announced" | "live" | "closed" | "dropped" {
+  if (!raw) return "announced";
+  const s = String(raw).toLowerCase().trim();
+  if (!s) return "announced";
+  if (s.includes("close") || s.includes("complet") || s.includes("done")) return "closed";
+  if (s.includes("drop") || s.includes("cancel") || s.includes("terminat") || s.includes("fail")) return "dropped";
+  if (s.includes("rumor") || s.includes("rumour") || s.includes("specul")) return "rumor";
+  if (s.includes("live") || s.includes("progress") || s.includes("pending") || s.includes("ongoing") || s.includes("active")) return "live";
+  return "announced";
 }
