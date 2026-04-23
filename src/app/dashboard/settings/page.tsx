@@ -278,3 +278,86 @@ function TierCard(p: TierCardProps) {
     </div>
   );
 }
+type TierCardProps = {
+  tier: Tier; label: string; desc: string; iconClass: string; Icon: typeof Zap;
+  provider: ProviderId; model: string | null; hasKey: boolean;
+  keyValue: string; setKeyValue: (v: string) => void;
+  onProviderChange: (p: ProviderId) => void;
+  onSaveKey: () => void; onProbe: () => void;
+  saving: boolean; probing: boolean;
+  result: { ok: boolean; msg: string } | null;
+  providerList: Array<{ id: ProviderId; label: string; needsKey: boolean; keyDocsUrl: string }>;
+};
+
+function TierCard(p: TierCardProps) {
+  const meta = PROVIDERS[p.provider];
+  return (
+    <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${p.iconClass}`}>
+          <p.Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">{p.label}</h2>
+          <p className="text-xs text-slate-500">{p.desc}</p>
+        </div>
+        {p.hasKey && (
+          <span className="ml-auto flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+            <CheckCircle2 className="h-3 w-3" /> Key saved
+          </span>
+        )}
+      </div>
+
+      <div className="mt-5">
+        <label className="mb-1.5 block text-xs font-medium text-slate-600">Provider</label>
+        <select value={p.provider} onChange={(e) => p.onProviderChange(e.target.value as ProviderId)}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500">
+          {p.providerList.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+        </select>
+        {meta.keyDocsUrl && (
+          <a href={meta.keyDocsUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700">
+            Get API key <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </div>
+
+      {meta.needsKey && (
+        <div className="mt-4">
+          <label className="mb-1.5 block text-xs font-medium text-slate-600">API Key</label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <KeyRound className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input type="password" value={p.keyValue} onChange={(e) => p.setKeyValue(e.target.value)}
+                placeholder={p.hasKey ? "•••••••• (saved)" : "Paste your key"}
+                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm outline-none focus:border-indigo-500" />
+            </div>
+            <button onClick={p.onSaveKey} disabled={!p.keyValue || p.saving}
+              className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50">
+              {p.saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+        <button onClick={p.onProbe} disabled={p.probing || (meta.needsKey && !p.hasKey)}
+          className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:from-indigo-400 hover:to-purple-500 disabled:opacity-50">
+          {p.probing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+          Auto-detect best model
+        </button>
+        {p.model && (
+          <span className="flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-mono text-indigo-700">
+            <CheckCircle2 className="h-3 w-3" /> {p.model}
+          </span>
+        )}
+        {p.result && (
+          <div className={`flex items-center gap-1 text-xs ${p.result.ok ? "text-emerald-700" : "text-red-700"}`}>
+            {p.result.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+            {p.result.msg}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
