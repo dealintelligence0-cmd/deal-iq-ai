@@ -67,8 +67,8 @@ export async function POST(req: Request) {
   for (const deal of (deals ?? []) as EnrichmentInput[]) {
     try {
       const messages = buildEnrichPrompt(deal);
-      const res = await routedCall(cfg, messages, 600);
-      const enriched = parseEnrichmentResponse(deal.id, res.text);
+      const res = await routedCall(cfg, messages, 1200);
+      const enriched = parseEnrichmentResponse(deal.id, res.text, deal);
 
       if (enriched) {
         const { error: updErr } = await admin.from("deals").update({
