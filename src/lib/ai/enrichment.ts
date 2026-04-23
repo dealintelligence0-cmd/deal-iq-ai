@@ -58,19 +58,22 @@ clean_buyer, clean_target, classified_deal_type (${DEAL_TYPES.join("|")}), prior
 
 export function parseEnrichmentResponse(id: string, text: string, fallback?: EnrichmentInput): EnrichmentOutput | null {
   // Try JSON parse first
-  const parsed = tryParseJson(text);
+const parsed = tryParseJson(text);
   if (parsed) {
+    const dealType = String(parsed.classified_deal_type ?? "");
+    const riskRaw = String(parsed.risk_flag ?? "");
+    const statusRaw = String(parsed.deal_status ?? "");
     return {
       id,
       clean_buyer: String(parsed.clean_buyer ?? fallback?.buyer ?? ""),
       clean_target: String(parsed.clean_target ?? fallback?.target ?? ""),
-      classified_deal_type: DEAL_TYPES.includes(parsed.classified_deal_type)
-        ? parsed.classified_deal_type : (fallback?.deal_type ?? "M&A"),
+      classified_deal_type: DEAL_TYPES.includes(dealType)
+        ? dealType : (fallback?.deal_type ?? "M&A"),
       priority_score: clamp(Number(parsed.priority_score) || 5, 1, 10),
       advisory_score: clamp(Number(parsed.advisory_score) || 5, 1, 10),
-      risk_flag: ["low", "medium", "high"].includes(parsed.risk_flag) ? parsed.risk_flag : "medium",
-      deal_status: ["live", "rumor", "announced", "closed", "dropped"].includes(parsed.deal_status)
-        ? parsed.deal_status : (fallback?.status ?? "announced"),
+      risk_flag: ["low", "medium", "high"].includes(riskRaw) ? riskRaw : "medium",
+      deal_status: ["live", "rumor", "announced", "closed", "dropped"].includes(statusRaw)
+        ? statusRaw : (fallback?.status ?? "announced"),
       ai_summary: String(parsed.ai_summary ?? "").slice(0, 600),
       confidence: clamp(Number(parsed.confidence) || 0.7, 0, 1),
     };
@@ -83,7 +86,7 @@ export function parseEnrichmentResponse(id: string, text: string, fallback?: Enr
   return null;
 }
 
-function tryParseJson(text: string): Record<string, string | number> | null {
+function tryParseJson(text: string): Record<string, unknown> | null {
   try {
     const clean = text.replace(/```json|```/g, "").trim();
     // Strip everything before first { and after last }
