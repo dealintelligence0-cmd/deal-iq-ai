@@ -6,6 +6,7 @@ import {
   BrainCircuit,
   LayoutDashboard,
   CloudUpload,
+  GitMerge,
   Briefcase,
   FileText,
   BarChart3,
@@ -14,7 +15,8 @@ import {
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-   { label: "Uploads", href: "/dashboard/uploads", icon: CloudUpload },
+  { label: "Uploads", href: "/dashboard/uploads", icon: CloudUpload },
+  { label: "Mapping", href: "/dashboard/mapping", icon: GitMerge },
   { label: "Deals", href: "/dashboard/deals", icon: Briefcase },
   { label: "Proposals", href: "/dashboard/proposals", icon: FileText },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
