@@ -115,17 +115,17 @@ export default function AISettingsPage() {
   const budgetPct = settings.monthly_budget_usd > 0
     ? Math.min(100, (settings.usage_current_usd / settings.monthly_budget_usd) * 100) : 0;
 
-  const tiers: Array<{
+const tiers: Array<{
     key: Tier;
     label: string;
     desc: string;
     icon: typeof Zap;
-    color: string;
+    iconClass: string;
     providerField: "bulk_provider" | "premium_provider";
     modelField: "bulk_model" | "premium_model";
   }> = [
-    { key: "fast",  label: "Fast Tier",  desc: "Row-level enrichment, classification, dedup reasoning — high volume, low latency.", icon: Zap,       color: "emerald", providerField: "bulk_provider",    modelField: "bulk_model" },
-    { key: "smart", label: "Smart Tier", desc: "Proposals, due-diligence memos, long reasoning — quality over speed.",              icon: Sparkles,  color: "purple",  providerField: "premium_provider", modelField: "premium_model" },
+{ key: "fast",  label: "Fast Tier",  desc: "Row-level enrichment, classification, dedup reasoning — high volume, low latency.", icon: Zap,       iconClass: "bg-emerald-50 text-emerald-600", providerField: "bulk_provider",    modelField: "bulk_model" },
+    { key: "smart", label: "Smart Tier", desc: "Proposals, due-diligence memos, long reasoning — quality over speed.",              icon: Sparkles,  iconClass: "bg-purple-50 text-purple-600",   providerField: "premium_provider", modelField: "premium_model" },
   ];
 
   return (
@@ -151,7 +151,7 @@ export default function AISettingsPage() {
         return (
           <div key={t.key} className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-${t.color}-50 text-${t.color}-600`}>
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${t.iconClass}`}>
                 <Icon className="h-5 w-5" />
               </div>
               <div>
