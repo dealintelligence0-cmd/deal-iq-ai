@@ -1,123 +1,189 @@
-/** Parse messy deal-value strings → normalized USD + currency hint.
- * Supports: $250M, €1.2B, £500k, ₹800 Cr, INR 500 crore, 5 bn, 25 lakh, etc.
- * Full intelligence engine lives in Phase 6; this is the cleansing-grade pass.
+/** Deal Value Intelligence Engine
+ *  Parses messy transaction values into normalized USD + implied 100% valuation.
+ *  Pure function, no side-effects. Used by cleansing engine + detail pages.
  */
-export type ValueParse = {
-  numericOriginal: number | null;
-  currency: string | null;
-  scale: string | null;
-  normalizedUsd: number | null;
-  confidence: number; // 0..1
+
+export type ValueIntelligence = {
+  numericOriginal: number | null;   // the number before scaling (250 for "$250M")
+  currency: string | null;          // ISO code detected (USD, INR, EUR, GBP, JPY, CNY, AUD, CAD, SGD)
+  scale: string | null;             // m, b, t, cr, lakh, k
+  nativeValue: number | null;       // numeric * scale in source currency
+  normalizedUsd: number | null;     // EV in USD at current FX
+  stakeDetected: number | null;     // 0–100 if parsed inline ("for 49%")
+  impliedHundredPctUsd: number | null; // normalized_usd / (stake/100) if stake known
+  isRange: boolean;                 // true if "$1–2B" was detected
+  isApprox: boolean;                // true if "~", "about", "c." prefix
+  confidence: number;               // 0..1
+  reasoning: string[];              // human-readable trace for debugging
 };
 
 const FX: Record<string, number> = {
-  USD: 1,
-  EUR: 1.08,
-  GBP: 1.27,
-  INR: 0.012,
-  JPY: 0.0067,
-  CNY: 0.14,
-  AUD: 0.66,
-  CAD: 0.73,
-  SGD: 0.74,
+  USD: 1, EUR: 1.08, GBP: 1.27, INR: 0.012, JPY: 0.0067,
+  CNY: 0.14, AUD: 0.66, CAD: 0.73, SGD: 0.74, CHF: 1.13, HKD: 0.128,
 };
 
 const SYMBOL_TO_CCY: Record<string, string> = {
-  "$": "USD",
-  "€": "EUR",
-  "£": "GBP",
-  "₹": "INR",
-  "¥": "JPY",
+  "$": "USD", "€": "EUR", "£": "GBP", "₹": "INR", "¥": "JPY",
+  "A$": "AUD", "C$": "CAD", "S$": "SGD", "HK$": "HKD", "CHF": "CHF",
 };
 
-const MULTIPLIER: Record<string, number> = {
-  k: 1e3,
-  thousand: 1e3,
-  m: 1e6,
-  mn: 1e6,
-  million: 1e6,
-  mm: 1e6,
-  b: 1e9,
-  bn: 1e9,
-  billion: 1e9,
-  t: 1e12,
-  tn: 1e12,
-  trillion: 1e12,
-  lakh: 1e5,
-  lac: 1e5,
-  cr: 1e7,
-  crore: 1e7,
+const MULTIPLIER: Record<string, { value: number; canonical: string }> = {
+  k: { value: 1e3, canonical: "k" }, thousand: { value: 1e3, canonical: "k" },
+  m: { value: 1e6, canonical: "m" }, mm: { value: 1e6, canonical: "m" },
+  mn: { value: 1e6, canonical: "m" }, million: { value: 1e6, canonical: "m" }, millions: { value: 1e6, canonical: "m" },
+  b: { value: 1e9, canonical: "b" }, bn: { value: 1e9, canonical: "b" },
+  billion: { value: 1e9, canonical: "b" }, billions: { value: 1e9, canonical: "b" },
+  t: { value: 1e12, canonical: "t" }, tn: { value: 1e12, canonical: "t" },
+  trillion: { value: 1e12, canonical: "t" },
+  lakh: { value: 1e5, canonical: "lakh" }, lac: { value: 1e5, canonical: "lakh" }, lacs: { value: 1e5, canonical: "lakh" }, lakhs: { value: 1e5, canonical: "lakh" },
+  cr: { value: 1e7, canonical: "cr" }, crore: { value: 1e7, canonical: "cr" }, crores: { value: 1e7, canonical: "cr" },
 };
 
-export function parseValue(raw: unknown): ValueParse {
-  const empty: ValueParse = {
-    numericOriginal: null,
-    currency: null,
-    scale: null,
-    normalizedUsd: null,
-    confidence: 0,
+/** Main parser. Handles stake inline. */
+export function parseValueIntelligence(raw: unknown): ValueIntelligence {
+  const empty: ValueIntelligence = {
+    numericOriginal: null, currency: null, scale: null,
+    nativeValue: null, normalizedUsd: null,
+    stakeDetected: null, impliedHundredPctUsd: null,
+    isRange: false, isApprox: false, confidence: 0, reasoning: [],
   };
   if (!raw) return empty;
 
-  const s = String(raw).trim();
-  if (!s) return empty;
+  const original = String(raw).trim();
+  if (!original) return empty;
 
-  let text = s.replace(/,/g, " ").replace(/\s+/g, " ").trim();
-  let currency: string | null = null;
-  let confidence = 0.4;
+  const reasoning: string[] = [];
+  let text = original.toLowerCase();
 
-  // Detect 3-letter currency code
-  const ccyMatch = text.match(/\b(USD|EUR|GBP|INR|JPY|CNY|AUD|CAD|SGD)\b/i);
-  if (ccyMatch) {
-    currency = ccyMatch[1].toUpperCase();
-    text = text.replace(ccyMatch[0], " ");
-    confidence += 0.2;
-  }
-  // Detect symbol
-  for (const sym of Object.keys(SYMBOL_TO_CCY)) {
-    if (text.includes(sym)) {
-      currency = currency ?? SYMBOL_TO_CCY[sym];
-      text = text.replace(sym, " ");
-      confidence += 0.2;
-      break;
+  // Detect approx
+  const isApprox = /^(~|approx|about|c\.|circa)/i.test(original.trim()) ||
+                   original.includes("~") || original.includes("≈");
+  if (isApprox) reasoning.push("Approx indicator detected");
+
+  // Detect range: pick midpoint
+  const isRange = /(\d[\d.]*)\s*[-–—to]\s*(\d[\d.]*)/i.test(text);
+  if (isRange) reasoning.push("Range detected — using midpoint");
+
+  // Extract inline stake ("for 49%", "49% stake", "(49%)")
+  let stakeDetected: number | null = null;
+  const stakePatterns = [
+    /for\s+(\d+(?:\.\d+)?)\s*%/i,
+    /(\d+(?:\.\d+)?)\s*%\s*(?:stake|holding|ownership|share|interest)/i,
+    /\((\d+(?:\.\d+)?)\s*%\)/,
+  ];
+  for (const pat of stakePatterns) {
+    const m = original.match(pat);
+    if (m) {
+      const s = parseFloat(m[1]);
+      if (s > 0 && s <= 100) {
+        stakeDetected = s;
+        reasoning.push(`Inline stake: ${s}%`);
+        text = text.replace(m[0].toLowerCase(), " ");
+        break;
+      }
     }
   }
 
-  text = text.trim().toLowerCase();
+  // Currency: ISO code wins over symbol
+  let currency: string | null = null;
+  const isoMatch = text.match(/\b(usd|eur|gbp|inr|jpy|cny|aud|cad|sgd|chf|hkd|rs\.?|rupees?)\b/i);
+  if (isoMatch) {
+    const tok = isoMatch[1].toLowerCase().replace(".", "");
+    currency = tok === "rs" || tok === "rupee" || tok === "rupees" ? "INR" : tok.toUpperCase();
+    text = text.replace(isoMatch[0], " ");
+    reasoning.push(`Currency code: ${currency}`);
+  } else {
+    for (const sym of Object.keys(SYMBOL_TO_CCY)) {
+      if (original.includes(sym)) {
+        currency = SYMBOL_TO_CCY[sym];
+        text = text.replace(sym.toLowerCase(), " ");
+        reasoning.push(`Symbol: ${sym} → ${currency}`);
+        break;
+      }
+    }
+  }
 
-  // Pull number
-  const numMatch = text.match(/-?\d+(?:\.\d+)?/);
-  if (!numMatch) return empty;
-  const numeric = parseFloat(numMatch[0]);
+  // Extract number (midpoint if range)
+  const numMatches = text.match(/-?\d+(?:\.\d+)?/g);
+  if (!numMatches || numMatches.length === 0) return empty;
+
+  let numeric: number;
+  if (isRange && numMatches.length >= 2) {
+    const lo = parseFloat(numMatches[0]);
+    const hi = parseFloat(numMatches[1]);
+    numeric = (lo + hi) / 2;
+  } else {
+    numeric = parseFloat(numMatches[0]);
+  }
   if (!Number.isFinite(numeric)) return empty;
-  confidence += 0.2;
 
-  // Pull scale word (after number)
-  const afterNum = text.slice(text.indexOf(numMatch[0]) + numMatch[0].length).trim();
-  const scaleMatch = afterNum.match(/^([a-z]+)/);
+  // Scale word after the number
   let scale: string | null = null;
   let multiplier = 1;
+  const scaleMatch = text.match(/\b(k|m|mn|mm|bn|b|t|tn|thousand|million|millions|billion|billions|trillion|lakh|lac|lacs|lakhs|cr|crore|crores)\b/i);
   if (scaleMatch) {
-    const token = scaleMatch[1];
-    if (MULTIPLIER[token] !== undefined) {
-      multiplier = MULTIPLIER[token];
-      scale = token;
-      confidence += 0.1;
+    const tok = scaleMatch[1].toLowerCase();
+    const mul = MULTIPLIER[tok];
+    if (mul) {
+      multiplier = mul.value;
+      scale = mul.canonical;
+      reasoning.push(`Scale: ${tok} × ${mul.value.toExponential()}`);
     }
   }
 
-  // Default currency if none found
-  if (!currency) currency = "USD";
+  if (!currency) {
+    currency = (scale === "cr" || scale === "lakh") ? "INR" : "USD";
+    reasoning.push(`Currency defaulted → ${currency}`);
+  }
 
   const nativeValue = numeric * multiplier;
   const fx = FX[currency] ?? 1;
-  const normalizedUsd = nativeValue * fx;
+  const normalizedUsd = Math.round(nativeValue * fx * 100) / 100;
+  reasoning.push(`Native: ${currency} ${nativeValue.toLocaleString()} · USD ${normalizedUsd.toLocaleString()}`);
+
+  let impliedHundredPctUsd: number | null = null;
+  if (stakeDetected && stakeDetected > 0 && stakeDetected < 100) {
+    impliedHundredPctUsd = Math.round((normalizedUsd / (stakeDetected / 100)) * 100) / 100;
+    reasoning.push(`Implied 100%: USD ${impliedHundredPctUsd.toLocaleString()}`);
+  } else if (stakeDetected === 100) {
+    impliedHundredPctUsd = normalizedUsd;
+  }
+
+  // Confidence scoring
+  let confidence = 0.3;
+  if (isoMatch || Object.keys(SYMBOL_TO_CCY).some((s) => original.includes(s))) confidence += 0.25;
+  if (scale) confidence += 0.2;
+  if (stakeDetected !== null) confidence += 0.1;
+  if (!isRange && !isApprox) confidence += 0.1;
+  if (nativeValue > 0 && nativeValue < 1e15) confidence += 0.05;
+  confidence = Math.min(1, confidence);
 
   return {
-    numericOriginal: numeric,
-    currency,
-    scale,
-    normalizedUsd: Math.round(normalizedUsd * 100) / 100,
-    confidence: Math.min(1, confidence),
+    numericOriginal: numeric, currency, scale,
+    nativeValue, normalizedUsd,
+    stakeDetected, impliedHundredPctUsd,
+    isRange, isApprox, confidence, reasoning,
   };
+}
+
+/** Backward-compatible wrapper used by the cleansing engine (Phase 5). */
+export function parseValue(raw: unknown) {
+  const r = parseValueIntelligence(raw);
+  return {
+    numericOriginal: r.numericOriginal,
+    currency: r.currency,
+    scale: r.scale,
+    normalizedUsd: r.normalizedUsd,
+    confidence: r.confidence,
+  };
+}
+
+/** Pretty-print helper for the UI. */
+export function formatUsd(v: number | null): string {
+  if (v === null || !Number.isFinite(v)) return "—";
+  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(2)}M`;
+  if (v >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
+  return `$${v.toFixed(0)}`;
 }
