@@ -100,8 +100,9 @@ export function parseValueIntelligence(raw: unknown): ValueIntelligence {
                   /(\d[\d.]*)\s+to\s+(\d[\d.]*)/.test(work);
   if (isRange) reasoning.push("Range detected — midpoint");
 
-  // 4) Extract numbers
-  const numMatches = work.match(/-?\d+(?:\.\d+)?/g);
+// 4) Extract numbers — strip the range dash first so "-" isn't read as sign
+  const scanText = isRange ? work.replace(/[-–—]/g, " ") : work;
+  const numMatches = scanText.match(/\d+(?:\.\d+)?/g);
   if (!numMatches || numMatches.length === 0) return empty;
 
   let numeric: number;
@@ -112,9 +113,10 @@ export function parseValueIntelligence(raw: unknown): ValueIntelligence {
   }
   if (!Number.isFinite(numeric)) return empty;
 
-  // 5) Find the character AFTER the first number — that's where scale lives
-  const firstNumIdx = work.indexOf(numMatches[0]);
-  const afterNum = work.slice(firstNumIdx + numMatches[0].length).trim();
+// 5) Find the character AFTER the last number — that's where scale lives
+  const lastNum = numMatches[numMatches.length - 1];
+  const lastIdx = scanText.lastIndexOf(lastNum);
+  const afterNum = scanText.slice(lastIdx + lastNum.length).trim();
 
   let multiplier = 1;
   let scale: string | null = null;
