@@ -17,6 +17,7 @@ import {
   missingRequired,
   type FieldMapping,
 } from "@/lib/mapping";
+import { cleanseBatch, type RawDeal } from "@/lib/cleansing/engine";
 import MappingGrid from "@/components/mapping/MappingGrid";
 import TemplateBar, {
   type Template,
@@ -146,7 +147,7 @@ export default function MappingPage() {
     setSavingTpl(false);
   }
 
-  async function importAll() {
+ async function importAll() {
     if (!mapping || loaded.length === 0) return;
     const missing = missingRequired(mapping);
     if (missing.length > 0) {
@@ -166,35 +167,89 @@ export default function MappingPage() {
       return;
     }
 
-    let total = 0;
+    let totalInserted = 0;
+    let totalDupes = 0;
+    let totalBlanks = 0;
+    let totalExceptions = 0;
+
     for (const f of loaded) {
-      const standardized = applyMapping(f.rows, mapping, f.fileName);
-      const dealRows = standardized.map((s) => ({
+      const standardized = applyMapping(f.rows, mapping, f.fileName) as RawDeal[];
+      const { results, duplicatesRemoved, blanksRemoved } = cleanseBatch(standardized);
+      totalDupes += duplicatesRemoved;
+      totalBlanks += blanksRemoved;
+
+      const dealRows = results.map((r) => ({
         created_by: u.user!.id,
         source_upload_id: f.uploadId,
-        deal_date: parseDateSafe(s.deal_date),
-        buyer: str(s.buyer),
-        target: str(s.target),
-        sector: str(s.sector),
-        country: str(s.country),
-        deal_type: str(s.deal_type),
-        value_raw: str(s.value_raw),
-        stake_percent: toNum(s.stake_percent),
-        status: mapStatus(s.status),
-        notes: str(s.notes),
+        deal_date: r.cleaned.deal_date,
+        buyer: r.cleaned.buyer,
+        target: r.cleaned.target,
+        sector: r.cleaned.sector,
+        country: r.cleaned.country,
+        deal_type: r.cleaned.deal_type,
+        value_raw: r.cleaned.value_raw,
+        normalized_value_usd: r.cleaned.normalized_value_usd,
+        stake_percent: r.cleaned.stake_percent,
+        status: r.cleaned.status ?? "announced",
+        notes: r.cleaned.notes,
         source_file: f.fileName,
+        confidence_score: r.cleaned.confidence_score,
+        data_quality_score: r.cleaned.data_quality_score,
       }));
 
-      // Insert in chunks of 500
+      // Insert deals in chunks of 500, capture IDs back for exception linking
+      const insertedIds: string[] = [];
       for (let i = 0; i < dealRows.length; i += 500) {
         const chunk = dealRows.slice(i, i + 500);
-        const { error } = await supabase.from("deals").insert(chunk);
+        const { data: inserted, error } = await supabase
+          .from("deals")
+          .insert(chunk)
+          .select("id");
         if (error) {
           setToast({ type: "err", msg: error.message });
           setImporting(false);
           return;
         }
-        total += chunk.length;
+        (inserted ?? []).forEach((d) => insertedIds.push(d.id));
+        totalInserted += chunk.length;
+      }
+
+      // Build exceptions with deal_id references
+      const exRows: Array<{
+        created_by: string;
+        deal_id: string;
+        field: string;
+        severity: string;
+        message: string;
+        raw_value: string | null;
+        suggested_value: string | null;
+      }> = [];
+      results.forEach((res, idx) => {
+        const dealId = insertedIds[idx];
+        if (!dealId) return;
+        res.exceptions.forEach((ex) => {
+          exRows.push({
+            created_by: u.user!.id,
+            deal_id: dealId,
+            field: ex.field,
+            severity: ex.severity,
+            message: ex.message,
+            raw_value: ex.rawValue ?? null,
+            suggested_value: ex.suggestedValue ?? null,
+          });
+        });
+      });
+
+      // Batch insert exceptions
+      for (let i = 0; i < exRows.length; i += 500) {
+        const chunk = exRows.slice(i, i + 500);
+        const { error } = await supabase.from("exceptions").insert(chunk);
+        if (error) {
+          // Non-fatal: log but continue
+          console.error("Exception insert failed:", error.message);
+        } else {
+          totalExceptions += chunk.length;
+        }
       }
 
       await supabase
@@ -204,11 +259,13 @@ export default function MappingPage() {
     }
 
     setImporting(false);
-    setToast({ type: "ok", msg: `Imported ${total} deals successfully.` });
+    setToast({
+      type: "ok",
+      msg: `Imported ${totalInserted} deals · ${totalDupes} dupes · ${totalBlanks} blanks skipped · ${totalExceptions} exceptions flagged.`,
+    });
     setLoaded([]);
     setMapping(null);
     setSelected(new Set());
-    // Refresh uploads list (already-imported ones drop out)
     const { data: up } = await supabase
       .from("uploads")
       .select("id,file_name,storage_path,row_count,status,metadata")
@@ -216,7 +273,6 @@ export default function MappingPage() {
       .order("created_at", { ascending: false });
     setUploads((up ?? []) as UploadRow[]);
   }
-
   const missing = mapping ? missingRequired(mapping) : [];
 
   return (
