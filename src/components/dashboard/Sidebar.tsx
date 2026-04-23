@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BrainCircuit,
   LayoutDashboard,
+  CloudUpload,
   Briefcase,
   FileText,
   BarChart3,
@@ -13,6 +14,7 @@ import {
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+   { label: "Uploads", href: "/dashboard/uploads", icon: CloudUpload },
   { label: "Deals", href: "/dashboard/deals", icon: Briefcase },
   { label: "Proposals", href: "/dashboard/proposals", icon: FileText },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
