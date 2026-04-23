@@ -181,17 +181,17 @@ export default function MappingPage() {
       const dealRows = results.map((r) => ({
         created_by: u.user!.id,
         source_upload_id: f.uploadId,
-        deal_date: r.cleaned.deal_date,
-        buyer: r.cleaned.buyer,
-        target: r.cleaned.target,
-        sector: r.cleaned.sector,
-        country: r.cleaned.country,
-        deal_type: r.cleaned.deal_type,
-        value_raw: r.cleaned.value_raw,
+        deal_date: orNull(r.cleaned.deal_date),
+        buyer: orNull(r.cleaned.buyer),
+        target: orNull(r.cleaned.target),
+        sector: orNull(r.cleaned.sector),
+        country: orNull(r.cleaned.country),
+        deal_type: orNull(r.cleaned.deal_type),
+        value_raw: orNull(r.cleaned.value_raw),
         normalized_value_usd: r.cleaned.normalized_value_usd,
         stake_percent: r.cleaned.stake_percent,
         status: r.cleaned.status ?? "announced",
-        notes: r.cleaned.notes,
+        notes: orNull(r.cleaned.notes),
         source_file: f.fileName,
         confidence_score: r.cleaned.confidence_score,
         data_quality_score: r.cleaned.data_quality_score,
@@ -428,7 +428,11 @@ export default function MappingPage() {
     </div>
   );
 }
-
+function orNull(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
 // ---------- light-touch coercions (full cleansing comes in Phase 5) ----------
 function str(v: unknown): string | null {
   if (v === null || v === undefined) return null;
