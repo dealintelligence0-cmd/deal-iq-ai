@@ -152,7 +152,7 @@ export function cleanseBatch(rows: RawDeal[]): {
 
   for (const r of rows) {
     const allEmpty = Object.values(r).every(
-      (v) => v === null || v === undefined || v === ""
+      (v) => v === null || v === undefined || String(v).trim() === ""
     );
     if (allEmpty) {
       blanksRemoved++;
