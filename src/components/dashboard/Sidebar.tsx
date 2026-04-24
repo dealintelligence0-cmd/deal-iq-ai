@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BrainCircuit, LayoutDashboard, CloudUpload, GitMerge,
   AlertTriangle, FlaskConical, Briefcase, FileText,
-  BarChart3, Settings, Sparkles, Download,
+  BarChart3, Settings, Sparkles, Download, Shield,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +19,7 @@ const navItems = [
   { label: "Proposals",   href: "/dashboard/proposals",  icon: FileText },
   { label: "Analytics",   href: "/dashboard/analytics",  icon: BarChart3 },
   { label: "Exports",     href: "/dashboard/exports",    icon: Download },
+  { label: "Activity",    href: "/dashboard/activity",   icon: Shield },
   { label: "Settings",    href: "/dashboard/settings",   icon: Settings },
 ];
 
