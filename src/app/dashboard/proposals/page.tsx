@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FileText, Sparkles, Loader2, Copy, Printer,
-  CheckCircle2, ChevronDown, History, Trash2,
+  CheckCircle2, ChevronDown, History, Trash2, Plus, X,
 } from "lucide-react";
+import { classifyDeal, generateServices, type Service, type DealClassification } from "@/lib/intelligence/deal-classifier";
 
 type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -46,7 +47,50 @@ export default function ProposalsPage() {
   const [geography, setGeography] = useState("");
   const [dealSize, setDealSize] = useState("");
   const [notes, setNotes] = useState("");
-  const [usePremium, setUsePremium] = useState(false);
+  const [stakePercent, setStakePercent] = useState("");
+  const [dealTypeInput, setDealTypeInput] = useState("");
+  const [clientRole, setClientRole] = useState<"buyer" | "seller" | "pe" | "jv_partner">("buyer");
+  const [services, setServices] = useState<Service[]>([]);
+  const [customServiceName, setCustomServiceName] = useState("");
+  const [showClassification, setShowClassification] = useState(false);
+
+  const classification: DealClassification | null = (buyer || target) ? classifyDeal({
+    buyer, target, sector, country: geography,
+    deal_type: dealTypeInput,
+    stake_percent: stakePercent ? Number(stakePercent) : null,
+    notes,
+  }) : null;
+
+  useEffect(() => {
+    if (classification && services.length === 0) {
+      setServices(generateServices(classification, {
+        buyer, target, sector, country: geography,
+        deal_type: dealTypeInput,
+        stake_percent: stakePercent ? Number(stakePercent) : null,
+        notes,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buyer, target, sector, geography, dealTypeInput, stakePercent]);
+
+  function toggleService(id: string) {
+    setServices((prev) => prev.map((s) => s.id === id ? { ...s, selected: !s.selected } : s));
+  }
+
+  function addCustomService() {
+    if (!customServiceName.trim()) return;
+    setServices((prev) => [...prev, {
+      id: "custom_" + Date.now(),
+      name: customServiceName.trim(),
+      type: "custom",
+      selected: true,
+    }]);
+    setCustomServiceName("");
+  }
+
+  function removeService(id: string) {
+    setServices((prev) => prev.filter((s) => s.id !== id));
+  }
 
   const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState<string | null>(null);
@@ -69,6 +113,10 @@ export default function ProposalsPage() {
           proposal_type: proposalType, client_name: clientName,
           buyer, target, sector, geography, deal_size: dealSize,
           notes, use_premium: usePremium,
+          stake_percent: stakePercent ? Number(stakePercent) : undefined,
+          deal_type_input: dealTypeInput || undefined,
+          client_role: clientRole,
+          selected_services: services,
         }),
       });
       const data = await res.json();
@@ -171,6 +219,79 @@ export default function ProposalsPage() {
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Synergies, key risks, strategic context…"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-200" />
           </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-slate-600">Deal Type (e.g. Acquisition, PE Buyout, JV, Carve-out)</label>
+            <input type="text" value={dealTypeInput} onChange={(e) => setDealTypeInput(e.target.value)} placeholder="Acquisition"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-200" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-600">Stake %</label>
+              <input type="number" min="0" max="100" value={stakePercent} onChange={(e) => setStakePercent(e.target.value)} placeholder="100"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-indigo-300 focus:outline-none" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-600">Client Role</label>
+              <select value={clientRole} onChange={(e) => setClientRole(e.target.value as typeof clientRole)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-indigo-300 focus:outline-none">
+                <option value="buyer">Buyer</option>
+                <option value="seller">Seller</option>
+                <option value="pe">PE Fund</option>
+                <option value="jv_partner">JV Partner</option>
+              </select>
+            </div>
+          </div>
+
+          {classification && (
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3">
+              <button onClick={() => setShowClassification(!showClassification)}
+                className="flex w-full items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                <span>Deal Classification</span>
+                <ChevronDown className={`h-3 w-3 transition-transform ${showClassification ? "rotate-180" : ""}`} />
+              </button>
+              {showClassification && (
+                <div className="mt-2 space-y-1 text-[10px] text-slate-700">
+                  <p><strong>Category:</strong> {classification.category.replace(/_/g, " ")}</p>
+                  <p><strong>Control:</strong> {classification.control}</p>
+                  <p><strong>Buyer:</strong> {classification.buyerType}</p>
+                  <p><strong>Intent:</strong> {classification.intent}</p>
+                  <p><strong>Integration:</strong> {classification.integrationNeed.replace(/_/g, " ")}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {services.length > 0 && (
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-600">Services ({services.filter(s => s.selected).length} selected)</label>
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+                {services.map((s) => (
+                  <label key={s.id} className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-slate-50">
+                    <input type="checkbox" checked={s.selected} onChange={() => toggleService(s.id)}
+                      className="mt-0.5 rounded border-slate-300" />
+                    <span className="flex-1 text-slate-700">{s.name}</span>
+                    <span className={`text-[9px] uppercase ${s.type === "core" ? "text-indigo-600" : s.type === "custom" ? "text-purple-600" : "text-slate-400"}`}>{s.type}</span>
+                    {s.type === "custom" && (
+                      <button onClick={(e) => { e.preventDefault(); removeService(s.id); }} className="text-red-400 hover:text-red-600">
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </label>
+                ))}
+              </div>
+              <div className="mt-1.5 flex gap-1">
+                <input type="text" value={customServiceName} onChange={(e) => setCustomServiceName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addCustomService()}
+                  placeholder="Add custom service…"
+                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] focus:border-indigo-300 focus:outline-none" />
+                <button onClick={addCustomService} disabled={!customServiceName.trim()}
+                  className="rounded-lg bg-slate-900 px-2 py-1 text-[11px] text-white hover:bg-slate-800 disabled:opacity-40">
+                  <Plus className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
             <div>
