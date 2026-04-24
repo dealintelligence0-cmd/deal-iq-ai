@@ -21,9 +21,7 @@ export default function GlobalError({
           <AlertTriangle className="h-6 w-6 text-red-600" />
         </div>
         <h1 className="mt-4 text-xl font-semibold text-slate-900">Something went wrong</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          An unexpected error occurred. Our team has been notified.
-        </p>
+        <p className="mt-2 text-sm text-slate-600">An unexpected error occurred.</p>
         {error.digest && (
           <p className="mt-2 font-mono text-xs text-slate-400">Ref: {error.digest}</p>
         )}
