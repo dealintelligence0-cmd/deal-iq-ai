@@ -207,7 +207,7 @@ export async function exportPptx(deals: Deal[], title = "Deal Pipeline"): Promis
     .sort((a, b) => (b.normalized_value_usd ?? 0) - (a.normalized_value_usd ?? 0))
     .slice(0, 15);
 
-  const tblRows: import("pptxgenjs").TableRow[] = [
+  const tblRows = [
     [
       { text: "Date", options: { bold: true, color: "FFFFFF", fill: { color: BRAND.color } } },
       { text: "Buyer", options: { bold: true, color: "FFFFFF", fill: { color: BRAND.color } } },
