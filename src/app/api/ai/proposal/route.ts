@@ -86,9 +86,14 @@ export async function POST(req: Request) {
 
 const body = await req.json() as {
     proposal_type: ProposalType;
-    client_name: string; buyer: string; target: string;
-    sector: string; geography: string; deal_size: string;
-    notes: string; use_premium?: boolean;
+    client_name: string;
+    buyer: string;
+    target: string;
+    sector: string;
+    geography: string;
+    deal_size: string;
+    notes: string;
+    use_premium?: boolean;
     stake_percent?: number;
     deal_type_input?: string;
     client_role?: "buyer" | "seller" | "pe" | "jv_partner";
@@ -96,11 +101,6 @@ const body = await req.json() as {
     research_docs?: string;
   };
   const { proposal_type, client_name, buyer, target, sector, geography, deal_size, notes, use_premium } = body;
-    proposal_type: ProposalType;
-    client_name: string; buyer: string; target: string;
-    sector: string; geography: string; deal_size: string;
-    notes: string; use_premium?: boolean;
-  };
 
   if (!PROPOSAL_PROMPTS[proposal_type]) {
     return NextResponse.json({ error: "Invalid proposal_type" }, { status: 400 });
