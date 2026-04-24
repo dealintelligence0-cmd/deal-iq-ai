@@ -15,6 +15,10 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { checkRateLimit, logActivity } = await import("@/lib/security");
+  const allowed = await checkRateLimit(supabase, "ai_enrich", 20, 60);
+  if (!allowed) return NextResponse.json({ error: "Rate limit: 20 calls/min" }, { status: 429 });
+
   const { deal_ids } = await req.json() as { deal_ids: string[] };
   if (!Array.isArray(deal_ids) || deal_ids.length === 0) {
     return NextResponse.json({ error: "deal_ids array required" }, { status: 400 });
@@ -101,5 +105,6 @@ export async function POST(req: Request) {
   }
 
   const succeeded = results.filter((r) => r.ok).length;
+  await logActivity(supabase, "enrich_batch", "deals", undefined, { count: results.length, succeeded });
   return NextResponse.json({ total: results.length, succeeded, results });
 }
