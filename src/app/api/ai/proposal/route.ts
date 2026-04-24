@@ -3,77 +3,76 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
-
+import { classifyDeal, generateServices, expandService, expandCustomService, type Service, type DealInput } from "@/lib/intelligence/deal-classifier";
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
 
 const PROPOSAL_PROMPTS: Record<ProposalType, string> = {
-  advisory: `You are a senior M&A advisory partner at a top-tier investment bank. Write a professional M&A Advisory Proposal using this structure:
-1. Executive Summary
-2. Transaction Overview
-3. Strategic Rationale
-4. Our Advisory Approach
-5. Indicative Timeline
-6. Team & Credentials
-7. Fee Proposal
-8. Next Steps
+  advisory: `You are an MBB senior partner writing a consulting-grade M&A advisory proposal. Use formal, specific, client-ready prose. NEVER use generic filler. Every sentence must reference the specific deal, sector, geography, or services provided.
 
-Use formal consulting language. Be specific. Write ~600-800 words. Use Markdown headings.`,
+Structure (use exact H2 headings):
+## Executive Summary
+## Deal Context & Strategic Rationale
+## Market & Industry Context
+## Transaction Perspective
+## Value Creation & Synergies
+## Integration / Separation Strategy
+## Risk & Mitigation
+## Services & Engagement Approach
+## Engagement Model & Phasing
+## 100-Day Plan
+## Why Us
 
-  executive_summary: `You are a managing director writing an Executive Summary memo. Structure:
-1. Transaction Overview
-2. Key Deal Highlights
-3. Strategic Value Creation
-4. Risk Considerations
-5. Recommendation
+Use the provided deal classification, services, and integration logic verbatim. Write 1200-1600 words. Use crisp bullet points where helpful. Quote specific figures from the deal.`,
 
-Write ~400-500 words. Concise, board-ready language. Use Markdown headings.`,
+  executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
+## Transaction Overview
+## Strategic Rationale
+## Value Creation Thesis
+## Key Risks & Mitigants
+## Recommendation & Next Steps
+500-700 words. Use Markdown.`,
 
-  board_memo: `You are a CFO preparing a Board Memo for a transaction. Structure:
-1. Purpose of This Memo
-2. Transaction Details
-3. Strategic Fit
-4. Financial Impact Assessment
-5. Key Risks & Mitigants
-6. Regulatory Considerations
-7. Board Resolution Sought
+  board_memo: `You are a CFO writing a formal board memo for transaction approval.
+## Purpose
+## Transaction Details
+## Strategic Fit
+## Financial Impact
+## Key Risks & Mitigants
+## Regulatory & Approvals
+## Board Resolution Sought
+600-800 words. Formal tone.`,
 
-Write ~500-700 words. Formal tone. Use Markdown headings.`,
+  investment_teaser: `You are a confidential investment teaser. Marketing tone, value-forward.
+## Transaction Opportunity
+## Business Overview
+## Investment Highlights
+## Financial Snapshot
+## Growth Opportunities
+## Transaction Structure
+## Process & Contact
+500-700 words.`,
 
-  investment_teaser: `You are an M&A banker writing a confidential Investment Teaser. Structure:
-1. Transaction Headline
-2. Business Overview
-3. Key Investment Highlights
-4. Financial Snapshot
-5. Growth Opportunities
-6. Transaction Structure
-7. Contact & Process
+  integration_blueprint: `You are an integration specialist writing a post-merger integration blueprint.
+## Integration Vision
+## IMO Setup & Governance
+## Day-1 Priorities
+## Workstream Architecture
+## Synergy Capture Plan
+## Communication Strategy
+## Risk Management
+1000-1400 words. Operationally specific.`,
 
-Write ~400-500 words. Marketing tone, highlighting value. Use Markdown headings.`,
-
-  integration_blueprint: `You are an integration specialist writing a Post-Merger Integration Blueprint. Structure:
-1. Integration Vision & Goals
-2. Integration Office Setup
-3. Day 1 Priorities
-4. Workstream Breakdown (HR, IT, Finance, Ops, Culture)
-5. Synergy Capture Plan
-6. Communication Strategy
-7. Risk & Issue Management
-8. Governance Model
-
-Write ~600-800 words. Operational, detailed. Use Markdown headings.`,
-
-  hundred_day_plan: `You are a strategy consultant writing a 100-Day Post-Merger Action Plan. Structure:
-1. Objective of the 100-Day Plan
-2. Phase 1: Stabilise (Days 1-30)
-3. Phase 2: Integrate (Days 31-60)
-4. Phase 3: Accelerate (Days 61-100)
-5. Quick Wins Checklist
-6. Success Metrics & KPIs
-7. Stakeholder Communication Plan
-
-Write ~600-800 words. Action-oriented, specific tasks. Use Markdown headings.`,
+  hundred_day_plan: `You are a strategy consultant writing a 100-day post-close action plan.
+## Objective
+## Days 1-30: Stabilize
+## Days 31-60: Integrate
+## Days 61-100: Accelerate
+## Quick Wins Checklist
+## Success Metrics
+## Stakeholder Communication
+900-1200 words. Action-oriented.`,
 };
 
 export async function POST(req: Request) {
@@ -85,10 +84,18 @@ export async function POST(req: Request) {
   const allowed = await checkRateLimit(supabase, "ai_proposal", 10, 60);
   if (!allowed) return NextResponse.json({ error: "Rate limit: 10 proposals/min" }, { status: 429 });
 
-  const {
-    proposal_type, client_name, buyer, target, sector,
-    geography, deal_size, notes, use_premium,
-  } = await req.json() as {
+const body = await req.json() as {
+    proposal_type: ProposalType;
+    client_name: string; buyer: string; target: string;
+    sector: string; geography: string; deal_size: string;
+    notes: string; use_premium?: boolean;
+    stake_percent?: number;
+    deal_type_input?: string;
+    client_role?: "buyer" | "seller" | "pe" | "jv_partner";
+    selected_services?: Service[];
+    research_docs?: string;
+  };
+  const { proposal_type, client_name, buyer, target, sector, geography, deal_size, notes, use_premium } = body;
     proposal_type: ProposalType;
     client_name: string; buyer: string; target: string;
     sector: string; geography: string; deal_size: string;
@@ -128,23 +135,73 @@ export async function POST(req: Request) {
     primaryModel: s?.[col_model] as string | undefined,
   };
 
-  const dealContext = [
-    client_name && `Client / Advisory House: ${client_name}`,
-    buyer      && `Buyer / Acquirer: ${buyer}`,
-    target     && `Target Company: ${target}`,
-    sector     && `Sector: ${sector}`,
-    geography  && `Geography: ${geography}`,
-    deal_size  && `Deal Size: ${deal_size}`,
-    notes      && `Additional Context: ${notes}`,
-  ].filter(Boolean).join("\n");
+ // Build deal intelligence
+  const dealInput: DealInput = {
+    buyer, target, sector, country: geography,
+    deal_type: body.deal_type_input ?? null,
+    stake_percent: body.stake_percent ?? null,
+    normalized_value_usd: null,
+    notes,
+  };
+  const classification = classifyDeal(dealInput);
+
+  // Services — use provided or auto-generate core set
+  let services: Service[] = body.selected_services?.filter((s) => s.selected) ?? [];
+  if (services.length === 0) {
+    services = generateServices(classification, dealInput)
+      .filter((s) => s.selected)
+      .map((s) => s.type === "custom" ? expandCustomService(s.name, classification, dealInput) : expandService(s, classification, dealInput));
+  } else {
+    services = services.map((s) => s.type === "custom" ? expandCustomService(s.name, classification, dealInput) : expandService(s, classification, dealInput));
+  }
+
+  const servicesBlock = services.map((s, i) => `
+### Service ${i + 1}: ${s.name}
+- **Objective:** ${s.objective}
+- **Scope:** ${(s.scope ?? []).join("; ")}
+- **Key Activities:** ${(s.activities ?? []).join("; ")}
+- **Deliverables:** ${(s.deliverables ?? []).join("; ")}
+- **Value Impact:** ${s.valueImpact}`).join("\n");
+
+  const dealContext = `
+## DEAL FACTS
+- Client / Advisory House: ${client_name || "N/A"}
+- Client Role: ${body.client_role ?? "buyer"}
+- Buyer / Acquirer: ${buyer}
+- Target Company: ${target}
+- Sector: ${sector || "N/A"}
+- Geography: ${geography || "N/A"}
+- Deal Size: ${deal_size || "N/A"}
+- Stake: ${body.stake_percent ? body.stake_percent + "%" : "N/A"}
+- Notes: ${notes || "None"}
+
+## DEAL CLASSIFICATION (use this verbatim)
+- Category: ${classification.category}
+- Control: ${classification.control}
+- Buyer Type: ${classification.buyerType}
+- Strategic Intent: ${classification.intent}
+- Integration Approach: ${classification.integrationNeed}
+- Decision Makers: ${classification.decisionMakers.join(", ")}
+
+## MANDATORY RISKS TO ADDRESS
+${classification.keyRisks.map((r) => `- ${r}`).join("\n")}
+
+## MANDATORY WORKSTREAMS
+${classification.mandatoryWorkstreams.map((w) => `- ${w}`).join("\n")}
+
+## SERVICES TO EMBED IN PROPOSAL (use these in the Services section)
+${servicesBlock}
+
+${body.research_docs ? `\n## ADDITIONAL RESEARCH / ANALYST NOTES\n${body.research_docs.slice(0, 4000)}\n` : ""}
+`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: PROPOSAL_PROMPTS[proposal_type] },
-    { role: "user", content: `Generate the document for this transaction:\n\n${dealContext}` },
+    { role: "user", content: `Using the deal facts, classification, risks, workstreams, and services below, generate the ${proposal_type.replace(/_/g, " ")} document. Integrate the services verbatim in the Services section. Reference the specific classification (category, control, integration approach) throughout.\n${dealContext}` },
   ];
 
   try {
-    const result = await routedCall(cfg, messages, 2000);
+    const result = await routedCall(cfg, messages, use_premium ? 4000 : 2500);
 
     await admin.from("proposals").insert({
       user_id: user.id, proposal_type, client_name, buyer, target,
