@@ -47,6 +47,7 @@ export default function ProposalsPage() {
   const [geography, setGeography] = useState("");
   const [dealSize, setDealSize] = useState("");
   const [notes, setNotes] = useState("");
+  const [usePremium, setUsePremium] = useState(false);
   const [stakePercent, setStakePercent] = useState("");
   const [dealTypeInput, setDealTypeInput] = useState("");
   const [clientRole, setClientRole] = useState<"buyer" | "seller" | "pe" | "jv_partner">("buyer");
