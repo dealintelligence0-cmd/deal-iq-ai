@@ -223,7 +223,7 @@ export async function exportPptx(deals: Deal[], title = "Deal Pipeline"): Promis
       { text: d.normalized_value_usd ? formatUsdShort(d.normalized_value_usd) : "—", options: { align: "right" as const } },
     ]),
   ];
-  s3.addTable(tblRows, {
+ s3.addTable(tblRows as never, {
     x: 0.5, y: 1.2, w: 12,
     fontSize: 10, fontFace: "Helvetica",
     border: { type: "solid", pt: 0.5, color: "E2E8F0" },
