@@ -81,6 +81,10 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { checkRateLimit, logActivity } = await import("@/lib/security");
+  const allowed = await checkRateLimit(supabase, "ai_proposal", 10, 60);
+  if (!allowed) return NextResponse.json({ error: "Rate limit: 10 proposals/min" }, { status: 429 });
+
   const {
     proposal_type, client_name, buyer, target, sector,
     geography, deal_size, notes, use_premium,
@@ -148,7 +152,7 @@ export async function POST(req: Request) {
       content: result.text, provider: result.provider,
       model: result.model, via_fallback: result.viaFallback,
     });
-
+await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
     return NextResponse.json({
       content: result.text,
       provider: result.provider,
