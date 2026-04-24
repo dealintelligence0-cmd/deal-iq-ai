@@ -152,6 +152,11 @@ export async function callProvider(
 
   if (meta.apiStyle === "rules") {
     const last = messages[messages.length - 1]?.content ?? "";
+    const isProposal = /DEAL FACTS|generate the.*document|Executive Summary|Strategic Rationale/i.test(last);
+    if (isProposal) {
+      const { generateOfflineProposal } = await import("@/lib/proposal/offline-engine");
+      return { provider, model, text: generateOfflineProposal(last), inputTokens: 0, outputTokens: 0 };
+    }
     return { provider, model, text: `[rule-based] ${last.slice(0, 400)}`, inputTokens: 0, outputTokens: 0 };
   }
   if (!apiKey) throw new Error(`Missing API key for ${provider}`);
