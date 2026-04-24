@@ -67,7 +67,7 @@ export default function LandingPage() {
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/login" className="group flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-3 text-sm font-medium shadow-lg shadow-indigo-500/25 hover:from-indigo-400 hover:to-purple-500">
-            Start free trial
+            Deal IQ AI turns conversations, CRM data, and market signals into winning proposals in minutes. Stop guessing. Start closing.
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Link>
           <a href="#features" className="rounded-lg border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium backdrop-blur hover:bg-white/10">
