@@ -33,11 +33,7 @@ export default function GlobalError({
             <RefreshCw className="h-4 w-4" /> Try again
           </button>
           
-            href="/dashboard"
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Go home
-          </a>
+           <a href="/dashboard" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Go home</a>
         </div>
       </div>
     </div>
