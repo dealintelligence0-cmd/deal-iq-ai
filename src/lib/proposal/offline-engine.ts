@@ -115,33 +115,79 @@ export function generateOfflineProposal(prompt: string): string {
   // ── Advisor Verdict (always first, both modes) ──
   const revPct = Math.round(syn.revenueVal / Math.max(parseVal(f.deal_size), 1) * 100);
   const costPct = Math.round(syn.costVal / Math.max(parseVal(f.deal_size), 1) * 100);
-  out.push(`## Advisor Verdict
+ out.push(`## 1. Deal Thesis
 
-**Investment Thesis**
-- ${B} acquires ${T} in ${S}${hasGeo ? ` (${G})` : ''} for ${V} — implied ${syn.hasValue ? `${revPct}% revenue + ${costPct}% cost synergy upside ($${syn.totalVal >= 1e9 ? (syn.totalVal/1e9).toFixed(1)+'B' : Math.round(syn.totalVal/1e6)+'M'} total)` : "synergy upside pending diligence"} over 36 months.
-- ${sec.dynamics[0][0].toUpperCase() + sec.dynamics[0].slice(1)} positions the combined platform for sector consolidation; sector benchmarks at ${sec.benchmark}.
-- Strategic logic: ${sec.valueDrivers}.
+- **Strategic:** ${B} acquires ${T} in ${S}${hasGeo ? ` across ${G}` : ''} — ${syn.hasValue ? `${syn.total} synergy envelope` : 'synergy envelope pending diligence'} validates ${sec.dynamics[0]} as the platform thesis.
+- **Financial:** ${V} consideration${syn.hasValue ? ` against ${revPct + costPct}% combined synergy = ${Math.round((1 - (syn.totalVal / Math.max(parseVal(f.deal_size), 1))) * 100)}% net cost basis at full capture` : ''}; ${parseVal(f.deal_size) >= 1e9 ? 'large-cap' : 'mid-market'} sector multiples imply ${sec.benchmark}.
+- **Operational:** ${sec.valueDrivers}.
 
-**Top 3 Risks (Quantified)**
-- Regulatory clearance — 6-9 month timeline; mitigation: pre-filing engagement + behavioural remedy package.
-- Talent attrition — 15-25% loss typical without retention; mitigation: 12/24/36-month vest + equity acceleration on top 100 roles.
-- Synergy execution — industry benchmark captures 60-70% of plan; mitigation: IMO with milestone-linked incentives + named owners.
+## 2. Deal Score
 
-**Top 3 Synergies (With Impact)**
-- Cost: G&A consolidation, procurement leverage, tech rationalisation${syn.hasValue ? ` — **${syn.cost}** (${costPct}% of deal value)` : ''}, captured Year 1-2.
-- Revenue: cross-sell, geographic expansion, pricing power${syn.hasValue ? ` — **${syn.revenue}** (${revPct}% of deal value)` : ''}, realised Year 2-3.
-- Strategic: platform scale enabling 2-3 bolt-on acquisitions over 24 months.
+| Dimension | Score | Rationale |
+|---|---|---|
+| Market | ${syn.hasValue && (syn.totalVal/Math.max(parseVal(f.deal_size),1)) > 0.20 ? '8' : '6'}/10 | ${sec.dynamics[0]} |
+| Company | 7/10 | Diligence-pending; assumes Q-of-E confirmation |
+| Synergy | ${syn.hasValue ? (syn.totalVal/Math.max(parseVal(f.deal_size),1) > 0.22 ? '8' : '6') : '5'}/10 | ${syn.hasValue ? `${syn.total} captured 30/70/100` : 'value not quantified'} |
+| Execution Risk (inverted) | ${parseVal(f.deal_size) >= 5e9 ? '5' : '7'}/10 | ${parseVal(f.deal_size) >= 5e9 ? 'mega-cap regulatory + integration complexity' : 'manageable scope'} |
 
-**Key Unknowns**
-- Customer concentration in top 10 accounts (data dependency for IC)
-- ${T} EBITDA quality and one-time adjustments (QoE required)
-- Regulator stance in ${G || 'primary jurisdiction'} (pre-filing dialogue needed)
-- Cultural fit between buyer and target leadership teams
-- Currency / cycle risk between sign and close
+**Composite: ${syn.hasValue ? Math.round(((syn.totalVal/Math.max(parseVal(f.deal_size),1)) > 0.20 ? 7.5 : 6.2) * 10) / 10 : 6.0} / 10 — Verdict: ${syn.hasValue && (syn.totalVal/Math.max(parseVal(f.deal_size),1)) > 0.20 ? 'Strong' : 'Moderate'}**
 
-**Recommendation: ${syn.hasValue && parseVal(f.deal_size) > 0 && (syn.totalVal / parseVal(f.deal_size)) > 0.18 ? "GO" : "CONDITIONAL GO"}**
+## 3. Synergy Model
 
-${syn.hasValue ? `Synergy envelope of ${syn.total} represents ${Math.round((syn.totalVal/parseVal(f.deal_size))*100)}% of consideration — ${(syn.totalVal/parseVal(f.deal_size)) > 0.20 ? 'sufficient cushion to justify the bid even with 50% realisation slippage' : 'adequate but tight; advance only with binding QoE and customer references'}.` : 'Insufficient value data to score; commission rapid Phase 1 diligence before bid commitment.'} Decision-maker view (${f.client_name !== 'Valued Client' ? f.client_name : 'IC / Board'}): proceed${syn.hasValue && (syn.totalVal/parseVal(f.deal_size)) > 0.20 ? '' : ' with conditions'}.`);
+| Type | Year 1 | Year 2 | Year 3 | Confidence |
+|---|---|---|---|---|
+| Revenue Synergy | ${syn.hasValue ? '$' + Math.round(syn.revenueVal*0.30/1e6) + 'M' : 'TBD'} | ${syn.hasValue ? '$' + Math.round(syn.revenueVal*0.70/1e6) + 'M' : 'TBD'} | ${syn.hasValue ? syn.revenue : 'TBD'} | 60% |
+| Cost Synergy | ${syn.hasValue ? '$' + Math.round(syn.costVal*0.30/1e6) + 'M' : 'TBD'} | ${syn.hasValue ? '$' + Math.round(syn.costVal*0.70/1e6) + 'M' : 'TBD'} | ${syn.hasValue ? syn.cost : 'TBD'} | 75% |
+| One-time Cost | ${syn.hasValue ? '$(' + Math.round(parseVal(f.deal_size)*0.025/1e6) + 'M)' : 'TBD'} | ${syn.hasValue ? '$(' + Math.round(parseVal(f.deal_size)*0.015/1e6) + 'M)' : 'TBD'} | — | — |
+| **Net Run-rate** | — | — | ${syn.hasValue ? syn.total : 'TBD'} | — |
+
+## 4. Risk Engine (Top 4)
+
+| Risk | Type | Probability | $ Impact | Mitigation |
+|---|---|---|---|---|
+| Regulatory clearance delays | regulatory | 35% | ${syn.hasValue ? '$' + Math.round(parseVal(f.deal_size)*0.02/1e6) + 'M' : '~2% of EV'} | Pre-filing engagement; behavioural remedies prepared |
+| Talent attrition (top 100) | execution | 45% | ${syn.hasValue ? '$' + Math.round(syn.revenueVal*0.15/1e6) + 'M' : '~15% of revenue synergy'} | Retention bonuses 12/24/36-mo + equity acceleration |
+| Synergy capture shortfall | execution | 50% | ${syn.hasValue ? '$' + Math.round(syn.totalVal*0.30/1e6) + 'M' : '~30% of synergy plan'} | IMO with milestone incentives + named owners |
+| Customer attrition during transition | market | 25% | ${syn.hasValue ? '$' + Math.round(syn.revenueVal*0.20/1e6) + 'M' : '~20% of revenue synergy'} | Top 50 account outreach + service continuity SLAs |
+
+## 5. Valuation View
+
+- Implied EV/EBITDA: indicative ${parseVal(f.deal_size) >= 1e9 ? '12-15x' : '8-12x'} (EBITDA assumption pending Q-of-E)
+- Sector benchmark: ${sec.benchmark}
+- Premium logic: pay control premium of ~25-30% justified by ${syn.hasValue ? Math.round((syn.totalVal/Math.max(parseVal(f.deal_size),1))*100) + '% synergy / EV ratio' : 'capability acquisition value'}
+
+## 6. Scenario Analysis
+
+| Scenario | Synergy Capture | Net Outcome | Probability |
+|---|---|---|---|
+| Base | 70% | ${syn.hasValue ? '$' + Math.round(syn.totalVal*0.70/1e6) + 'M' : 'TBD'} | 50% |
+| Upside | 100% | ${syn.hasValue ? syn.total : 'TBD'} | 25% |
+| Downside | 35% | ${syn.hasValue ? '$' + Math.round(syn.totalVal*0.35/1e6) + 'M' : 'TBD'} | 25% |
+
+## 7. What Must Be True
+
+- ${T} EBITDA quality confirmed at announced level (no >5% adjustment)
+- Top 10 customer retention >90% through close +12 months
+- Regulatory clearance secured within 9 months
+- Integration costs held below ${syn.hasValue ? '$' + Math.round(parseVal(f.deal_size)*0.04/1e6) + 'M' : '4% of EV'}
+- Year 1 synergy capture ≥30% of plan (leading indicator for full curve)
+
+## 8. Contrarian View — Why This Could Fail
+
+The ${syn.hasValue ? Math.round((syn.totalVal/Math.max(parseVal(f.deal_size),1))*100) + '%' : 'unquantified'} synergy thesis assumes seamless integration in a sector experiencing ${sec.risks[0]}. Historical deals of this profile show 40-50% synergy slippage when ${sec.risks[1]} materializes; if that occurs alongside execution drift, the deal could destroy 15-25% of equity value despite a structurally sound thesis.
+
+## 9. IC Questions (Top 5)
+
+1. What is the customer concentration in ${T}'s top 10 accounts and contractual change-of-control protection?
+2. What ${syn.hasValue ? 'percentage of $' + Math.round(syn.costVal/1e6) + 'M cost synergies' : 'cost synergy'} requires headcount reduction and what is the regulatory friction?
+3. What is the IT carve-out / integration cost beyond the stated one-time figure?
+4. Which competitor reactions (price, M&A counter-bid) could compress the synergy capture window?
+5. What pricing power exists post-close to defend the ${sec.benchmark} multiple at exit?
+
+## 10. Recommendation: ${syn.hasValue && (syn.totalVal/Math.max(parseVal(f.deal_size),1)) > 0.22 ? 'GO' : 'CONDITIONAL GO'}
+
+- **Confidence:** ${syn.hasValue ? (syn.totalVal/Math.max(parseVal(f.deal_size),1)) > 0.22 ? '70%' : '55%' : '45%'}
+- **Justification:** ${syn.hasValue ? `Composite score and ${Math.round((syn.totalVal/Math.max(parseVal(f.deal_size),1))*100)}% synergy/EV ratio support the thesis even with 50% slippage. Proceed with binding QoE, customer references on top 10 accounts, and regulator pre-clearance dialogue.` : 'Insufficient value data prevents IC-grade scoring. Commission Phase 1 commercial + financial diligence before bid commitment.'} Decision-maker view: ${f.client_name !== 'Valued Client' ? f.client_name : 'IC / Board'} should ${syn.hasValue && (syn.totalVal/Math.max(parseVal(f.deal_size),1)) > 0.22 ? 'authorize bid' : 'authorize diligence with bid contingent on findings'}.`);
   out.push(`## Executive Summary
 
 This proposal presents a comprehensive advisory framework for the proposed transaction between **${B}** and **${T}**${V === 'an indicative value' ? '' : `, with an indicative value of **${V}**`}. The transaction sits within the ${S} sector${hasGeo ? `, with primary exposure in ${G}` : ''}, and creates a combined entity with enhanced market position, pricing power, and a defensible competitive moat.
