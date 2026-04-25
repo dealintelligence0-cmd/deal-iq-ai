@@ -61,6 +61,9 @@ function ProposalsPageInner() {
   const [researchLoading, setResearchLoading] = useState(false);
   const [researchStatus, setResearchStatus] = useState<string>("");
   const [useResearch, setUseResearch] = useState(false);
+  const [researchMode, setResearchMode] = useState<"web" | "prompt">("web");
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [dealId, setDealId] = useState<string>("");
 
   useEffect(() => {
@@ -85,14 +88,19 @@ function ProposalsPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function runResearch(b: string, t: string, s: string, g: string, did?: string) {
+async function runResearch(b: string, t: string, s: string, g: string, did?: string) {
     setResearchLoading(true);
-    setResearchStatus("ߔ Fetching live market intelligence...");
+    setResearchStatus(researchMode === "prompt" ? "Generating AI research from prompt..." : "Fetching live market intelligence...");
     try {
       const r = await fetch("/api/research", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ buyer: b, target: t, sector: s, geography: g, deal_id: did }),
+        body: JSON.stringify({
+          buyer: b, target: t, sector: s, geography: g,
+          deal_id: did, deal_size: dealSize,
+          mode: researchMode,
+          custom_prompt: researchMode === "prompt" ? customPrompt : undefined,
+        }),
       });
       const j = await r.json();
       if (j.brief) {
@@ -394,6 +402,45 @@ function ProposalsPageInner() {
                   <Plus className="h-3 w-3" />
                 </button>
               </div>
+            </div>
+          )}
+          {(buyer && target) && (
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <label className="text-[11px] font-semibold text-slate-700">Research Mode</label>
+              <select value={researchMode} onChange={(e) => setResearchMode(e.target.value as "web" | "prompt")}
+                className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]">
+                <option value="web">ߌ Live Web (Tavily / Brave / Serper)</option>
+                <option value="prompt">ߧ Prompt-Based AI (GPT / Claude / Gemini / Groq)</option>
+              </select>
+              <p className="mt-1 text-[10px] text-slate-500">
+                {researchMode === "web"
+                  ? "Fetches live web sources. Requires search-provider API key."
+                  : "Uses your Smart-tier LLM with a custom prompt. No web access."}
+              </p>
+              {researchMode === "prompt" && (
+                <>
+                  <button onClick={() => setShowPromptEditor(!showPromptEditor)}
+                    className="mt-2 text-[10px] font-medium text-indigo-600 hover:text-indigo-700">
+                    {showPromptEditor ? "Hide" : "Edit"} prompt template ▾
+                  </button>
+                  {showPromptEditor && (
+                    <div className="mt-2">
+                      <textarea value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        rows={8}
+                        placeholder="Leave empty to use default research template. Variables: {{buyer}} {{target}} {{sector}} {{geography}} {{deal_size}}"
+                        className="w-full rounded border border-slate-200 px-2 py-1.5 font-mono text-[10px]" />
+                      <button onClick={async () => {
+                        const m = await import("@/lib/research/web-research");
+                        setCustomPrompt(m.DEFAULT_RESEARCH_PROMPT);
+                      }} className="mt-1 text-[10px] text-slate-500 hover:text-indigo-600">
+                        Load default template
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+             
             </div>
           )}
           {(researchBrief || researchLoading || researchStatus) && (
