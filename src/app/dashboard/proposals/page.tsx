@@ -257,7 +257,87 @@ async function runResearch(b: string, t: string, s: string, g: string, did?: str
     const win = window.open("", "_blank");
     if (!win) return;
     const label = PROPOSAL_OPTIONS.find((o) => o.value === proposalType)?.label ?? "";
-    win.document.write(`<html><head><title>${label}</title>
+    const dealTitle = [target, "·", buyer].filter(Boolean).join(" ");
+    const today = new Date().toLocaleDateString();
+    const footerText = "This document is for informational purposes only and does not constitute financial, legal, or investment advice. No reliance should be placed on this analysis. Independent verification is required.";
+
+    win.document.write(`<!DOCTYPE html><html><head>
+<meta charset="utf-8"/>
+<title>${label}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@page { margin: 22mm 18mm 26mm 18mm; }
+body {
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #0f172a;
+  background: #fff;
+  font-size: 11px;
+  line-height: 1.55;
+  margin: 0;
+  padding: 0;
+}
+.pdf-wrap { max-width: 780px; margin: 0 auto; padding: 0 8px; }
+.pdf-header { border-bottom: 2px solid #4f46e5; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+.pdf-header .label { font-size: 9px; font-weight: 700; letter-spacing: 2px; color: #4f46e5; text-transform: uppercase; }
+.pdf-header h1 { font-size: 20px; font-weight: 700; margin: 4px 0 0; }
+.pdf-header .sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+.pdf-header .meta { text-align: right; font-size: 10px; color: #64748b; }
+section { margin: 22px 0; page-break-inside: avoid; }
+section h2 { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+section h2 .num { font-size: 9px; color: #4f46e5; font-weight: 700; letter-spacing: 1.5px; margin-right: 8px; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px; }
+th { background: #eef2ff; color: #3730a3; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 2px solid #c7d2fe; }
+td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; }
+.metric-card { display: inline-block; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); border-radius: 8px; padding: 10px 14px; margin: 4px 6px 4px 0; }
+.metric-card .l { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; font-weight: 600; }
+.metric-card .v { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 2px; }
+ul, ol { padding-left: 18px; margin: 6px 0; }
+li { margin: 3px 0; }
+strong { color: #0f172a; }
+.pdf-footer { position: fixed; bottom: 8mm; left: 18mm; right: 18mm; font-size: 8px; color: #94a3b8; text-align: center; border-top: 0.5px solid #e2e8f0; padding-top: 4px; }
+.notice-page { page-break-before: always; padding-top: 30px; }
+.notice-page h1 { font-size: 18px; font-weight: 700; color: #0f172a; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; margin-bottom: 16px; }
+.notice-page p { font-size: 11px; color: #475569; margin: 10px 0; line-height: 1.6; }
+.notice-page ul li { font-size: 11px; color: #475569; margin: 6px 0; }
+@media print { .pdf-footer { display: block; } }
+</style>
+</head><body>
+<div class="pdf-wrap">
+  <div class="pdf-header">
+    <div>
+      <div class="label">Deal IQ AI · Confidential</div>
+      <h1>${label}</h1>
+      ${dealTitle ? `<div class="sub">${dealTitle}</div>` : ""}
+    </div>
+    <div class="meta">
+      ${today}<br/>
+      ${dealSize ? `<strong>${dealSize}</strong><br/>` : ""}
+      ${sector || ""}
+    </div>
+  </div>
+  ${renderVisualProposal(content)}
+  ${researchBrief ? renderCitations(researchBrief) : ""}
+
+  <div class="notice-page">
+    <h1>Important Notice</h1>
+    <p>This document was generated using AI-powered analysis tools. Before relying on any portion of this content, please review the limitations below.</p>
+    <ul>
+      <li>AI-generated insights may be incomplete, inaccurate, or rely on outdated public information.</li>
+      <li>The platform is provided on an &ldquo;as is&rdquo; basis without any warranties, express or implied.</li>
+      <li>The platform owner accepts no liability for decisions, outcomes, or losses arising from use of, or reliance on, this analysis.</li>
+      <li>Use of the platform and its outputs is at the user&apos;s sole risk.</li>
+      <li>Independent professional diligence is required before any financial, legal, regulatory, or investment decision.</li>
+    </ul>
+    <p style="margin-top:24px;color:#94a3b8;font-size:10px;">© ${new Date().getFullYear()} Rahul Yadav. All rights reserved. Unauthorized replication or commercial use is prohibited.</p>
+  </div>
+</div>
+<div class="pdf-footer">${footerText}</div>
+</body></html>`);
+    win.document.close();
+    win.onload = () => {
+      setTimeout(() => { win.focus(); win.print(); }, 250);
+    };
+  }
 <script src="https://cdn.tailwindcss.com"></script>
 <style>body{font-family:'Helvetica',sans-serif;max-width:820px;margin:40px auto;padding:0 40px;color:#0f172a}.meta{font-size:11px;color:#888;margin-bottom:24px;border-bottom:2px solid #6366f1;padding-bottom:12px}@media print{body{margin:20px}}</style>
 </head><body><div class="meta"><strong style="color:#6366f1;letter-spacing:2px">DEAL IQ AI</strong><br/>${new Date().toLocaleDateString()} · ${model} · CONFIDENTIAL</div>${renderVisualProposal(content)}${researchBrief ? renderCitations(researchBrief) : ""}</body></html>`);
