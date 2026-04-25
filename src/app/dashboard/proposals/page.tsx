@@ -262,7 +262,12 @@ async function runResearch(b: string, t: string, s: string, g: string, did?: str
 <style>body{font-family:'Helvetica',sans-serif;max-width:820px;margin:40px auto;padding:0 40px;color:#0f172a}.meta{font-size:11px;color:#888;margin-bottom:24px;border-bottom:2px solid #6366f1;padding-bottom:12px}@media print{body{margin:20px}}</style>
 </head><body><div class="meta"><strong style="color:#6366f1;letter-spacing:2px">DEAL IQ AI</strong><br/>${new Date().toLocaleDateString()} · ${model} · CONFIDENTIAL</div>${renderVisualProposal(content)}${researchBrief ? renderCitations(researchBrief) : ""}</body></html>`);
     win.document.close();
-    win.print();
+    win.onload = () => {
+      setTimeout(() => {
+        win.focus();
+        win.print();
+      }, 250);
+    };
   }
 
   const selectedOption = PROPOSAL_OPTIONS.find((o) => o.value === proposalType);
