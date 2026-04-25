@@ -49,7 +49,16 @@ function ProposalsPageInner() {
   const [sector, setSector] = useState("");
   const [geography, setGeography] = useState("");
   const [dealSize, setDealSize] = useState("");
-  const [notes, setNotes] = useState("");
+  const [noteRationale, setNoteRationale] = useState("");
+  const [noteRisks, setNoteRisks] = useState("");
+  const [noteWins, setNoteWins] = useState("");
+  const [noteAsks, setNoteAsks] = useState("");
+  const notes = [
+    noteRationale,
+    noteRisks ? `[RISKS] ${noteRisks}` : "",
+    noteWins ? `[WINS] ${noteWins}` : "",
+    noteAsks ? `[ASKS] ${noteAsks}` : "",
+  ].filter(Boolean).join("\n");
   const [usePremium, setUsePremium] = useState(false);
   const [stakePercent, setStakePercent] = useState("");
   const [dealTypeInput, setDealTypeInput] = useState("");
@@ -392,31 +401,32 @@ strong { color: #0f172a; }
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-200" />
             </div>
           ))}
-         <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-3">
-            <p className="mb-2 text-[11px] font-semibold text-amber-900">ߒ Insider Insights (boost proposal quality)</p>
+       <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-3">
+            <p className="mb-2 text-[11px] font-semibold text-amber-900">Insider Insights (boost proposal quality)</p>
             <div className="space-y-2">
               <div>
                 <label className="block text-[10px] font-medium text-slate-600">Strategic Rationale</label>
-                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Why this deal? What's the thesis?"
+                <textarea value={noteRationale} onChange={(e) => setNoteRationale(e.target.value)} rows={2}
+                  placeholder="Why this deal? What's the thesis?"
                   className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px]" />
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-600">Known Risks / Concerns</label>
-                <textarea id="insight-risks" rows={2} placeholder="Antitrust risk, talent flight, customer concentration..."
-                  className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px]"
-                  onChange={(e) => setNotes(notes.split("\n[RISKS]")[0] + "\n[RISKS] " + e.target.value)} />
+                <textarea value={noteRisks} onChange={(e) => setNoteRisks(e.target.value)} rows={2}
+                  placeholder="Antitrust risk, talent flight, customer concentration..."
+                  className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px]" />
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-600">Wins / Differentiators</label>
-                <textarea id="insight-wins" rows={2} placeholder="What makes this deal special? Strategic moat?"
-                  className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px]"
-                  onChange={(e) => setNotes((notes.split("\n[WINS]")[0]) + "\n[WINS] " + e.target.value)} />
+                <textarea value={noteWins} onChange={(e) => setNoteWins(e.target.value)} rows={2}
+                  placeholder="What makes this deal special? Strategic moat?"
+                  className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px]" />
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-600">Client Asks</label>
-                <textarea id="insight-asks" rows={2} placeholder="What does the client specifically want emphasized?"
-                  className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px]"
-                  onChange={(e) => setNotes((notes.split("\n[ASKS]")[0]) + "\n[ASKS] " + e.target.value)} />
+                <textarea value={noteAsks} onChange={(e) => setNoteAsks(e.target.value)} rows={2}
+                  placeholder="What does the client specifically want emphasized?"
+                  className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px]" />
               </div>
             </div>
           </div>
