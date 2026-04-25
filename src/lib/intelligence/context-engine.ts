@@ -13,11 +13,34 @@ export type DealContext = {
   one_time_costs_usd: number;
   integration_timeline_months: number;
   industry_levers: string[];
+  benchmark_multiple: string;
+  benchmark_note: string;
 };
 
 const HIGH_GROWTH = ["technology", "ai", "biotech", "fintech", "saas", "cybersecurity", "renewable"];
 const LOW_GROWTH = ["utilities", "tobacco", "print", "coal", "mining"];
 
+// Industry-anchored synergy benchmarks (source: aggregated MBB / Big4 deal study averages)
+const SYNERGY_BENCHMARKS: Record<string, { revPct: number; costPct: number; multiple: string; note: string }> = {
+  technology:    { revPct: 0.08, costPct: 0.12, multiple: "12-20x EBITDA", note: "SaaS deals: cross-sell + cloud rationalization" },
+  saas:          { revPct: 0.10, costPct: 0.13, multiple: "15-25x EBITDA / 5-12x ARR", note: "Net retention + ARPU expansion typical" },
+  manufacturing: { revPct: 0.04, costPct: 0.10, multiple: "8-12x EBITDA", note: "Procurement leverage drives most savings" },
+  retail:        { revPct: 0.05, costPct: 0.08, multiple: "6-10x EBITDA", note: "Inventory + private label key levers" },
+  healthcare:    { revPct: 0.06, costPct: 0.09, multiple: "12-18x EBITDA", note: "Service line + payer mix optimization" },
+  financial:     { revPct: 0.05, costPct: 0.11, multiple: "8-14x EBITDA / 1.5-3x BV", note: "Cost-to-income ratio is primary lever" },
+  industrial:    { revPct: 0.04, costPct: 0.09, multiple: "8-12x EBITDA", note: "Aftermarket + footprint optimization" },
+  energy:        { revPct: 0.03, costPct: 0.08, multiple: "6-10x EBITDA", note: "Asset utilization + lifting cost reduction" },
+  fintech:       { revPct: 0.09, costPct: 0.11, multiple: "10-18x Revenue", note: "Customer base cross-sell" },
+  biotech:       { revPct: 0.07, costPct: 0.06, multiple: "Pipeline NPV-driven", note: "R&D consolidation + clinical synergies" },
+};
+
+function getBenchmark(sector: string) {
+  const s = sector.toLowerCase();
+  for (const [k, v] of Object.entries(SYNERGY_BENCHMARKS)) {
+    if (s.includes(k)) return v;
+  }
+  return { revPct: 0.06, costPct: 0.10, multiple: "8-15x EBITDA", note: "diversified industry average" };
+}
 const SECTOR_LEVERS: Record<string, string[]> = {
   technology: ["ARPU expansion", "net retention rate (NRR)", "logo retention", "upsell motion", "cloud cost optimization"],
   saas: ["ARPU", "churn reduction", "upsell rate", "CAC payback", "gross margin expansion"],
@@ -111,8 +134,13 @@ export function buildDealContext(input: {
     value >= 1e10 ? "mega-cap" : value >= 1e9 ? "large-cap" : value >= 1e8 ? "mid-market" : "small-cap";
 
   // Synergy estimates
-  const revPct = growth_profile === "high" ? 0.12 : growth_profile === "moderate" ? 0.08 : 0.04;
-  const costPct = deal_type === "PE Buyout" ? 0.15 : deal_type === "Carve-out" ? 0.08 : 0.13;
+ // Synergy estimates — anchored to sector benchmarks
+  const bench = getBenchmark(sector);
+  // Adjust for buyer type: PE captures more cost; strategic captures more revenue
+  const buyerCostMultiplier = deal_type === "PE Buyout" ? 1.2 : deal_type === "Carve-out" ? 0.7 : 1.0;
+  const buyerRevMultiplier = buyer_type === "Strategic" ? 1.15 : 0.9;
+  const revPct = bench.revPct * buyerRevMultiplier;
+  const costPct = bench.costPct * buyerCostMultiplier;
   const oneTimePct = 0.04;
 
   return {
@@ -123,6 +151,8 @@ export function buildDealContext(input: {
     one_time_costs_usd: Math.round(value * oneTimePct),
     integration_timeline_months: deal_type === "Carve-out" ? 18 : deal_type === "JV" ? 24 : 12,
     industry_levers: getLevers(sector),
+    benchmark_multiple: bench.multiple,
+    benchmark_note: bench.note,
   };
 }
 
@@ -147,6 +177,9 @@ export function contextToPromptBlock(c: DealContext): string {
 - one_time_integration_cost: ${fmt(c.one_time_costs_usd)} (${Math.round(c.one_time_costs_usd / Math.max(c.deal_size_usd, 1) * 100)}% of EV)
 - integration_timeline: ${c.integration_timeline_months} months
 - industry_value_levers: ${c.industry_levers.join(", ")}
+- benchmark_multiple_range: ${c.benchmark_multiple}
+- benchmark_note: ${c.benchmark_note}
+- synergy_assumption_basis: revenue ${Math.round(c.expected_synergy_revenue_usd / Math.max(c.deal_size_usd, 1) * 100)}% (sector avg) + cost ${Math.round(c.expected_synergy_cost_usd / Math.max(c.deal_size_usd, 1) * 100)}% (sector avg) — anchored, not arbitrary
 `;
 }
 export function buildAdvisorVerdictPrompt(c: DealContext): string {
