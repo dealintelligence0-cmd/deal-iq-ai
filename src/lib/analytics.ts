@@ -26,16 +26,24 @@ export type Kpis = {
 export type Bucket = { name: string; value: number; count: number };
 
 export async function fetchDeals(): Promise<Deal[]> {
-  const supabase = createClient();
-  const { data } = await supabase
-    .from("deals")
-    .select(
-      "id,deal_date,buyer,target,sector,country,deal_type,status,normalized_value_usd,stake_percent,value_raw,created_at"
-    )
-    .order("deal_date", { ascending: false, nullsFirst: false })
-    .limit(5000);
-  return (data ?? []) as Deal[];
+  try {
+    const sb = createClient();
+    const { data, error } = await sb
+      .from("deals")
+      .select("*")
+      .order("deal_date", { ascending: false })
+      .limit(500);
+    if (error) {
+      console.error("fetchDeals failed:", error.message);
+      return [];
+    }
+    return (data ?? []) as Deal[];
+  } catch (e) {
+    console.error("fetchDeals exception:", e);
+    return [];
+  }
 }
+
 
 export function computeKpis(deals: Deal[]): Kpis {
   const totalValueUsd = deals.reduce(
