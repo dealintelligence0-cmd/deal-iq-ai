@@ -91,7 +91,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { checkRateLimit, logActivity } = await import("@/lib/security");
-  const allowed = await checkRateLimit(supabase, "ai_proposal", 10, 60);
+  const allowed = await checkRateLimit(supabase, "ai_proposal", 20, 60);
   if (!allowed) return NextResponse.json({ error: "Rate limit: 10 proposals/min" }, { status: 429 });
 
 const body = await req.json() as {
@@ -206,7 +206,7 @@ ${body.research_docs ? `\n## ADDITIONAL RESEARCH / ANALYST NOTES\n${body.researc
 `;
 
   const messages: ChatMessage[] = [
-    { role: "system", content: PROPOSAL_PROMPTS[proposal_type] },
+    { role: "system", content: PROPOSAL_PROMPTS[proposal_type] + "\n\nADDITIONAL RULES: Use consistent currency throughout. State EV/EBITDA multiple where possible. Never use buzzwords without supporting data. Identify the decision-maker lens (CEO / Board / IC / PE Partner) based on client_role and write to that audience." },
     { role: "user", content: `Using the deal facts, classification, risks, workstreams, and services below, generate the ${proposal_type.replace(/_/g, " ")} document. Integrate the services verbatim in the Services section. Reference the specific classification (category, control, integration approach) throughout.\n${dealContext}` },
   ];
 
