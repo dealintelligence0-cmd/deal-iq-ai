@@ -19,12 +19,19 @@ export default function DashboardPage() {
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
-      const d = await fetchDeals();
-      setDeals(d);
-      setKpis(computeKpis(d));
-      setLoading(false);
+      try {
+        const d = await fetchDeals();
+        setDeals(d);
+        setKpis(computeKpis(d));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load dashboard");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -36,6 +43,19 @@ export default function DashboardPage() {
     );
   }
 
+if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-950/30">
+        <h2 className="font-semibold text-red-800 dark:text-red-300">Dashboard error</h2>
+        <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
+        <button onClick={() => window.location.reload()}
+          className="mt-3 rounded bg-red-600 px-3 py-1.5 text-xs text-white hover:bg-red-700">
+          Reload
+        </button>
+      </div>
+    );
+  }
+  
   const trend = monthlyTrend(deals);
   const sectors = topBuckets(deals, "sector");
   const countries = topBuckets(deals, "country");
