@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   BrainCircuit, LayoutDashboard, CloudUpload, GitMerge,
   AlertTriangle, FlaskConical, Briefcase, FileText,
@@ -35,6 +37,7 @@ export default function Sidebar() {
           <BrainCircuit className="h-5 w-5 text-white" />
         </div>
         <span className="flex-1 text-base font-semibold text-white">Deal IQ AI</span>
+        <AdminBadge />
         <ThemeToggle />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
@@ -72,4 +75,18 @@ export default function Sidebar() {
       </div>
     </aside>
   );
+}
+function AdminBadge() {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const sb = createClient();
+      const { data } = await sb.rpc("is_admin");
+      setIsAdmin(Boolean(data));
+    })();
+  }, []);
+
+  if (!isAdmin) return null;
+  return <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-300">Admin</span>;
 }
