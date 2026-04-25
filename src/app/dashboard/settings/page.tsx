@@ -127,7 +127,26 @@ export default function SettingsPage() {
           </div>
         );
       })}
-
+<div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/50 p-5">
+        <h2 className="font-semibold">ߔ Web Research (Tavily)</h2>
+        <p className="mt-1 text-xs text-slate-600">For Premium AI proposals with live web intelligence. Free tier: 1000 searches/month.</p>
+        <a href="https://app.tavily.com/home" target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-indigo-600">Get free Tavily API key →</a>
+        <div className="mt-3 flex gap-2">
+          <input id="tavily" type="password" placeholder="tvly-..."
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          <button onClick={async () => {
+            const inp = document.getElementById("tavily") as HTMLInputElement;
+            if (!inp?.value) return;
+            const r = await fetch("/api/ai/save-tavily-key", {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ key: inp.value }),
+            });
+            const j = await r.json();
+            setStatus(j.ok ? "Tavily key saved." : `Error: ${j.error}`);
+            if (j.ok) inp.value = "";
+          }} className="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white">Save Key</button>
+        </div>
+      </div>
       {status && <div className="rounded-lg bg-slate-100 p-3 text-sm">{status}</div>}
     </div>
   );
