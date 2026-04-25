@@ -294,9 +294,13 @@ body {
 section { margin: 22px 0; page-break-inside: avoid; }
 section h2 { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
 section h2 .num { font-size: 9px; color: #4f46e5; font-weight: 700; letter-spacing: 1.5px; margin-right: 8px; }
-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px; }
-th { background: #eef2ff; color: #3730a3; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 2px solid #c7d2fe; }
-td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10px; table-layout: fixed; }
+th { background: #eef2ff; color: #3730a3; font-weight: 700; text-align: left; padding: 8px 10px; border-bottom: 2px solid #c7d2fe; word-break: break-word; }
+td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; word-break: break-word; vertical-align: top; }
+tr { page-break-inside: avoid; }
+table { page-break-inside: auto; }
+thead { display: table-header-group; }
+section { page-break-inside: avoid; }
 .metric-card { display: inline-block; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); border-radius: 8px; padding: 10px 14px; margin: 4px 6px 4px 0; }
 .metric-card .l { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; font-weight: 600; }
 .metric-card .v { font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 2px; }
