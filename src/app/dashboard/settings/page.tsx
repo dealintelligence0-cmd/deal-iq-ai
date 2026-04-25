@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const [smartModel, setSmartModel] = useState<string | null>(null);
   const [fastKey, setFastKey] = useState("");
   const [smartKey, setSmartKey] = useState("");
-  const [status, setStatus] = useState<string>("");
+ const [tavilyVal, setTavilyVal] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -127,27 +127,112 @@ export default function SettingsPage() {
           </div>
         );
       })}
-<div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/50 p-5">
-        <h2 className="font-semibold">ߔ Web Research (Tavily)</h2>
-        <p className="mt-1 text-xs text-slate-600">For Premium AI proposals with live web intelligence. Free tier: 1000 searches/month.</p>
+<div className="mb-6 card p-5 border-l-4 border-l-amber-500">
+        <h2 className="font-semibold text-slate-900">Web Research (Tavily)</h2>
+        <p className="mt-1 text-xs text-slate-600">For Premium AI proposals with live web research. Free tier: 1000 searches/month.</p>
         <a href="https://app.tavily.com/home" target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-indigo-600">Get free Tavily API key →</a>
         <div className="mt-3 flex gap-2">
-          <input id="tavily" type="password" placeholder="tvly-..."
+          <input type="password" value={tavilyVal} onChange={(e) => setTavilyVal(e.target.value)} placeholder="tvly-..."
             className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
           <button onClick={async () => {
-            const inp = document.getElementById("tavily") as HTMLInputElement;
-            if (!inp?.value) return;
+            if (!tavilyVal.trim()) return;
             const r = await fetch("/api/ai/save-tavily-key", {
               method: "POST", headers: { "content-type": "application/json" },
-              body: JSON.stringify({ key: inp.value }),
+              body: JSON.stringify({ key: tavilyVal.trim() }),
             });
             const j = await r.json();
-            setStatus(j.ok ? "Tavily key saved." : `Error: ${j.error}`);
-            if (j.ok) inp.value = "";
-          }} className="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white">Save Key</button>
+            setStatus(j.ok ? "Tavily key saved." : "Error: " + j.error);
+            if (j.ok) setTavilyVal("");
+          }} className="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white">Save</button>
         </div>
       </div>
+
+      <DangerZone setStatus={setStatus} />
       {status && <div className="rounded-lg bg-slate-100 p-3 text-sm">{status}</div>}
+    </div>
+  );
+}
+import { Trash2 } from "lucide-react";
+
+function DangerZone({ setStatus }: { setStatus: (s: string) => void }) {
+  const sb = createClient();
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await sb.auth.getUser();
+      if (!u.user) return;
+      const tables = ["deals", "proposals", "uploads"];
+      const c: Record<string, number> = {};
+      for (const t of tables) {
+        const { count } = await sb.from(t).select("*", { count: "exact", head: true }).eq("user_id", u.user.id);
+        c[t] = count ?? 0;
+      }
+      setCounts(c);
+    })();
+  }, [sb]);
+
+  async function purge(table: string) {
+    setLoading(true);
+    const { data: u } = await sb.auth.getUser();
+    if (!u.user) { setLoading(false); return; }
+    const { error } = await sb.rpc("purge_user_data", { p_uid: u.user.id, p_table: table });
+    setLoading(false);
+    setConfirming(null);
+    if (error) { setStatus("Error: " + error.message); return; }
+    setStatus(`✓ ${table === "all" ? "All data" : table} cleared.`);
+    setCounts((prev) => table === "all" ? { deals: 0, proposals: 0, uploads: 0 } : { ...prev, [table]: 0 });
+  }
+
+  const items: { key: string; label: string }[] = [
+    { key: "deals", label: "Deals" },
+    { key: "proposals", label: "Proposals" },
+    { key: "uploads", label: "Uploads" },
+    { key: "all", label: "All Data" },
+  ];
+
+  return (
+    <div className="card p-5 border-l-4 border-l-red-500">
+      <h2 className="flex items-center gap-2 font-semibold text-red-700">
+        <Trash2 className="h-4 w-4" /> Danger Zone — Reset Workspace
+      </h2>
+      <p className="mt-1 text-xs text-slate-600">Permanently delete your data. Auth account is preserved.</p>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {items.map((it) => (
+          <div key={it.key} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <div>
+              <p className="text-xs font-medium text-slate-700">{it.label}</p>
+              {it.key !== "all" && <p className="text-[10px] text-slate-500">{counts[it.key] ?? 0} rows</p>}
+            </div>
+            <button onClick={() => setConfirming(it.key)} disabled={loading}
+              className="rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-100 disabled:opacity-50">
+              Clear
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {confirming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card max-w-sm p-5">
+            <h3 className="font-semibold text-slate-900">Confirm permanent delete</h3>
+            <p className="mt-2 text-xs text-slate-600">
+              This will permanently delete <strong>{confirming === "all" ? "ALL your data" : confirming}</strong>.
+              This cannot be undone.
+            </p>
+            <div className="mt-4 flex gap-2 justify-end">
+              <button onClick={() => setConfirming(null)} className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-700">Cancel</button>
+              <button onClick={() => purge(confirming)} disabled={loading}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-xs text-white disabled:opacity-50">
+                {loading ? "Deleting..." : "Yes, delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
