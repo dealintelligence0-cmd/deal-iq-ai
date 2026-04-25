@@ -38,3 +38,13 @@ body {
   padding: 2px 8px;
   border-radius: 100px;
 }
+/* Dark mode tokens */
+.dark {
+  --brand: #f8fafc;
+  --accent: #818cf8;
+  --accent-light: rgba(129, 140, 248, 0.12);
+}
+
+.dark body { background: #0a0a14; color: #e2e8f0; }
+.dark .card { background: #15151f; border-color: rgba(129, 140, 248, 0.15); }
+.dark .page-header { background: linear-gradient(135deg, #0a0a14, #1e1b4b); }
