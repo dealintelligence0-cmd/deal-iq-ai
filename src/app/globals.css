@@ -48,3 +48,70 @@ body {
 .dark body { background: #0a0a14; color: #e2e8f0; }
 .dark .card { background: #15151f; border-color: rgba(129, 140, 248, 0.15); }
 .dark .page-header { background: linear-gradient(135deg, #0a0a14, #1e1b4b); }
+/* Dark mode contrast fixes */
+html.dark { color-scheme: dark; }
+.dark body { background: #0a0a14; color: #e2e8f0; }
+
+/* Cards */
+.dark .card { background: #15151f; border-color: rgba(129, 140, 248, 0.2); color: #e2e8f0; }
+
+/* Force-fix any white backgrounds */
+.dark .bg-white { background-color: #15151f !important; }
+.dark .bg-slate-50 { background-color: #0a0a14 !important; }
+.dark .bg-slate-100 { background-color: #1e1b2e !important; }
+
+/* Text contrast */
+.dark .text-slate-900 { color: #f1f5f9 !important; }
+.dark .text-slate-800 { color: #e2e8f0 !important; }
+.dark .text-slate-700 { color: #cbd5e1 !important; }
+.dark .text-slate-600 { color: #94a3b8 !important; }
+.dark .text-slate-500 { color: #94a3b8 !important; }
+.dark .text-slate-400 { color: #64748b !important; }
+
+/* Borders */
+.dark .border-slate-200 { border-color: rgba(129, 140, 248, 0.15) !important; }
+.dark .border-slate-100 { border-color: rgba(129, 140, 248, 0.08) !important; }
+
+/* Tables */
+.dark th { background: #1e1b2e !important; color: #c7d2fe !important; }
+.dark td { color: #cbd5e1; }
+
+/* Inputs */
+.dark input, .dark select, .dark textarea {
+  background: #15151f !important;
+  border-color: rgba(129, 140, 248, 0.2) !important;
+  color: #e2e8f0 !important;
+}
+.dark input::placeholder, .dark textarea::placeholder { color: #64748b !important; }
+
+/* KPI cards specifically — left border accent stays vivid */
+.dark .border-l-indigo-500 { border-left-color: #818cf8 !important; }
+.dark .border-l-amber-500 { border-left-color: #fbbf24 !important; }
+.dark .border-l-red-500 { border-left-color: #f87171 !important; }
+
+/* Page header gradient stays consistent */
+.dark .page-header { background: linear-gradient(135deg, #0a0a14, #1e1b4b) !important; }
+
+/* Light tonal backgrounds (KPI tints, badge backgrounds) — darken */
+.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.12) !important; }
+.dark .bg-indigo-50 { background-color: rgba(99, 102, 241, 0.12) !important; }
+.dark .bg-purple-50 { background-color: rgba(139, 92, 246, 0.12) !important; }
+.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.12) !important; }
+.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.12) !important; }
+.dark .bg-blue-50 { background-color: rgba(59, 130, 246, 0.12) !important; }
+
+/* Bright text colors stay visible in dark */
+.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-indigo-700 { color: #a5b4fc !important; }
+.dark .text-purple-700 { color: #c4b5fd !important; }
+.dark .text-amber-700 { color: #fcd34d !important; }
+.dark .text-red-700 { color: #fca5a5 !important; }
+.dark .text-blue-700 { color: #93c5fd !important; }
+
+/* Hover states */
+.dark .hover\:bg-slate-50:hover { background-color: #1e1b2e !important; }
+.dark .hover\:bg-slate-100:hover { background-color: #2d2a3e !important; }
+
+/* Shadows lighter on dark */
+.dark .shadow-sm { box-shadow: 0 1px 2px rgba(99,102,241,0.12) !important; }
+.dark .shadow-md { box-shadow: 0 4px 6px rgba(99,102,241,0.15) !important; }
