@@ -93,7 +93,7 @@ export async function POST(req: Request) {
 
   const { checkRateLimit, logActivity } = await import("@/lib/security");
   const allowed = await checkRateLimit(supabase, "ai_proposal", 20, 60);
-  if (!allowed) return NextResponse.json({ error: "Rate limit: 10 proposals/min" }, { status: 429 });
+  if (!allowed) return NextResponse.json({ error: "Rate limit: 20 proposals per minute" }, { status: 429 });
 
 const body = await req.json() as {
     proposal_type: ProposalType;
