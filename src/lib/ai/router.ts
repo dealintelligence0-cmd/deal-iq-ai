@@ -23,7 +23,13 @@ export async function routedCall(
     pModel = p.model!;
   }
   try {
-    const res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
+    let res;
+    try {
+      res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
+    } catch {
+      // single retry on transient failure
+      res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
+    }
     return { ...res, viaFallback: false };
   } catch {
     if (cfg.fallbackProvider) {
