@@ -20,7 +20,7 @@ export default function KpiCard({
   iconColor,
 }: Props) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <div className="card p-5 border-l-4 border-l-indigo-500">
       <div className="flex items-center justify-between">
         <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBg}`}>
           <Icon className={`h-5 w-5 ${iconColor}`} />
