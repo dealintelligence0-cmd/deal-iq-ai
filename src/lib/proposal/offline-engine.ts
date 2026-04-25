@@ -217,19 +217,19 @@ Post-close governance establishes a combined-entity Board with clear fiduciary m
 - **Reporting cadence:** Weekly IMO · Bi-weekly SteerCo · Monthly Board
 - **Decision rights:** RACI matrix per workstream with formal Day-1 escalation protocol`);
 
-  out.push(`## Risks & Mitigation
+ out.push(`## Risk & Mitigation
 
-**⚠ Regulatory clearance delays or remedies required** — *Mitigation:* engage competition counsel pre-filing; prepare behavioural and structural remedy package; proactive regulator dialogue.
+**Regulatory Clearance Delays** — Mitigation: engage competition counsel pre-filing; prepare behavioural and structural remedy package; proactive regulator dialogue.
 
-**⚠ Key talent departures post-announcement** — *Mitigation:* retention bonuses structured on 12/24/36-month vest; equity acceleration for critical roles; role clarity in first 30 days.
+**Key Talent Departures** — Mitigation: retention bonuses structured on 12/24/36-month vest; equity acceleration for critical roles; role clarity in first 30 days.
 
-**⚠ Synergy shortfall from execution failure** — *Mitigation:* IMO governance with milestone-linked incentives; named initiative owners; third-party PMO support.
+**Synergy Shortfall from Execution Failure** — Mitigation: IMO governance with milestone-linked incentives; named initiative owners; third-party PMO support.
 
-**⚠ Customer attrition during transition** — *Mitigation:* executive outreach to top 50 accounts pre-announcement; service continuity guarantees; dedicated retention team Day 1.
+**Customer Attrition During Transition** — Mitigation: executive outreach to top 50 accounts pre-announcement; service continuity guarantees; dedicated retention team Day 1.
 
-**⚠ Market deterioration between sign and close** — *Mitigation:* MAC provisions in SPA; reverse break fees; hedging of key exposures; accelerated close timeline.
+**Market Deterioration Between Sign and Close** — Mitigation: MAC provisions in SPA; reverse break fees; hedging of key exposures; accelerated close timeline.
 
-**⚠ Cultural integration friction** — *Mitigation:* culture diagnostics in first 30 days; leadership alignment programme; integration champions network.`);
+**Cultural Integration Friction** — Mitigation: culture diagnostics in first 30 days; leadership alignment programme; integration champions network.`);
 
   out.push(`## Why Us
 
