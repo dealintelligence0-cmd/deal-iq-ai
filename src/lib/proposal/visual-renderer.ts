@@ -1,24 +1,34 @@
 const ICONS: Record<string, string> = {
-  "Executive Summary": "ߓ",
-  "Deal Context": "ߎ",
-  "Why This Deal Matters": "ߎ",
-  "Strategic Rationale": "ߧ",
-  "Market": "ߌ",
-  "Industry": "ߌ",
-  "Value Creation": "ߒ",
-  "Synergy": "ߒ",
-  "Integration": "ߔ",
-  "Separation": "✂️",
-  "Day-1": "ߚ",
-  "100-Day": "ߓ",
-  "Risk": "⚠️",
-  "Workstream": "⚙️",
-  "Governance": "ߏ️",
-  "Why Us": "✨",
-  "Next Steps": "➡️",
-  "Services": "ߛ️",
-  "Engagement": "ߤ",
-  "Transaction": "ߒ",
+  "Deal Thesis": "▸",
+  "Deal Score": "■",
+  "Synergy Model": "$",
+  "Risk Engine": "⚠",
+  "Valuation": "▸",
+  "Scenario": "▸",
+  "What Must Be True": "✓",
+  "Contrarian": "⚠",
+  "IC Questions": "?",
+  "Recommendation": "★",
+  "Executive Summary": "▸",
+  "Deal Context": "▸",
+  "Why This Deal Matters": "▸",
+  "Strategic Rationale": "▸",
+  "Market": "▸",
+  "Industry": "▸",
+  "Value Creation": "$",
+  "Synergy": "$",
+  "Integration": "▸",
+  "Separation": "▸",
+  "Day-1": "▸",
+  "100-Day": "▸",
+  "Risk": "⚠",
+  "Workstream": "■",
+  "Governance": "■",
+  "Why Us": "★",
+  "Next Steps": "▸",
+  "Services": "■",
+  "Engagement": "▸",
+  "Transaction": "▸",
 };
 
 function pickIcon(heading: string): string {
@@ -149,10 +159,13 @@ export function renderVisualProposal(md: string): string {
 
   blocks.forEach((block, idx) => {
     const lines = block.split("\n");
-    const heading = lines[0].trim();
+    let heading = lines[0].trim();
     const body = lines.slice(1).join("\n").trim();
     const icon = pickIcon(heading);
-    const num = String(idx + 1).padStart(2, "0");
+    // If heading already starts with "1.", "2.", etc., use that and don't add a duplicate number
+    const inlineNumMatch = /^(\d+)\.\s+/.exec(heading);
+    const num = inlineNumMatch ? inlineNumMatch[1].padStart(2, "0") : String(idx + 1).padStart(2, "0");
+    if (inlineNumMatch) heading = heading.replace(/^\d+\.\s+/, "");
 
     let bodyHtml = "";
 
