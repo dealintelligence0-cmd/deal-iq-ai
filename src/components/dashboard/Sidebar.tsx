@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 import {
   BrainCircuit, LayoutDashboard, CloudUpload, GitMerge,
   AlertTriangle, FlaskConical, Briefcase, FileText,
@@ -29,11 +30,12 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-[#0f0e1a] lg:flex">
-      <div className="flex h-16 items-center gap-2 border-b border-white/5 px-6">
+     <div className="flex h-16 items-center gap-2 border-b border-white/5 px-6">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
           <BrainCircuit className="h-5 w-5 text-white" />
         </div>
-        <span className="text-base font-semibold text-white">Deal IQ AI</span>
+        <span className="flex-1 text-base font-semibold text-white">Deal IQ AI</span>
+        <ThemeToggle />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {navItems.map((item) => {
