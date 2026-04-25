@@ -1,5 +1,7 @@
 
 import { createClient } from "@/lib/supabase/client";
+let dealsCache: { data: Deal[]; expires: number } | null = null;
+const CACHE_MS = 60_000; // 60s
 
 export type Deal = {
   id: string;
@@ -25,7 +27,10 @@ export type Kpis = {
 
 export type Bucket = { name: string; value: number; count: number };
 
-export async function fetchDeals(): Promise<Deal[]> {
+export async function fetchDeals(force = false): Promise<Deal[]> {
+  if (!force && dealsCache && Date.now() < dealsCache.expires) {
+    return dealsCache.data;
+  }
   try {
     const sb = createClient();
     const { data, error } = await sb
@@ -37,7 +42,9 @@ export async function fetchDeals(): Promise<Deal[]> {
       console.error("fetchDeals failed:", error.message);
       return [];
     }
-    return (data ?? []) as Deal[];
+    const result = (data ?? []) as Deal[];
+    dealsCache = { data: result, expires: Date.now() + CACHE_MS };
+    return result;
   } catch (e) {
     console.error("fetchDeals exception:", e);
     return [];
