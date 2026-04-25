@@ -1,3 +1,4 @@
+import { screenRegulatory } from "@/lib/intelligence/context-engine";
 type Facts = {
   buyer: string; target: string; sector: string; geography: string;
   deal_size: string; client_name: string; stake: string;
@@ -149,7 +150,12 @@ export function generateOfflineProposal(prompt: string): string {
 | Talent attrition (top 100) | execution | 45% | ${syn.hasValue ? '$' + Math.round(syn.revenueVal*0.15/1e6) + 'M' : '~15% of revenue synergy'} | Retention bonuses 12/24/36-mo + equity acceleration |
 | Synergy capture shortfall | execution | 50% | ${syn.hasValue ? '$' + Math.round(syn.totalVal*0.30/1e6) + 'M' : '~30% of synergy plan'} | IMO with milestone incentives + named owners |
 | Customer attrition during transition | market | 25% | ${syn.hasValue ? '$' + Math.round(syn.revenueVal*0.20/1e6) + 'M' : '~20% of revenue synergy'} | Top 50 account outreach + service continuity SLAs |
-
+// Regulatory screener
+  const reg = screenRegulatory({ deal_size_usd: parseVal(f.deal_size), geography: G, sector: S });
+  if (reg.flags.length > 0) {
+    const checklistRows = reg.checklist.map((c) => "| " + c.jurisdiction + " | " + c.trigger + " | " + c.action + " | " + c.timeline + " |").join("\n");
+    out.push("## 4a. Regulatory Screening\n\n**Filings flagged:** " + reg.flags.join(" · ") + "\n\n| Jurisdiction | Trigger | Action | Timeline |\n|---|---|---|---|\n" + checklistRows + "\n\nPre-filing antitrust counsel engagement and remedy planning are mandatory before bid submission.");
+  }
 ## 5. Valuation View
 
 - Implied EV/EBITDA: indicative ${parseVal(f.deal_size) >= 1e9 ? '12-15x' : '8-12x'} (EBITDA assumption pending Q-of-E)
