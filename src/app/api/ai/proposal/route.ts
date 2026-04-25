@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { classifyDeal, generateServices, expandService, expandCustomService, type Service, type DealInput } from "@/lib/intelligence/deal-classifier";
-import { buildDealContext, contextToPromptBlock, buildAdvisorVerdictPrompt } from "@/lib/intelligence/context-engine";
+import { buildDealContext, contextToPromptBlock, buildAdvisorVerdictPrompt, screenRegulatory, regulatoryToPromptBlock } from "@/lib/intelligence/context-engine";
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
@@ -215,15 +215,17 @@ ${body.research_docs ? `\n## ADDITIONAL RESEARCH / ANALYST NOTES\n${body.researc
     notes,
   });
 
-  const advisorBlock = buildAdvisorVerdictPrompt(ctx);
+ const advisorBlock = buildAdvisorVerdictPrompt(ctx);
   const ctxBlock = contextToPromptBlock(ctx);
+  const regFlags = screenRegulatory({ deal_size_usd: ctx.deal_size_usd, geography, sector });
+  const regBlock = regulatoryToPromptBlock(regFlags);
 
   const messages: ChatMessage[] = [
     { role: "system", content: PROPOSAL_PROMPTS[proposal_type]
         + "\n\nADDITIONAL RULES:\n- Use consistent currency throughout.\n- State EV/EBITDA multiple if computable.\n- Banned generic phrases: 'market is growing', 'there are risks', 'synergies include cost savings', 'leverage', 'value-add', 'best-in-class'.\n- EVERY claim must cite a number (%, $, or months).\n- Use cause→effect reasoning.\n- Write to the decision-maker (CEO / IC / Board / PE Partner) implied by client_role.\n\n"
         + advisorBlock },
     { role: "user", content:
-      `Using the structured DEAL CONTEXT, classification, services, and any research/insights below, generate the ${proposal_type.replace(/_/g, " ")} document. Open the document with the 5-section ADVISOR VERDICT (Investment Thesis, Top 3 Risks Quantified, Top 3 Synergies With Impact, Key Unknowns, Recommendation), then continue with the standard sections.\n\n${ctxBlock}\n${dealContext}` },
+      `Using the structured DEAL CONTEXT, classification, services, regulatory screening, and any research/insights below, generate the ${proposal_type.replace(/_/g, " ")} document. Open with the 10-section ADVISOR VERDICT, then continue with standard sections. The Risk & Mitigation section MUST include a Regulatory Compliance subsection referencing each flagged filing.\n\n${ctxBlock}\n${regBlock}\n${dealContext}` },
   ];
 
   try {
