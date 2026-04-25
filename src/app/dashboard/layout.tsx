@@ -1,12 +1,14 @@
 import Link from "next/link";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Footer from "@/components/Footer";
+import DisclaimerModal from "@/components/DisclaimerModal";
 import { LayoutDashboard, Briefcase, FileText, Sparkles, Settings } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
+      <DisclaimerModal />
       <main className="lg:pl-64 pb-16 lg:pb-0">
         <div className="p-6">{children}</div>
         <Footer />
