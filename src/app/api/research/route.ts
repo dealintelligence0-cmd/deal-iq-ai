@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { researchDeal } from "@/lib/research/web-research";
+import { researchDeal, aiTextToBrief, fillPromptTemplate, DEFAULT_RESEARCH_PROMPT } from "@/lib/research/web-research";
+import { routedCall, type RouteConfig } from "@/lib/ai/router";
+import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -14,8 +16,12 @@ export async function POST(req: Request) {
 
   const body = await req.json() as {
     deal_id?: string; buyer: string; target: string;
-    sector: string; geography: string; force?: boolean;
+    sector: string; geography: string; deal_size?: string;
+    force?: boolean;
+    mode?: "web" | "prompt";
+    custom_prompt?: string;
   };
+  const mode = body.mode ?? "web";
 
   const admin = createAdminClient();
 
@@ -33,6 +39,56 @@ export async function POST(req: Request) {
     if (cached) return NextResponse.json({ brief: cached.brief_json, cached: true });
   }
 
+  // ─── PROMPT-BASED MODE ───
+  if (mode === "prompt") {
+    const { data: aiSettings } = await admin
+      .from("ai_settings")
+      .select("premium_provider, premium_model, premium_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    let aiKey: string | null = null;
+    const cipher = (aiSettings?.premium_key_encrypted ?? aiSettings?.bulk_key_encrypted) as string | undefined;
+    if (cipher) {
+      try {
+        const { data: dec } = await admin.rpc("decrypt_key", { cipher });
+        aiKey = dec as string;
+      } catch { /* fallback to free */ }
+    }
+
+    const cfg: RouteConfig = {
+      tier: "smart",
+      primaryProvider: ((aiSettings?.premium_provider ?? aiSettings?.bulk_provider) as ProviderId) ?? "free",
+      primaryKey: aiKey,
+      primaryModel: (aiSettings?.premium_model ?? aiSettings?.bulk_model) as string | undefined,
+    };
+
+    const filled = fillPromptTemplate(
+      body.custom_prompt || DEFAULT_RESEARCH_PROMPT,
+      { buyer: body.buyer, target: body.target, sector: body.sector, geography: body.geography, deal_size: body.deal_size ?? "" }
+    );
+
+    const messages: ChatMessage[] = [
+      { role: "system", content: "You are a senior M&A research analyst. Be specific, numeric, candid." },
+      { role: "user", content: filled },
+    ];
+
+    try {
+      const result = await routedCall(cfg, messages, 2500);
+      const brief = aiTextToBrief(result.text);
+      await admin.from("research_briefs").insert({
+        user_id: user.id, deal_id: body.deal_id ?? null,
+        buyer: body.buyer, target: body.target,
+        sector: body.sector, geography: body.geography,
+        brief_json: brief, source_provider: `prompt:${result.provider}`,
+      });
+      return NextResponse.json({ brief, cached: false, mode: "prompt" });
+    } catch (e) {
+      return NextResponse.json({ error: "Prompt research failed: " + String(e) }, { status: 500 });
+    }
+  }
+
+  // ─── WEB-SEARCH MODE (Tavily/Brave/Serper) ───
   // Fetch Tavily key
   const { data: settings } = await admin
     .from("ai_settings")
