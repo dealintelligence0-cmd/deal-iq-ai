@@ -130,6 +130,20 @@ export default function DealDetailPage() {
               {intel.headline}
             </p>
           </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+          
+            href={`/dashboard/proposals?buyer=${encodeURIComponent(deal.buyer ?? "")}&target=${encodeURIComponent(deal.target ?? "")}&sector=${encodeURIComponent(deal.sector ?? "")}&geography=${encodeURIComponent(deal.country ?? "")}&deal_size=${encodeURIComponent(deal.value_raw ?? "")}&deal_id=${deal.id}`}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            ߓ Generate Proposal (General)
+          </a>
+          
+            href={`/dashboard/proposals?buyer=${encodeURIComponent(deal.buyer ?? "")}&target=${encodeURIComponent(deal.target ?? "")}&sector=${encodeURIComponent(deal.sector ?? "")}&geography=${encodeURIComponent(deal.country ?? "")}&deal_size=${encodeURIComponent(deal.value_raw ?? "")}&deal_id=${deal.id}&research=1`}
+            className="rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:from-indigo-700 hover:to-purple-700"
+          >
+            ߔ Generate with AI Research
+          </a>
+        </div>
           <ScoreBadge score={intel.advisoryScore.score} grade={intel.advisoryScore.grade} />
         </div>
 
