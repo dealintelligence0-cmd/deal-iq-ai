@@ -266,3 +266,113 @@ DEAL CONTEXT:
 ${contextToPromptBlock(c)}
 `;
 }
+// ─── REGULATORY SCREENER ─────────────────────────────────
+
+export type RegulatoryFlags = {
+  hsr_required: boolean;
+  eu_required: boolean;
+  uk_cma_required: boolean;
+  india_cci_required: boolean;
+  flags: string[];
+  checklist: { jurisdiction: string; trigger: string; action: string; timeline: string }[];
+};
+
+// 2026 thresholds (approximate — verify with counsel before filing)
+const HSR_THRESHOLD_USD = 119_500_000;     // size-of-transaction (US)
+const HSR_LARGE_USD = 478_000_000;          // size-only test
+const EU_TURNOVER_USD = 5_000_000_000;      // combined worldwide turnover
+const UK_TURNOVER_USD = 90_000_000;         // UK target turnover
+const INDIA_CCI_USD = 240_000_000;          // approx asset/turnover
+
+export function screenRegulatory(c: { deal_size_usd: number; geography: string; sector: string }): RegulatoryFlags {
+  const flags: string[] = [];
+  const checklist: { jurisdiction: string; trigger: string; action: string; timeline: string }[] = [];
+
+  const geo = (c.geography || "").toLowerCase();
+  const sector = (c.sector || "").toLowerCase();
+  const isUS = /usa|united states|us\b|north america/.test(geo);
+  const isEU = /europe|eu\b|france|germany|italy|spain|netherlands/.test(geo);
+  const isUK = /uk|united kingdom|britain|england/.test(geo);
+  const isIN = /india/.test(geo);
+  const isSensitive = /defense|defence|telecom|energy|nuclear|semiconductor|critical infrastructure/.test(sector);
+
+  // HSR
+  if (c.deal_size_usd >= HSR_THRESHOLD_USD && (isUS || c.deal_size_usd >= HSR_LARGE_USD)) {
+    flags.push("HSR filing required (US)");
+    checklist.push({
+      jurisdiction: "US — FTC / DOJ (HSR)",
+      trigger: `Deal size $${(c.deal_size_usd/1e6).toFixed(0)}M ≥ $${(HSR_THRESHOLD_USD/1e6).toFixed(0)}M HSR threshold`,
+      action: "Pre-filing antitrust counsel engagement; HSR Form preparation; second-request response readiness",
+      timeline: "30-day initial wait; up to 90+ days if second request issued",
+    });
+  }
+
+  // EU Merger Regulation
+  if (c.deal_size_usd >= EU_TURNOVER_USD || (isEU && c.deal_size_usd >= 2.5e9)) {
+    flags.push("EU Merger Regulation review (combined turnover threshold)");
+    checklist.push({
+      jurisdiction: "EU — European Commission",
+      trigger: `Combined worldwide turnover likely ≥ €5B / EU-wide ≥ €250M`,
+      action: "Form CO submission; pre-notification dialogue; remedy package contingency",
+      timeline: "Phase 1: 25 working days; Phase 2: 90 additional working days",
+    });
+  }
+
+  // UK CMA
+  if (isUK && c.deal_size_usd >= UK_TURNOVER_USD) {
+    flags.push("UK CMA notification likely");
+    checklist.push({
+      jurisdiction: "UK — Competition & Markets Authority",
+      trigger: `UK target turnover ≥ £70M or combined share of supply ≥ 25%`,
+      action: "Voluntary briefing paper or formal merger notice; market testing prep",
+      timeline: "Phase 1: 40 working days; Phase 2: 24 weeks",
+    });
+  }
+
+  // India CCI
+  if (isIN && c.deal_size_usd >= INDIA_CCI_USD) {
+    flags.push("India CCI notification (Form I/II)");
+    checklist.push({
+      jurisdiction: "India — Competition Commission of India",
+      trigger: `Asset / turnover thresholds exceeded under Combination Regulations`,
+      action: "Form I (short) or Form II (detailed); pre-filing consultation advised",
+      timeline: "210 days statutory; typical clearance 60-120 days",
+    });
+  }
+
+  // FDI / national security
+  if (isSensitive && c.deal_size_usd >= 1e8) {
+    flags.push("FDI / national security review (sensitive sector)");
+    checklist.push({
+      jurisdiction: "FDI screening (CFIUS / EU FDI / UK NSI / similar)",
+      trigger: `Sensitive sector (${c.sector}) + cross-border buyer`,
+      action: "Pre-filing assessment; mitigation agreement scoping; classified information protocol",
+      timeline: "45-day initial review; up to 105+ days if investigation opened",
+    });
+  }
+
+  return {
+    hsr_required: flags.some((f) => f.includes("HSR")),
+    eu_required: flags.some((f) => f.includes("EU")),
+    uk_cma_required: flags.some((f) => f.includes("UK CMA")),
+    india_cci_required: flags.some((f) => f.includes("India CCI")),
+    flags,
+    checklist,
+  };
+}
+
+export function regulatoryToPromptBlock(r: RegulatoryFlags): string {
+  if (r.flags.length === 0) {
+    return `\n## REGULATORY SCREENING\nNo material antitrust filings flagged at this deal size / geography.\n`;
+  }
+  return `
+## REGULATORY SCREENING (mandatory — embed in Risk section)
+**Filings flagged:** ${r.flags.join(" · ")}
+
+| Jurisdiction | Trigger | Required Action | Timeline |
+|---|---|---|---|
+${r.checklist.map((c) => `| ${c.jurisdiction} | ${c.trigger} | ${c.action} | ${c.timeline} |`).join("\n")}
+
+The proposal MUST include a Regulatory Compliance subsection in Risk & Mitigation referencing these specific filings.
+`;
+}
