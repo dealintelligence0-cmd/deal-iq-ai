@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   FileText, Sparkles, Loader2, Copy, Printer,
   CheckCircle2, ChevronDown, History, Trash2, Plus, X,
@@ -38,7 +39,8 @@ function renderMarkdown(md: string): string {
     .replace(/\n/g, '<br/>');
 }
 
-export default function ProposalsPage() {
+function ProposalsPageInner() {
+  const searchParams = useSearchParams();
   const [proposalType, setProposalType] = useState<ProposalType>("advisory");
   const [clientName, setClientName] = useState("");
   const [buyer, setBuyer] = useState("");
@@ -54,6 +56,59 @@ export default function ProposalsPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [customServiceName, setCustomServiceName] = useState("");
   const [showClassification, setShowClassification] = useState(false);
+  const [researchBrief, setResearchBrief] = useState<string>("");
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [researchStatus, setResearchStatus] = useState<string>("");
+  const [useResearch, setUseResearch] = useState(false);
+  const [dealId, setDealId] = useState<string>("");
+
+  useEffect(() => {
+    const b = searchParams.get("buyer");
+    const t = searchParams.get("target");
+    const s = searchParams.get("sector");
+    const g = searchParams.get("geography");
+    const ds = searchParams.get("deal_size");
+    const did = searchParams.get("deal_id");
+    const wantsResearch = searchParams.get("research") === "1";
+
+    if (b) setBuyer(b);
+    if (t) setTarget(t);
+    if (s) setSector(s);
+    if (g) setGeography(g);
+    if (ds) setDealSize(ds);
+    if (did) setDealId(did);
+
+    if (wantsResearch && b && t) {
+      runResearch(b, t, s ?? "", g ?? "", did ?? undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function runResearch(b: string, t: string, s: string, g: string, did?: string) {
+    setResearchLoading(true);
+    setResearchStatus("ߔ Fetching live market intelligence...");
+    try {
+      const r = await fetch("/api/research", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ buyer: b, target: t, sector: s, geography: g, deal_id: did }),
+      });
+      const j = await r.json();
+      if (j.brief) {
+        const block = `Buyer: ${j.brief.buyer_profile}\n\nTarget: ${j.brief.target_profile}\n\nSector: ${j.brief.sector_signals}\n\nComparables: ${j.brief.comparables}\n\nRisks: ${j.brief.live_risks}\n\nSources:\n${j.brief.citations.map((c: { title: string; url: string }, i: number) => `[${i + 1}] ${c.title} — ${c.url}`).join("\n")}`;
+        setResearchBrief(block);
+        setUseResearch(true);
+        setUsePremium(true);
+        setResearchStatus(j.cached ? `✓ Loaded cached research (${j.brief.citations.length} sources)` : `✓ Fresh research complete (${j.brief.citations.length} sources)`);
+      } else {
+        setResearchStatus(`✗ ${j.error ?? "Research failed"}`);
+      }
+    } catch (e) {
+      setResearchStatus(`✗ ${String(e)}`);
+    } finally {
+      setResearchLoading(false);
+    }
+  }
 
   const classification: DealClassification | null = (buyer || target) ? classifyDeal({
     buyer, target, sector, country: geography,
@@ -113,11 +168,13 @@ export default function ProposalsPage() {
         body: JSON.stringify({
           proposal_type: proposalType, client_name: clientName,
           buyer, target, sector, geography, deal_size: dealSize,
-          notes, use_premium: usePremium,
+          notes: useResearch && researchBrief ? `${notes}\n\n${researchBrief}` : notes,
+          use_premium: usePremium,
           stake_percent: stakePercent ? Number(stakePercent) : undefined,
           deal_type_input: dealTypeInput || undefined,
           client_role: clientRole,
           selected_services: services,
+          research_docs: useResearch ? researchBrief : undefined,
         }),
       });
       const data = await res.json();
@@ -293,6 +350,34 @@ export default function ProposalsPage() {
               </div>
             </div>
           )}
+          {(researchBrief || researchLoading || researchStatus) && (
+            <div className="rounded-lg border border-purple-200 bg-gradient-to-br from-indigo-50 to-purple-50 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-purple-900">ߔ Live Research</p>
+                {researchBrief && (
+                  <label className="flex items-center gap-1 text-[10px] text-purple-700">
+                    <input type="checkbox" checked={useResearch} onChange={(e) => setUseResearch(e.target.checked)}
+                      className="h-3 w-3 rounded border-purple-300" />
+                    Use in proposal
+                  </label>
+                )}
+              </div>
+              {researchStatus && <p className="mt-1 text-[10px] text-slate-600">{researchStatus}</p>}
+              {researchLoading && <div className="mt-2 h-1 animate-pulse rounded-full bg-purple-200" />}
+              {researchBrief && !researchLoading && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-[10px] font-medium text-purple-700">View brief ({researchBrief.length} chars)</summary>
+                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-white p-2 text-[9px] text-slate-700">{researchBrief.slice(0, 1000)}...</pre>
+                </details>
+              )}
+              {!researchBrief && !researchLoading && buyer && target && (
+                <button onClick={() => runResearch(buyer, target, sector, geography, dealId)}
+                  className="mt-2 w-full rounded-md bg-purple-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-purple-700">
+                  Run Live Research Now
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
             <div>
@@ -435,5 +520,12 @@ export default function ProposalsPage() {
         )}
       </main>
     </div>
+  );
+}
+export default function ProposalsPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <ProposalsPageInner />
+    </Suspense>
   );
 }
