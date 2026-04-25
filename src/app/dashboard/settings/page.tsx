@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [smartModel, setSmartModel] = useState<string | null>(null);
   const [fastKey, setFastKey] = useState("");
   const [smartKey, setSmartKey] = useState("");
+  const [status, setStatus] = useState<string>("");
  const [tavilyVal, setTavilyVal] = useState("");
 
   useEffect(() => {
