@@ -29,6 +29,53 @@ function pickIcon(heading: string): string {
   return "▸";
 }
 
+function renderTable(text: string): string {
+  // Detect markdown table: lines starting with |
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const tableLines = lines.filter((l) => l.startsWith("|") && l.endsWith("|"));
+  if (tableLines.length < 2) return "";
+
+  const rows = tableLines
+    .filter((l) => !/^\|[\s\-:|]+\|$/.test(l)) // skip separator |---|---|
+    .map((l) => l.slice(1, -1).split("|").map((c) => c.trim()));
+
+  if (rows.length < 2) return "";
+  const [head, ...body] = rows;
+
+  return `
+<div class="my-4 overflow-x-auto">
+  <table class="w-full border-collapse text-[12px]">
+    <thead>
+      <tr class="border-b-2 border-indigo-200 bg-indigo-50">
+        ${head.map((h) => `<th class="px-3 py-2 text-left font-semibold text-indigo-900">${renderInline(h)}</th>`).join("")}
+      </tr>
+    </thead>
+    <tbody>
+      ${body.map((row) => `<tr class="border-b border-slate-100 hover:bg-slate-50">${row.map((c) => `<td class="px-3 py-2 text-slate-700">${renderInline(c)}</td>`).join("")}</tr>`).join("")}
+    </tbody>
+  </table>
+</div>`;
+}
+
+function extractTable(text: string): { tableHtml: string; remainder: string } {
+  const lines = text.split("\n");
+  let start = -1, end = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().startsWith("|") && lines[i].trim().endsWith("|")) {
+      if (start === -1) start = i;
+      end = i;
+    } else if (start !== -1 && lines[i].trim() === "") {
+      // empty line after table — stop
+      if (i > end) break;
+    } else if (start !== -1 && !lines[i].trim().startsWith("|")) {
+      break;
+    }
+  }
+  if (start === -1) return { tableHtml: "", remainder: text };
+  const tableText = lines.slice(start, end + 1).join("\n");
+  const remainder = [...lines.slice(0, start), ...lines.slice(end + 1)].join("\n");
+  return { tableHtml: renderTable(tableText), remainder };
+}
 function renderInline(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>')
@@ -124,12 +171,21 @@ export function renderVisualProposal(md: string): string {
       if (grid) bodyHtml = grid;
     }
 
+    // Extract any markdown tables first
+    const { tableHtml, remainder } = extractTable(body);
+    if (tableHtml) {
+      bodyHtml += tableHtml;
+      // Use the leftover (non-table) content for paragraph rendering below
+      // by overwriting body
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (block as any) = remainder;
+    }
     // Default: render paragraphs and bullets
     if (!bodyHtml) {
       const synergyVisual = /synergy|value creation/i.test(heading) ? renderSynergyBlock(body) : "";
       const timeline = /100-day/i.test(heading) ? renderTimeline() : "";
 
-      const paragraphs = body.split(/\n\n+/).map((p) => {
+      const paragraphs = (remainder || body).split(/\n\n+/).map((p) => {
         p = p.trim();
         if (!p) return "";
         if (/^[-*]\s/.test(p)) {
