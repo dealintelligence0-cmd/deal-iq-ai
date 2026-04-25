@@ -158,6 +158,25 @@ function ProposalsPageInner() {
   const [copied, setCopied] = useState(false);
 
   const [history, setHistory] = useState<SavedProposal[]>([]);
+  useEffect(() => {
+    (async () => {
+      const sb = (await import("@/lib/supabase/client")).createClient();
+      const { data } = await sb.from("proposals")
+        .select("id,proposal_type,buyer,target,content,provider,model,created_at")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (data) {
+        setHistory(data.map((d) => ({
+          id: d.id,
+          label: `${(PROPOSAL_OPTIONS.find(o => o.value === d.proposal_type)?.label ?? d.proposal_type)} — ${d.target ?? d.buyer ?? "Unnamed"}`,
+          content: d.content,
+          createdAt: new Date(d.created_at).toLocaleString(),
+          provider: d.provider ?? "",
+          model: d.model ?? "",
+        })));
+      }
+    })();
+  }, []);
   const [showHistory, setShowHistory] = useState(false);
 
   async function generate() {
@@ -231,10 +250,10 @@ function ProposalsPageInner() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
             <FileText className="h-4 w-4 text-white" />
           </div>
-          <div>
-            <h1 className="text-sm font-semibold text-slate-900">Proposal Generator</h1>
-            <p className="text-xs text-slate-500">AI-powered consulting documents</p>
-          </div>
+          <div className="page-header">
+          <h1 className="text-lg font-semibold text-white">Proposal Generator</h1>
+          <p className="mt-1 text-xs text-white/60">AI-powered consulting documents</p>
+        </div>
         </div>
 
         <div className="mb-5">
