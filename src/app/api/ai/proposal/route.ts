@@ -227,7 +227,7 @@ ${body.research_docs ? `\n## ADDITIONAL RESEARCH / ANALYST NOTES\n${body.researc
   ];
 
   try {
-    const result = await routedCall(cfg, messages, use_premium ? 4000 : 2500);
+    const result = await routedCall(cfg, messages, use_premium ? 6000 : 3500);
 
     await admin.from("proposals").insert({
       user_id: user.id, proposal_type, client_name, buyer, target,
