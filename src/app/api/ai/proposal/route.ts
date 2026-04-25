@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { classifyDeal, generateServices, expandService, expandCustomService, type Service, type DealInput } from "@/lib/intelligence/deal-classifier";
+import { buildDealContext, contextToPromptBlock, buildAdvisorVerdictPrompt } from "@/lib/intelligence/context-engine";
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
@@ -205,9 +206,24 @@ ${servicesBlock}
 ${body.research_docs ? `\n## ADDITIONAL RESEARCH / ANALYST NOTES\n${body.research_docs.slice(0, 4000)}\n` : ""}
 `;
 
+ // Build machine-derived context (used by every prompt)
+  const ctx = buildDealContext({
+    buyer, target, sector, geography, deal_size,
+    stake_percent: body.stake_percent,
+    deal_type_input: body.deal_type_input,
+    client_role: body.client_role,
+    notes,
+  });
+
+  const advisorBlock = buildAdvisorVerdictPrompt(ctx);
+  const ctxBlock = contextToPromptBlock(ctx);
+
   const messages: ChatMessage[] = [
-    { role: "system", content: PROPOSAL_PROMPTS[proposal_type] + "\n\nADDITIONAL RULES: Use consistent currency throughout. State EV/EBITDA multiple where possible. Never use buzzwords without supporting data. Identify the decision-maker lens (CEO / Board / IC / PE Partner) based on client_role and write to that audience." },
-    { role: "user", content: `Using the deal facts, classification, risks, workstreams, and services below, generate the ${proposal_type.replace(/_/g, " ")} document. Integrate the services verbatim in the Services section. Reference the specific classification (category, control, integration approach) throughout.\n${dealContext}` },
+    { role: "system", content: PROPOSAL_PROMPTS[proposal_type]
+        + "\n\nADDITIONAL RULES:\n- Use consistent currency throughout.\n- State EV/EBITDA multiple if computable.\n- Banned generic phrases: 'market is growing', 'there are risks', 'synergies include cost savings', 'leverage', 'value-add', 'best-in-class'.\n- EVERY claim must cite a number (%, $, or months).\n- Use cause→effect reasoning.\n- Write to the decision-maker (CEO / IC / Board / PE Partner) implied by client_role.\n\n"
+        + advisorBlock },
+    { role: "user", content:
+      `Using the structured DEAL CONTEXT, classification, services, and any research/insights below, generate the ${proposal_type.replace(/_/g, " ")} document. Open the document with the 5-section ADVISOR VERDICT (Investment Thesis, Top 3 Risks Quantified, Top 3 Synergies With Impact, Key Unknowns, Recommendation), then continue with the standard sections.\n\n${ctxBlock}\n${dealContext}` },
   ];
 
   try {
