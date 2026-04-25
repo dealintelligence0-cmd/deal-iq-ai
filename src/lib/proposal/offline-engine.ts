@@ -112,6 +112,36 @@ export function generateOfflineProposal(prompt: string): string {
   const hasGeo = G !== 'the target geography';
   const out: string[] = [];
 
+  // ── Advisor Verdict (always first, both modes) ──
+  const revPct = Math.round(syn.revenueVal / Math.max(parseVal(f.deal_size), 1) * 100);
+  const costPct = Math.round(syn.costVal / Math.max(parseVal(f.deal_size), 1) * 100);
+  out.push(`## Advisor Verdict
+
+**Investment Thesis**
+- ${B} acquires ${T} in ${S}${hasGeo ? ` (${G})` : ''} for ${V} — implied ${syn.hasValue ? `${revPct}% revenue + ${costPct}% cost synergy upside ($${syn.totalVal >= 1e9 ? (syn.totalVal/1e9).toFixed(1)+'B' : Math.round(syn.totalVal/1e6)+'M'} total)` : "synergy upside pending diligence"} over 36 months.
+- ${sec.dynamics[0][0].toUpperCase() + sec.dynamics[0].slice(1)} positions the combined platform for sector consolidation; sector benchmarks at ${sec.benchmark}.
+- Strategic logic: ${sec.valueDrivers}.
+
+**Top 3 Risks (Quantified)**
+- Regulatory clearance — 6-9 month timeline; mitigation: pre-filing engagement + behavioural remedy package.
+- Talent attrition — 15-25% loss typical without retention; mitigation: 12/24/36-month vest + equity acceleration on top 100 roles.
+- Synergy execution — industry benchmark captures 60-70% of plan; mitigation: IMO with milestone-linked incentives + named owners.
+
+**Top 3 Synergies (With Impact)**
+- Cost: G&A consolidation, procurement leverage, tech rationalisation${syn.hasValue ? ` — **${syn.cost}** (${costPct}% of deal value)` : ''}, captured Year 1-2.
+- Revenue: cross-sell, geographic expansion, pricing power${syn.hasValue ? ` — **${syn.revenue}** (${revPct}% of deal value)` : ''}, realised Year 2-3.
+- Strategic: platform scale enabling 2-3 bolt-on acquisitions over 24 months.
+
+**Key Unknowns**
+- Customer concentration in top 10 accounts (data dependency for IC)
+- ${T} EBITDA quality and one-time adjustments (QoE required)
+- Regulator stance in ${G || 'primary jurisdiction'} (pre-filing dialogue needed)
+- Cultural fit between buyer and target leadership teams
+- Currency / cycle risk between sign and close
+
+**Recommendation: ${syn.hasValue && parseVal(f.deal_size) > 0 && (syn.totalVal / parseVal(f.deal_size)) > 0.18 ? "GO" : "CONDITIONAL GO"}**
+
+${syn.hasValue ? `Synergy envelope of ${syn.total} represents ${Math.round((syn.totalVal/parseVal(f.deal_size))*100)}% of consideration — ${(syn.totalVal/parseVal(f.deal_size)) > 0.20 ? 'sufficient cushion to justify the bid even with 50% realisation slippage' : 'adequate but tight; advance only with binding QoE and customer references'}.` : 'Insufficient value data to score; commission rapid Phase 1 diligence before bid commitment.'} Decision-maker view (${f.client_name !== 'Valued Client' ? f.client_name : 'IC / Board'}): proceed${syn.hasValue && (syn.totalVal/parseVal(f.deal_size)) > 0.20 ? '' : ' with conditions'}.`);
   out.push(`## Executive Summary
 
 This proposal presents a comprehensive advisory framework for the proposed transaction between **${B}** and **${T}**${V === 'an indicative value' ? '' : `, with an indicative value of **${V}**`}. The transaction sits within the ${S} sector${hasGeo ? `, with primary exposure in ${G}` : ''}, and creates a combined entity with enhanced market position, pricing power, and a defensible competitive moat.
