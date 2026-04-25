@@ -61,7 +61,7 @@ function ProposalsPageInner() {
   const [researchLoading, setResearchLoading] = useState(false);
   const [researchStatus, setResearchStatus] = useState<string>("");
   const [useResearch, setUseResearch] = useState(false);
-  const [researchMode, setResearchMode] = useState<"web" | "prompt">("web");
+  const [researchMode, setResearchMode] = useState<"web" | "prompt">("prompt");
   const [customPrompt, setCustomPrompt] = useState("");
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [dealId, setDealId] = useState<string>("");
@@ -92,7 +92,7 @@ async function runResearch(b: string, t: string, s: string, g: string, did?: str
     setResearchLoading(true);
     setResearchStatus(researchMode === "prompt" ? "Generating AI research from prompt..." : "Fetching live market intelligence...");
     try {
-      const r = await fetch("/api/research", {
+     let r = await fetch("/api/research", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -102,7 +102,22 @@ async function runResearch(b: string, t: string, s: string, g: string, did?: str
           custom_prompt: researchMode === "prompt" ? customPrompt : undefined,
         }),
       });
-      const j = await r.json();
+      let j = await r.json();
+      // Auto-fallback: web mode failed → retry as prompt-based
+      if (!j.brief && researchMode === "web") {
+        setResearchStatus("Web research failed — falling back to prompt-based AI...");
+        r = await fetch("/api/research", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            buyer: b, target: t, sector: s, geography: g,
+            deal_id: did, deal_size: dealSize,
+            mode: "prompt",
+          }),
+        });
+        j = await r.json();
+        if (j.brief) setResearchMode("prompt");
+      }
       if (j.brief) {
         const block = `Buyer: ${j.brief.buyer_profile}\n\nTarget: ${j.brief.target_profile}\n\nSector: ${j.brief.sector_signals}\n\nComparables: ${j.brief.comparables}\n\nRisks: ${j.brief.live_risks}\n\nSources:\n${j.brief.citations.map((c: { title: string; url: string }, i: number) => `[${i + 1}] ${c.title} — ${c.url}`).join("\n")}`;
         setResearchBrief(block);
@@ -409,8 +424,8 @@ async function runResearch(b: string, t: string, s: string, g: string, did?: str
               <label className="text-[11px] font-semibold text-slate-700">Research Mode</label>
               <select value={researchMode} onChange={(e) => setResearchMode(e.target.value as "web" | "prompt")}
                 className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]">
-                <option value="web">ߌ Live Web (Tavily / Brave / Serper)</option>
-                <option value="prompt">ߧ Prompt-Based AI (GPT / Claude / Gemini / Groq)</option>
+               <option value="prompt">Prompt-Based AI (default — uses your LLM)</option>
+                <option value="web">Live Web (requires Tavily/Brave/Serper key)</option>
               </select>
               <p className="mt-1 text-[10px] text-slate-500">
                 {researchMode === "web"
