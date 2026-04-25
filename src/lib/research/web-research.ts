@@ -101,3 +101,54 @@ ${b.live_risks}
 ${b.citations.map((c, i) => `[${i + 1}] ${c.title} — ${c.url}`).join("\n")}
 `;
 }
+// ─── Prompt-based research (uses your existing LLM) ───────────────
+
+export const DEFAULT_RESEARCH_PROMPT = `Generate consulting-grade research for this M&A deal:
+Buyer: {{buyer}}
+Target: {{target}}
+Sector: {{sector}}
+Geography: {{geography}}
+Deal Size: {{deal_size}}
+
+Cover these 5 areas. Be specific, numeric where possible, and avoid generic phrases.
+
+1. SECTOR TRENDS: 3-5 bullet points on current dynamics, growth drivers, regulatory shifts.
+2. BUYER PROFILE: Strategy, recent acquisitions, financial position, M&A track record.
+3. TARGET PROFILE: Business model, revenue scale, competitive position, leadership.
+4. DEAL RATIONALE & SYNERGIES: Strategic logic, revenue + cost synergy estimates, integration thesis.
+5. RISKS: Regulatory, integration, market, talent — with mitigation hooks.
+
+Use your training knowledge. Be candid about what you're confident on vs estimating. Output as 5 clearly headed sections, ~1000 words total.`;
+
+export function fillPromptTemplate(
+  template: string,
+  vars: { buyer: string; target: string; sector: string; geography: string; deal_size: string }
+): string {
+  return template
+    .replace(/\{\{buyer\}\}/g, vars.buyer || "(unspecified)")
+    .replace(/\{\{target\}\}/g, vars.target || "(unspecified)")
+    .replace(/\{\{sector\}\}/g, vars.sector || "(unspecified)")
+    .replace(/\{\{geography\}\}/g, vars.geography || "(unspecified)")
+    .replace(/\{\{deal_size\}\}/g, vars.deal_size || "(unspecified)");
+}
+
+export function aiTextToBrief(text: string): ResearchBrief {
+  // Split LLM response into 5 sections by heading match
+  const sec = (re: RegExp): string => {
+    const m = re.exec(text);
+    if (!m) return "";
+    const start = m.index + m[0].length;
+    const next = /^(?:#{1,3}\s|\d+\.\s|[A-Z][A-Z\s&]{8,}:?$)/m.exec(text.slice(start));
+    return text.slice(start, next ? start + next.index : start + 1500).trim();
+  };
+
+  return {
+    buyer_profile:    sec(/(?:^|\n)\s*(?:#{1,3}\s*)?(?:\d+\.\s*)?(?:BUYER PROFILE|Buyer Profile|Buyer)/i)    || text.slice(0, 600),
+    target_profile:   sec(/(?:^|\n)\s*(?:#{1,3}\s*)?(?:\d+\.\s*)?(?:TARGET PROFILE|Target Profile|Target)/i),
+    sector_signals:   sec(/(?:^|\n)\s*(?:#{1,3}\s*)?(?:\d+\.\s*)?(?:SECTOR TRENDS|Sector|Industry)/i),
+    comparables:      sec(/(?:^|\n)\s*(?:#{1,3}\s*)?(?:\d+\.\s*)?(?:DEAL RATIONALE|Synergies|Rationale)/i),
+    live_risks:       sec(/(?:^|\n)\s*(?:#{1,3}\s*)?(?:\d+\.\s*)?(?:RISKS|Risk)/i),
+    citations:        [{ title: "AI prompt-based research (no live sources)", url: "", snippet: "Generated from LLM training data — not live web." }],
+    generated_at:     new Date().toISOString(),
+  };
+}
