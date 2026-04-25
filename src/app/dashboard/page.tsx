@@ -44,15 +44,15 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-          Executive Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Real-time pipeline intelligence powered by your imported deal data.
-        </p>
+     <div className="page-header">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Executive Dashboard</h1>
+            <p className="mt-1 text-sm text-white/60">Real-time pipeline intelligence powered by your imported deal data.</p>
+          </div>
+          <p className="text-xs text-white/50">{new Date().toLocaleDateString()}</p>
+        </div>
       </div>
-
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
