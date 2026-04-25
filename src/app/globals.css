@@ -115,3 +115,23 @@ html.dark { color-scheme: dark; }
 /* Shadows lighter on dark */
 .dark .shadow-sm { box-shadow: 0 1px 2px rgba(99,102,241,0.12) !important; }
 .dark .shadow-md { box-shadow: 0 4px 6px rgba(99,102,241,0.15) !important; }
+/* Recharts dark mode */
+.dark .recharts-text { fill: #cbd5e1 !important; }
+.dark .recharts-cartesian-axis-line { stroke: rgba(129, 140, 248, 0.2) !important; }
+.dark .recharts-cartesian-grid line { stroke: rgba(129, 140, 248, 0.08) !important; }
+.dark .recharts-tooltip-wrapper > div {
+  background: #15151f !important;
+  border: 1px solid rgba(129, 140, 248, 0.3) !important;
+  color: #e2e8f0 !important;
+}
+
+/* KPI card explicit fix */
+.dark .card .text-slate-900 { color: #f1f5f9 !important; }
+.dark .card { color: #e2e8f0; }
+
+/* Modals + dialogs */
+.dark .bg-black\/40, .dark .bg-black\/50 { background-color: rgba(0, 0, 0, 0.7) !important; }
+
+/* Gradient buttons keep their indigo identity */
+.dark .from-indigo-600 { --tw-gradient-from: #6366f1 !important; }
+.dark .to-purple-600 { --tw-gradient-to: #8b5cf6 !important; }
