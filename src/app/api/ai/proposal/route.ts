@@ -9,23 +9,33 @@ export type ProposalType =
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
 
 const PROPOSAL_PROMPTS: Record<ProposalType, string> = {
-  advisory: `You are an MBB senior partner writing a consulting-grade M&A advisory proposal. Use formal, specific, client-ready prose. NEVER use generic filler. Every sentence must reference the specific deal, sector, geography, or services provided.
+  advisory: `You are an MBB senior partner. Write a consulting-grade M&A advisory proposal that a CEO or PE Investment Committee would accept verbatim.
 
-Structure (use exact H2 headings):
+CRITICAL RULES:
+1. If "LIVE WEB RESEARCH" appears in the user message, you MUST cite specific facts from it using [1], [2], [3] markers throughout the proposal.
+2. Reference the buyer's recent activity, target's actual metrics, and current sector dynamics — NEVER use generic phrases like "in the sector" if specifics are available.
+3. If "INSIDER INSIGHTS" appears, weave them into Strategic Rationale and Why This Deal Matters sections.
+4. Use specific dollar figures from the deal facts. Compute synergies as ~10% of deal value (revenue) + ~13% (cost).
+
+STRUCTURE (use exact ## H2 headings, in order):
 ## Executive Summary
-## Deal Context & Strategic Rationale
+## Why This Deal Matters
+## Strategic Rationale
 ## Market & Industry Context
-## Transaction Perspective
 ## Value Creation & Synergies
 ## Integration / Separation Strategy
 ## Risk & Mitigation
-## Services & Engagement Approach
-## Engagement Model & Phasing
+## Functional Workstreams
+## Governance Model
 ## 100-Day Plan
 ## Why Us
+## Next Steps
 
-Use the provided deal classification, services, and integration logic verbatim. Write 1200-1600 words. Use crisp bullet points where helpful. Quote specific figures from the deal.`,
+In Risk & Mitigation: list 6 risks, each as "**Risk Title** — Mitigation: ...".
+In Functional Workstreams: cover Finance, HR, IT, Operations, Sales, Procurement, Legal, Tax, Cyber — each as "**[Function]:** key actions".
+In Value Creation: include "$XM revenue + $YM cost = $ZM total" line.
 
+Length: 1500-2000 words. Use Markdown. Be specific, numeric, and authoritative.`,
   executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
 ## Transaction Overview
 ## Strategic Rationale
