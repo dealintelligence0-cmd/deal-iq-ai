@@ -88,7 +88,7 @@ function parseFacts(prompt: string): Facts {
     sector: get('Sector'),
     geography: get('Geography') || get('Country'),
     deal_size: get('Deal Size') || get('Value'),
-    client_name: get('Client / Advisory House') || 'Valued Client',
+    client_name: (get('Client / Advisory House') || '').replace(/^N\/?A$/i, '') || 'Valued Client',
     stake: get('Stake'),
     intent: get('Strategic Intent'),
     notes: get('Notes'),
