@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2 } from "lucide-react";
 import { cleanMarkdownToHTML } from "@/lib/ai/utils";
+import AIGenerateConfirm from "@/components/AIGenerateConfirm";
+import { createClient } from "@/lib/supabase/client";
 
 const FUNCTIONS = ["IT & Systems", "Finance & Accounting", "HR & Payroll", "Legal", "Procurement", "Facilities", "Customer Service", "Supply Chain", "Manufacturing", "Sales Support", "Tax", "Treasury"];
 const PRICING_OPTIONS = [
@@ -29,12 +31,76 @@ export default function TSAGeneratorPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const sb = createClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [premiumTier, setPremiumTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
+  const [economicTier, setEconomicTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
+
+  type HistoryItem = {
+    id: string; buyer: string | null; target: string | null;
+    sector: string | null; deal_size: string | null;
+    provider: string | null; cost_estimate_usd: number | null;
+    content: string; created_at: string;
+  };
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await sb.auth.getUser();
+      if (!u.user) return;
+      const { data } = await sb.from("ai_settings")
+        .select("premium_provider,premium_model,premium_key_encrypted,economic_provider,economic_model,economic_key_encrypted")
+        .eq("user_id", u.user.id).maybeSingle();
+      if (data) {
+        setPremiumTier({ provider: data.premium_provider, model: data.premium_model, hasKey: !!data.premium_key_encrypted && data.premium_provider !== "free" });
+        setEconomicTier({ provider: data.economic_provider, model: data.economic_model, hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free" });
+      }
+      reloadHistory();
+    })();
+  }, []); // eslint-disable-line
+
+  async function reloadHistory() {
+    const { data: u } = await sb.auth.getUser();
+    if (!u.user) return;
+    const { data } = await sb.from("ai_outputs")
+      .select("id,buyer,target,sector,deal_size,provider,cost_estimate_usd,content,created_at")
+      .eq("user_id", u.user.id).eq("module", "tsa")
+      .order("created_at", { ascending: false }).limit(20);
+    if (data) setHistory(data as HistoryItem[]);
+  }
+
+  async function deleteHistory(id: string) {
+    if (!confirm("Delete this saved TSA?")) return;
+    await sb.from("ai_outputs").delete().eq("id", id);
+    reloadHistory();
+  }
+
+  function loadHistory(h: HistoryItem) {
+    setContent(h.content);
+    if (h.buyer) setBuyer(h.buyer);
+    if (h.target) setSeller(h.target);
+    if (h.sector) setSec(h.sector);
+    if (h.deal_size) setDS(h.deal_size);
+    setShowHistory(false);
+  }
+
   function toggleFn(fn: string) {
     setFns((prev) => prev.includes(fn) ? prev.filter((f) => f !== fn) : [...prev, fn]);
   }
 
-  async function generate() {
+ function startGenerate() {
     if (!seller || !buyer || !dealSize || selectedFns.length === 0) return;
+    setError(null);
+    setConfirmOpen(true);
+  }
+
+  async function generate(tier: "premium" | "economic" | "offline") {
+    setConfirmOpen(false);
+    if (tier === "offline") {
+      setError("Offline mode not available for TSA — needs AI for service catalog generation. Pick Premium or Economic.");
+      return;
+    }
     setGen(true); setContent(null); setError(null);
     try {
       const res = await fetch("/api/ai/tsa", {
@@ -43,18 +109,17 @@ export default function TSAGeneratorPage() {
         body: JSON.stringify({
           seller, buyer, sector, deal_size: dealSize, geography,
           close_date: closeDate, functions: selectedFns,
-          duration, pricing_basis: pricing, constraints,
+          duration, pricing_basis: pricing, constraints, tier,
         }),
       });
       const j = await res.json();
-      if (j.content) setContent(j.content);
+      if (j.content) { setContent(j.content); reloadHistory(); }
       else setError(j.error ?? "Generation failed.");
     } catch {
       setError("Request failed. Check API key in Settings.");
     }
     setGen(false);
   }
-
   const fields: Array<[string, string, (v: string) => void, string]> = [
     ["Seller (service provider) *", seller, setSeller, "e.g. Divco Corp"],
     ["Buyer / Carve-out *", buyer, setBuyer, "e.g. NewCo / PE Firm"],
@@ -65,13 +130,55 @@ export default function TSAGeneratorPage() {
   ];
   return (
     <div className="space-y-6 p-6">
+      <AIGenerateConfirm
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={generate}
+        module="tsa"
+        premiumProvider={{ tier: "premium", ...premiumTier }}
+        economicProvider={{ tier: "economic", ...economicTier }}
+        hasOfflineFallback={false}
+      />
+
       <div className="page-header">
-        <h1 className="flex items-center gap-2 text-xl font-semibold text-white">
-          <ArrowLeftRight className="h-5 w-5 text-indigo-400" />
-          TSA Generator
-        </h1>
-        <p className="mt-1 text-sm text-white/50">AI-powered Transitional Service Agreement · service catalog · pricing · exit milestones · governance</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="flex items-center gap-2 text-xl font-semibold text-white">
+              <ArrowLeftRight className="h-5 w-5 text-indigo-400" />
+              TSA Generator
+            </h1>
+            <p className="mt-1 text-sm text-white/50">AI-powered Transitional Service Agreement</p>
+          </div>
+          <button onClick={() => setShowHistory(!showHistory)}
+            className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20">
+            <History className="h-3 w-3" /> History ({history.length})
+          </button>
+        </div>
       </div>
+
+      {showHistory && (
+        <div className="card p-4">
+          <h2 className="mb-2 text-sm font-semibold">TSA History</h2>
+          {history.length === 0 ? (
+            <p className="text-xs text-slate-500">No history yet.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {history.map((h) => (
+                <div key={h.id} className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 p-2 text-[11px] dark:border-white/10 dark:bg-white/5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-slate-700 dark:text-slate-300">{h.target ?? "—"} → {h.buyer ?? "—"}</p>
+                    <p className="text-[10px] text-slate-500">{h.sector ?? "—"} · {h.provider ?? "—"} · {h.cost_estimate_usd ? `$${h.cost_estimate_usd.toFixed(4)}` : "Free"} · {new Date(h.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <button onClick={() => loadHistory(h)} className="rounded border border-slate-200 px-2 py-0.5 text-[10px] dark:border-white/10">Load</button>
+                  <button onClick={() => deleteHistory(h.id)} className="rounded bg-red-50 p-1 text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                    <Trash2 className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-1">
@@ -135,7 +242,7 @@ export default function TSAGeneratorPage() {
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
             </div>
 
-            <button onClick={generate} disabled={generating || !seller || !buyer || !dealSize || selectedFns.length === 0}
+            <button onClick={startGenerate} disabled={generating || !seller || !buyer || !dealSize || selectedFns.length === 0}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40">
               {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {generating ? "Generating TSA…" : "Generate TSA"}
