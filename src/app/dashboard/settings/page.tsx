@@ -57,17 +57,23 @@ export default function SettingsPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  async function saveProvider(tier: Tier, p: ProviderId) {
+async function saveProvider(tier: Tier, p: ProviderId) {
     if (tier === "fast") { setFastProv(p); setFastModel(null); }
     else { setSmartProv(p); setSmartModel(null); }
     const { data: u } = await sb.auth.getUser();
     if (!u.user) return;
-    await sb.from("ai_settings").update({
+    const { error } = await sb.from("ai_settings").update({
       [tier === "fast" ? "bulk_provider" : "premium_provider"]: p,
       [tier === "fast" ? "bulk_model" : "premium_model"]: null,
     }).eq("user_id", u.user.id);
-    setStatus(`✓ ${tier === "fast" ? "Fast" : "Smart"} provider set to ${PROVIDERS[p].label}. Save key and click Auto-detect.`);
-    loadAll();
+    if (error) {
+      setStatus(`Error saving provider: ${error.message}`);
+      return;
+    }
+    setStatus(`✓ ${tier === "fast" ? "Fast" : "Smart"} provider set to ${PROVIDERS[p].label}. Now save the API key below.`);
+    // Refresh keys-status (badges) WITHOUT touching dropdown state
+    const { data: ks } = await sb.rpc("ai_keys_status");
+    if (ks) setKeysStatus(ks as KeyStatus[]);
   }
 
   async function saveKey(tier: Tier) {
@@ -82,7 +88,8 @@ export default function SettingsPage() {
     setStatus(j.ok ? `✓ ${tier} key saved. Now click Auto-detect to verify.` : `Error: ${j.error}`);
     if (j.ok) {
       if (tier === "fast") setFastKey(""); else setSmartKey("");
-      loadAll();
+      const { data: ks } = await sb.rpc("ai_keys_status");
+      if (ks) setKeysStatus(ks as KeyStatus[]);
     }
   }
 
@@ -103,7 +110,8 @@ export default function SettingsPage() {
     if (j.ok) {
       if (tier === "fast") setFastModel(j.model); else setSmartModel(j.model);
       setStatus(`✓ ${tier} key working — auto-selected model: ${j.model}`);
-      loadAll();
+      const { data: ks } = await sb.rpc("ai_keys_status");
+      if (ks) setKeysStatus(ks as KeyStatus[]);
     } else {
       setStatus(`✗ ${tier} key FAILED: ${j.error}. Tried: ${(j.tried ?? []).join(", ")}`);
     }
@@ -118,9 +126,10 @@ export default function SettingsPage() {
     const j = await r.json();
     setStatus(j.ok ? `✓ ${kind} key deleted` : `Error: ${j.error}`);
     if (j.ok) {
-      if (kind === "bulk") setFastModel(null);
-      if (kind === "premium") setSmartModel(null);
-      loadAll();
+      if (kind === "bulk") { setFastModel(null); setFastProv("free"); }
+      if (kind === "premium") { setSmartModel(null); setSmartProv("free"); }
+      const { data: ks } = await sb.rpc("ai_keys_status");
+      if (ks) setKeysStatus(ks as KeyStatus[]);
     }
   }
 
