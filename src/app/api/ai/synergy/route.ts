@@ -138,7 +138,14 @@ MINIMUM 4 risks. Categories: Execution | Market | Regulatory | Talent | Technolo
 
 ## Sector Benchmarks
 Compare synergy/EV% to 3 NAMED comparable transactions in same sector (real deals from 2021-2025).
-Format: "Deal A/B (Year): $XB — X% synergy/EV capture".`;
+Format: "Deal A/B (Year): $XB — X% synergy/EV capture".
+
+OUTPUT QUALITY CONTROL:
+- Total length 800-1200 words
+- All $ values must be computed from deal_size — no generic % ranges
+- Each comparable transaction must be a real named deal (2021-2025) with actual deal value
+- No truncation — every section must be complete
+- No repetition between sections`;
 
   const userPrompt = [
     dealCtx,
@@ -167,10 +174,5 @@ Format: "Deal A/B (Year): $XB — X% synergy/EV capture".`;
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
-OUTPUT QUALITY CONTROL:
-- Total length 800-1200 words
-- All $ values must be computed from deal_size — no generic % ranges
-- Each comparable transaction must be a real named deal (2021-2025) with actual deal value
-- No truncation — every section must be complete
-- No repetition between sections`;
+
 }
