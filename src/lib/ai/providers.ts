@@ -94,8 +94,8 @@ google: {
     id: "groq", label: "Groq (ultra-fast)", needsKey: true, apiStyle: "groq",
     baseUrl: "https://api.groq.com/openai/v1",
     keyDocsUrl: "https://console.groq.com/keys",
-    fastCandidates: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
-    smartCandidates: ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"],
+    fastCandidates: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-4-scout-17b-16e-instruct", "gemma2-9b-it"],
+    smartCandidates: ["llama-3.3-70b-versatile", "llama-4-scout-17b-16e-instruct", "qwen-2.5-32b", "deepseek-r1-distill-llama-70b"],
     listModelsUrl: "https://api.groq.com/openai/v1/models",
   },
   nvidia: {
