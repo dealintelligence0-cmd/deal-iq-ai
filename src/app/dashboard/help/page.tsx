@@ -172,7 +172,7 @@ const MORE_SECTIONS: Section[] = [
       { heading: "When to switch", body: "If Tavily / Brave / Serper quota runs out, flip the dropdown to Prompt-Based — zero downtime. Both modes feed into the same proposal pipeline." },
     ],
   },
-  {
+  
     {
     id: "pmi", title: "PMI Studio", icon: Briefcase,
     content: [
