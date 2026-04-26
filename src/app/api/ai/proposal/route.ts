@@ -38,7 +38,17 @@ In Risk & Mitigation: list 6 risks, each as "**Risk Title** — Mitigation: ..."
 In Functional Workstreams: cover Finance, HR, IT, Operations, Sales, Procurement, Legal, Tax, Cyber — each as "**[Function]:** key actions".
 In Value Creation: include "$XM revenue + $YM cost = $ZM total" line.
 
-Length: 1500-2000 words. Use Markdown. Be specific, numeric, and authoritative.`,
+Length: 1500-2000 words. Use Markdown. Be specific, numeric, and authoritative.
+
+QUALITY ENFORCEMENT (verify before output):
+- Currency consistent throughout — no mixing € and $
+- Implied EV/EBITDA multiple stated in Executive Summary
+- Synergy derivation shows computation (not just % range)
+- Antitrust risk assessed with specific jurisdictions named
+- At least 1 comparable transaction cited with deal value
+- No unsubstantiated buzzwords
+- Deal structure (cash/stock split) specified where known
+- Each risk has probability estimate, $ impact range, named owner`,
   executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
 ## Transaction Overview
 ## Strategic Rationale
@@ -186,7 +196,6 @@ const body = await req.json() as {
 - **Value Impact:** ${s.valueImpact}`).join("\n");
 
   const dealContext = `
-  const fullContext = dealContext + buildIndustryContextBlock(sector, geography);
 ## DEAL FACTS
 - Client / Advisory House: ${client_name || "N/A"}
 - Client Role: ${body.client_role ?? "buyer"}
@@ -217,7 +226,8 @@ ${servicesBlock}
 
 ${body.research_docs ? `\n## ADDITIONAL RESEARCH / ANALYST NOTES\n${body.research_docs.slice(0, 4000)}\n` : ""}
 `;
-
+const fullContext = dealContext + buildIndustryContextBlock(sector, geography);
+  
  // Build machine-derived context (used by every prompt)
   const ctx = buildDealContext({
     buyer, target, sector, geography, deal_size,
@@ -237,7 +247,7 @@ ${body.research_docs ? `\n## ADDITIONAL RESEARCH / ANALYST NOTES\n${body.researc
         + "\n\nADDITIONAL RULES:\n- Use consistent currency throughout.\n- State EV/EBITDA multiple if computable.\n- Banned generic phrases: 'market is growing', 'there are risks', 'synergies include cost savings', 'leverage', 'value-add', 'best-in-class'.\n- EVERY claim must cite a number (%, $, or months).\n- Use cause→effect reasoning.\n- Write to the decision-maker (CEO / IC / Board / PE Partner) implied by client_role.\n\n"
         + advisorBlock },
     { role: "user", content:
-      `Using the structured DEAL CONTEXT, classification, services, regulatory screening, and any research/insights below, generate the ${proposal_type.replace(/_/g, " ")} document. Open with the 10-section ADVISOR VERDICT, then continue with standard sections. The Risk & Mitigation section MUST include a Regulatory Compliance subsection referencing each flagged filing.\n\n${ctxBlock}\n${regBlock}\n${dealContext}` },
+      `Using the structured DEAL CONTEXT, classification, services, regulatory screening, and any research/insights below, generate the ${proposal_type.replace(/_/g, " ")} document. Open with the 10-section ADVISOR VERDICT, then continue with standard sections. The Risk & Mitigation section MUST include a Regulatory Compliance subsection referencing each flagged filing.\n\n${ctxBlock}\n${regBlock}\n${fullContext}` },
   ];
 
   try {
