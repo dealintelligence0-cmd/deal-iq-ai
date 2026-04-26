@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { kind } = await req.json() as { kind: string };
-  const valid = ["bulk", "premium", "tavily", "brave", "serper"];
+  const valid = ["bulk", "premium", "economic", "tavily", "brave", "serper"];
   if (!valid.includes(kind)) return NextResponse.json({ error: "Bad kind" }, { status: 400 });
 
   const { data, error } = await supabase.rpc("delete_ai_key", { p_kind: kind });
