@@ -54,9 +54,10 @@ export async function POST(req: Request) {
     } catch { /* fallback to free */ }
   }
 
-  if (!apiKey || !settings?.premium_provider) {
+ const smartProv = settings?.premium_provider as string | null | undefined;
+  if (!apiKey || !smartProv || smartProv === "free") {
     return NextResponse.json({
-      error: "TSA Generator requires a Smart-tier AI key. Save one in Settings → AI Providers (Anthropic, OpenAI, or Gemini recommended).",
+      error: `Smart-tier AI provider is set to "${smartProv ?? "none"}". Open Settings, select a real AI provider (Anthropic, Google, OpenAI, Groq, etc.) for Smart Tier, save the API key, then click Auto-detect.`,
     }, { status: 400 });
   }
 
