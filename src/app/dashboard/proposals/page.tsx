@@ -7,6 +7,7 @@ import {
   CheckCircle2, ChevronDown, History, Trash2, Plus, X,
 } from "lucide-react";
 import { renderVisualProposal, renderCitations } from "@/lib/proposal/visual-renderer";
+import { cleanMarkdownToHTML } from "@/lib/ai/utils";
 import { classifyDeal, generateServices, type Service, type DealClassification } from "@/lib/intelligence/deal-classifier";
 
 type ProposalType =
@@ -14,12 +15,12 @@ type ProposalType =
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
 
 const PROPOSAL_OPTIONS: { value: ProposalType; label: string; icon: string; desc: string }[] = [
-  { value: "advisory", label: "M&A Advisory Proposal", icon: "ߒ", desc: "Full client-facing advisory mandate proposal" },
-  { value: "executive_summary", label: "Executive Summary", icon: "ߓ", desc: "Concise deal summary for senior leadership" },
-  { value: "board_memo", label: "Board Memo", icon: "ߏ️", desc: "Formal memo for board approval" },
-  { value: "investment_teaser", label: "Investment Teaser", icon: "ߓ", desc: "Confidential marketing teaser for buyers" },
-  { value: "integration_blueprint", label: "Integration Blueprint", icon: "ߔ", desc: "Post-merger integration roadmap" },
-  { value: "hundred_day_plan", label: "100-Day Plan", icon: "ߗ️", desc: "Action plan for first 100 days post-close" },
+  { value: "advisory", label: "M&A Advisory Proposal", icon: "▸", desc: "Full client-facing advisory mandate proposal" },
+  { value: "executive_summary", label: "Executive Summary", icon: "■", desc: "Concise deal summary for senior leadership" },
+  { value: "board_memo", label: "Board Memo", icon: "★", desc: "Formal memo for board approval" },
+  { value: "investment_teaser", label: "Investment Teaser", icon: "$", desc: "Confidential marketing teaser for buyers" },
+  { value: "integration_blueprint", label: "Integration Blueprint", icon: "●", desc: "Post-merger integration roadmap" },
+  { value: "hundred_day_plan", label: "100-Day Plan", icon: "✓", desc: "Action plan for first 100 days post-close" },
 ];
 
 type SavedProposal = {
@@ -27,17 +28,10 @@ type SavedProposal = {
   createdAt: string; provider: string; model: string;
 };
 
+
+
 function renderMarkdown(md: string): string {
-  return md
-    .replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold text-slate-800 mt-5 mb-2">$1</h3>')
-    .replace(/^## (.+)$/gm,  '<h2 class="text-lg font-bold text-slate-900 mt-6 mb-2 border-b border-slate-200 pb-1">$1</h2>')
-    .replace(/^# (.+)$/gm,   '<h1 class="text-xl font-extrabold text-slate-900 mt-4 mb-3">$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>')
-    .replace(/\*(.+?)\*/g,    '<em class="italic text-slate-700">$1</em>')
-    .replace(/^- (.+)$/gm,   '<li class="ml-4 list-disc text-slate-700">$1</li>')
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 list-decimal text-slate-700">$2</li>')
-    .replace(/\n\n/g, '</p><p class="text-slate-700 leading-relaxed my-2">')
-    .replace(/\n/g, '<br/>');
+  return cleanMarkdownToHTML(md);
 }
 
 function ProposalsPageInner() {
