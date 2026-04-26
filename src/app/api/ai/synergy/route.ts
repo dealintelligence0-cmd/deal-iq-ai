@@ -33,7 +33,30 @@ export async function POST(req: Request) {
     buyer, target, sector, geography,
     dealSize: deal_size, notes: normalizePrompt(notes, 1000),
   });
+// Pull live web research if user has a search key
+  let researchBlock = "";
+  try {
+    const { data: provData } = await admin
+      .from("ai_settings")
+      .select("research_provider, tavily_key_encrypted, brave_key_encrypted, serper_key_encrypted")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
+    const provider = (provData?.research_provider ?? "tavily") as "tavily" | "brave" | "serper";
+    const cipherCol = provider === "brave" ? "brave_key_encrypted"
+                    : provider === "serper" ? "serper_key_encrypted"
+                    : "tavily_key_encrypted";
+    const searchCipher = provData?.[cipherCol] as string | null | undefined;
+
+    if (searchCipher) {
+      const { data: dec } = await admin.rpc("decrypt_key", { cipher: searchCipher });
+      const searchKey = dec as string;
+      const { researchDeal, briefToPromptBlock } = await import("@/lib/research/web-research");
+      const brief = await researchDeal(buyer, target, sector, geography, searchKey, provider);
+      researchBlock = briefToPromptBlock(brief);
+    }
+  } catch { /* research is optional — proceed without */ }
+  
   const ambitionMult = ambition === "aggressive" ? 1.0 : ambition === "conservative" ? 0.5 : 0.72;
   const costPct = ((bench.costLow + bench.costHigh) / 2 * ambitionMult * 100).toFixed(1);
   const revPct = ((bench.revLow + bench.revHigh) / 2 * ambitionMult * 100).toFixed(1);
@@ -55,6 +78,11 @@ export async function POST(req: Request) {
     } catch { /* fallback to free */ }
   }
 
+  if (!apiKey || !settings?.premium_provider) {
+    return NextResponse.json({
+      error: "Synergy Engine requires a Smart-tier AI key. Save one in Settings → AI Providers (Anthropic, OpenAI, or Gemini recommended).",
+    }, { status: 400 });
+  }
   const cfg: RouteConfig = {
     tier: "smart",
     primaryProvider: ((settings?.premium_provider ?? settings?.bulk_provider) as ProviderId) ?? "free",
@@ -111,10 +139,12 @@ Format: "Deal A/B (Year): $XB — X% synergy/EV capture".`;
   const userPrompt = [
     dealCtx,
     industryCtx,
+    researchBlock,
     `Synergy ambition: ${ambition}`,
     target_revenue ? `Target Revenue: ${target_revenue}` : "",
     target_ebitda ? `Target EBITDA: ${target_ebitda}` : "",
     buyer_revenue ? `Buyer Revenue: ${buyer_revenue}` : "",
+    researchBlock ? "[USE RESEARCH] Cite specific findings from LIVE WEB RESEARCH using [1], [2] markers throughout. Reference buyer's recent activity, target's actual metrics, and current sector dynamics — never use generic phrases when specifics are available." : "",
   ].filter(Boolean).join("\n");
 
   const messages: ChatMessage[] = [
@@ -123,7 +153,7 @@ Format: "Deal A/B (Year): $XB — X% synergy/EV capture".`;
   ];
 
   try {
-    const result = await routedCall(cfg, messages, 4000);
+    const result = await routedCall(cfg, messages, 6000);
     return NextResponse.json({
       content: result.text,
       provider: result.provider,
