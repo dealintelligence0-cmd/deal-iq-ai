@@ -100,19 +100,21 @@ export default function PmiStudioPage() {
     const title = `PMI Proposal — ${target} · ${buyer}`;
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title><script src="https://cdn.tailwindcss.com"></script>
 <style>
-@page{margin:22mm 18mm 26mm 18mm}
+@page{margin:20mm 18mm 24mm 18mm}
 body{font-family:-apple-system,Helvetica,Arial,sans-serif;color:#0f172a;background:#fff;font-size:11px;line-height:1.55;margin:0;padding:0}
 .pdf-wrap{max-width:780px;margin:0 auto;padding:0 8px}
-.pdf-header{border-bottom:2px solid #4f46e5;padding-bottom:16px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start}
+.pdf-header{border-bottom:2px solid #4f46e5;padding-bottom:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start}
 .pdf-header .label{font-size:9px;font-weight:700;letter-spacing:2px;color:#4f46e5;text-transform:uppercase}
-.pdf-header h1{font-size:20px;font-weight:700;margin:4px 0 0}
-section{margin:22px 0;page-break-inside:avoid}
-section h2{font-size:14px;font-weight:700;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid #e2e8f0}
-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:10px;table-layout:fixed}
-th{background:#eef2ff;color:#3730a3;font-weight:700;text-align:left;padding:8px;word-break:break-word}
-td{padding:7px;border-bottom:1px solid #f1f5f9;word-break:break-word;vertical-align:top}
+.pdf-header h1{font-size:18px;font-weight:700;margin:4px 0 0;color:#0f172a}
+.conf{font-size:8px;color:#94a3b8;margin-top:2px}
+h2{font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0;padding-bottom:5px;margin:18px 0 8px;color:#1e1b4b}
+h3{font-size:11px;font-weight:600;margin:12px 0 4px;color:#3730a3}
+p,li{color:#334155;line-height:1.55}
+table{width:100%;border-collapse:collapse;font-size:10px;margin:8px 0}
+th{background:#eef2ff;color:#3730a3;font-weight:700;padding:7px 8px;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+td{padding:6px 8px;border-bottom:1px solid #f1f5f9;vertical-align:top}
 tr{page-break-inside:avoid}
-.pdf-footer{position:fixed;bottom:8mm;left:18mm;right:18mm;font-size:8px;color:#94a3b8;text-align:center;border-top:.5px solid #e2e8f0;padding-top:4px}
+.pdf-footer{position:fixed;bottom:6mm;left:18mm;right:18mm;font-size:7.5px;color:#94a3b8;text-align:center;border-top:.5px solid #e2e8f0;padding-top:3px}
 </style></head><body>
 <div class="pdf-wrap">
 <div class="pdf-header">
