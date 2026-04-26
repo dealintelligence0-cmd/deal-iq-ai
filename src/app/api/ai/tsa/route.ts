@@ -5,6 +5,7 @@ import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
+import { estimateCost } from "@/lib/ai/cost-estimator";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -20,7 +21,9 @@ export async function POST(req: Request) {
     deal_size?: string; geography?: string; close_date?: string;
     functions?: string[]; duration?: string;
     pricing_basis?: string; constraints?: string;
+    tier?: "premium" | "economic" | "offline";
   };
+  const tier = body.tier ?? "premium";
 
   const {
     seller = "", buyer = "", sector = "", deal_size = "",
@@ -38,34 +41,39 @@ export async function POST(req: Request) {
   const complexity = fnCount >= 7 ? "Complex" : fnCount >= 4 ? "Standard" : "Simple";
 
   // Build route config
-  const admin = createAdminClient();
+ const admin = createAdminClient();
   const { data: settings } = await admin
     .from("ai_settings")
-    .select("premium_provider, premium_model, premium_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
+    .select("premium_provider, premium_model, premium_key_encrypted, economic_provider, economic_model, economic_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
     .eq("user_id", user.id)
     .maybeSingle();
 
+  const provCol = tier === "economic" ? "economic_provider" : "premium_provider";
+  const modelCol = tier === "economic" ? "economic_model" : "premium_model";
+  const keyCol = tier === "economic" ? "economic_key_encrypted" : "premium_key_encrypted";
+
+  const s = settings as Record<string, unknown> | null;
   let apiKey: string | null = null;
-  const cipher = (settings?.premium_key_encrypted ?? settings?.bulk_key_encrypted) as string | undefined;
+  const cipher = (s?.[keyCol] ?? s?.bulk_key_encrypted) as string | undefined;
   if (cipher) {
     try {
       const { data: dec } = await admin.rpc("decrypt_key", { cipher });
       apiKey = dec as string | null;
-    } catch { /* fallback to free */ }
+    } catch { /* fallback */ }
   }
 
- const smartProv = settings?.premium_provider as string | null | undefined;
-  if (!apiKey || !smartProv || smartProv === "free") {
+  const selectedProv = (s?.[provCol] ?? s?.bulk_provider) as string | null | undefined;
+  if (!apiKey || !selectedProv || selectedProv === "free") {
     return NextResponse.json({
-      error: `Smart-tier AI provider is set to "${smartProv ?? "none"}". Open Settings, select a real AI provider (Anthropic, Google, OpenAI, Groq, etc.) for Smart Tier, save the API key, then click Auto-detect.`,
+      error: `${tier === "economic" ? "Economic" : "Smart"}-tier AI not configured. Save key in Settings.`,
     }, { status: 400 });
   }
 
   const cfg: RouteConfig = {
     tier: "smart",
-    primaryProvider: ((settings?.premium_provider ?? settings?.bulk_provider) as ProviderId) ?? "free",
+    primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: (settings?.premium_model ?? settings?.bulk_model) as string | undefined,
+    primaryModel: (s?.[modelCol] ?? s?.bulk_model) as string | undefined,
   };
   // Pull live web research if a search key exists
   let researchBlock = "";
@@ -162,11 +170,25 @@ OUTPUT QUALITY CONTROL:
 
 try {
     const result = await routedCall(cfg, messages, 5000);
-    if (result.provider === "free" || result.model === "rules-v1") {
+  if (result.provider === "free" || result.model === "rules-v1") {
       return NextResponse.json({
-        error: `AI provider call failed. Real reason: ${result.lastError ?? "unknown"}. Provider attempted: ${cfg.primaryProvider} / ${cfg.primaryModel ?? "auto"}. Open Settings → Test This Key to diagnose.`,
+        error: `TSA AI failed. Real reason: ${result.lastError ?? "unknown"}.`,
       }, { status: 500 });
     }
+
+    const inputTokens = result.inputTokens ?? 0;
+    const outputTokens = result.outputTokens ?? 0;
+    const { cost } = estimateCost(result.provider, inputTokens, outputTokens);
+
+    await admin.from("ai_outputs").insert({
+      user_id: user.id, module: "tsa",
+      buyer, target: seller, sector, geography, deal_size,
+      tier, provider: result.provider, model: result.model,
+      input_tokens: inputTokens, output_tokens: outputTokens, cost_estimate_usd: cost,
+      content: result.text,
+      meta: { functions, duration, pricing_basis, close_date },
+    });
+
     return NextResponse.json({
       content: result.text,
       provider: result.provider,
