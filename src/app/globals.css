@@ -135,3 +135,43 @@ html.dark { color-scheme: dark; }
 /* Gradient buttons keep their indigo identity */
 .dark .from-indigo-600 { --tw-gradient-from: #6366f1 !important; }
 .dark .to-purple-600 { --tw-gradient-to: #8b5cf6 !important; }
+/* Advisory Intelligence group accent */
+.nav-advisory-dot { width: 6px; height: 6px; border-radius: 50%; background: #6366f1; opacity: .5; }
+
+/* Enterprise card system */
+.card-enterprise {
+  background: #fff;
+  border: .5px solid rgba(99, 102, 241, .14);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 14, 26, .04), 0 0 0 1px rgba(99, 102, 241, .05);
+}
+.dark .card-enterprise {
+  background: rgba(30, 27, 75, 0.1);
+  border-color: rgba(99, 102, 241, .2);
+}
+
+/* Sticky action bar */
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  background: rgba(255, 255, 255, .95);
+  backdrop-filter: blur(8px);
+  border-top: .5px solid rgba(99, 102, 241, .12);
+  padding: 12px 16px;
+  z-index: 10;
+}
+.dark .sticky-actions {
+  background: rgba(15, 14, 26, .95);
+  border-top-color: rgba(99, 102, 241, .2);
+}
+
+/* Print / PDF */
+@media print {
+  nav, aside, .page-header, button, .sticky-actions { display: none !important; }
+  body { background: #fff !important; font-size: 11px; }
+  .prose { max-width: 100% !important; }
+  h2 { border-bottom: 1px solid #4f46e5 !important; padding-bottom: 4px; }
+  table { font-size: 10px; }
+  th { background: #eef2ff !important; color: #3730a3 !important; -webkit-print-color-adjust: exact; }
+  @page { margin: 20mm 18mm 24mm 18mm; }
+}
