@@ -134,7 +134,14 @@ Min 5 risks. Include: seller motivation to exit early, IT migration delays, stra
 ## Negotiation Strategy for Buyer
 5 specific negotiating positions with commercial rationale.
 Format: "Position: [X] — Rationale: [Y] — Fallback: [Z]"`;
-
+OUTPUT QUALITY CONTROL:
+- Total length 700-1000 words
+- Every service must include specific SLA metric (e.g., "99.5% uptime, 4hr response time")
+- Every monthly cost must be computed from deal_size (no placeholder ranges)
+- Every exit dependency must name a specific predecessor service
+- For cross-border deals: explicit data residency + regulatory regime per jurisdiction
+- Stranded cost risk quantified in $ for each function
+  
   const userPrompt = [
     dealCtx,
     industryCtx,
