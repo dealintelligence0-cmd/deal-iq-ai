@@ -144,6 +144,16 @@ if (error) {
       <div className="mt-6">
         <RecentDealsTable deals={deals} />
       </div>
+   <div className="mt-6">
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+          <span className="inline-block h-1 w-4 rounded-full bg-indigo-500" />
+          Pipeline deep-dive
+        </h2>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <HorizontalBars title="Country exposure" sub="By deal value ($M)" data={topBuckets(deals, "country", 10)} />
+          <DealTypePie data={topBuckets(deals, "deal_type", 8)} />
+        </div>
+      </div>
     </div>
   );
 }
