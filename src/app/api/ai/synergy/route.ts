@@ -165,6 +165,11 @@ OUTPUT QUALITY CONTROL:
 
   try {
     const result = await routedCall(cfg, messages, 6000);
+    if (result.provider === "free" || result.model === "rules-v1") {
+      return NextResponse.json({
+        error: "AI generation failed — rule-based fallback returned. Verify your Smart-tier provider key in Settings.",
+      }, { status: 500 });
+    }
     return NextResponse.json({
       content: result.text,
       provider: result.provider,
