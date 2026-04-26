@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   BrainCircuit, LayoutDashboard, CloudUpload, GitMerge,
   AlertTriangle, FlaskConical, Briefcase, FileText,
-  BarChart3, Settings, Sparkles, Download, Shield, BookOpen,
+  BarChart3, Settings, Sparkles, Download, Shield, BookOpen, Layers,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +20,7 @@ const navItems = [
   { label: "Deals",       href: "/dashboard/deals",      icon: Briefcase },
   { label: "Enrich AI",   href: "/dashboard/enrich",     icon: Sparkles },
   { label: "Proposals",   href: "/dashboard/proposals",  icon: FileText },
+  { label: "PMI Studio",  href: "/dashboard/pmi",        icon: Layers },
   { label: "Analytics",   href: "/dashboard/analytics",  icon: BarChart3 },
   { label: "Exports",     href: "/dashboard/exports",    icon: Download },
   { label: "Activity",    href: "/dashboard/activity",   icon: Shield },
