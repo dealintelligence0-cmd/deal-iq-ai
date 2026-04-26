@@ -29,11 +29,11 @@ export type ProviderMeta = {
 };
 
 export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
-  google: {
+google: {
     id: "google", label: "Google (Gemini / Gemma)", needsKey: true, apiStyle: "gemini",
     keyDocsUrl: "https://aistudio.google.com/apikey",
-    fastCandidates: ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemma-3-27b-it"],
-    smartCandidates: ["gemini-2.5-pro", "gemini-2.0-pro", "gemini-1.5-pro"],
+    fastCandidates: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
+    smartCandidates: ["gemini-pro-latest", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
     listModelsUrl: "https://generativelanguage.googleapis.com/v1beta/models",
   },
   openai: {
