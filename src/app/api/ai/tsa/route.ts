@@ -159,8 +159,13 @@ OUTPUT QUALITY CONTROL:
     { role: "user", content: userPrompt },
   ];
 
-  try {
+try {
     const result = await routedCall(cfg, messages, 5000);
+    if (result.provider === "free" || result.model === "rules-v1") {
+      return NextResponse.json({
+        error: "AI generation failed — rule-based fallback returned. Verify your Smart-tier provider key in Settings (the key may have failed authentication or hit quota). Common fixes: (1) re-save the key, (2) try a different provider like Anthropic or Groq, (3) check provider dashboard for usage limits.",
+      }, { status: 500 });
+    }
     return NextResponse.json({
       content: result.text,
       provider: result.provider,
