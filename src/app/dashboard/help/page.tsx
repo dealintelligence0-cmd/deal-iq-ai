@@ -246,6 +246,14 @@ const MORE_SECTIONS: Section[] = [
 
 const ALL = [...SECTIONS, ...MORE_SECTIONS];
 
+// Group sections to match main sidebar
+const HELP_GROUPS: { label: string; ids: string[] }[] = [
+  { label: "Getting Started", ids: ["getting-started"] },
+  { label: "Deal Data", ids: ["uploads", "mapping", "exceptions", "value-tests", "pipeline", "enrich"] },
+  { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history"] },
+  { label: "System", ids: ["exports", "settings", "activity", "faq"] },
+];
+
 export default function HelpPage() {
   const [activeId, setActiveId] = useState(ALL[0].id);
   const [search, setSearch] = useState("");
@@ -269,21 +277,32 @@ export default function HelpPage() {
           <input type="text" placeholder="Search help…" value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-indigo-300 focus:bg-white" />
         </div>
-        <nav className="space-y-0.5">
-          {filtered.map((s) => {
-            const Icon = s.icon;
+       <nav className="space-y-3">
+          {HELP_GROUPS.map((g) => {
+            const items = g.ids.map((id) => filtered.find((s) => s.id === id)).filter(Boolean) as Section[];
+            if (items.length === 0) return null;
             return (
-              <button key={s.id} onClick={() => setActiveId(s.id)}
-                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition ${
-                  activeId === s.id ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}>
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1 truncate">{s.title}</span>
-                {activeId === s.id && <ChevronRight className="h-3 w-3" />}
-              </button>
+              <div key={g.label}>
+                <p className="mb-1 px-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">{g.label}</p>
+                <div className="space-y-0.5">
+                  {items.map((s) => {
+                    const Icon = s.icon;
+                    return (
+                      <button key={s.id} onClick={() => setActiveId(s.id)}
+                        className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition ${
+                          activeId === s.id ? "bg-indigo-50 font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300"
+                            : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5"}`}>
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="flex-1 truncate">{s.title}</span>
+                        {activeId === s.id && <ChevronRight className="h-3 w-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
-
         <div className="mt-8 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50 p-4">
           <Zap className="h-5 w-5 text-indigo-600" />
           <p className="mt-2 text-xs font-semibold text-slate-900">Quick start</p>
