@@ -107,14 +107,17 @@ One paragraph: total gross synergy, net of integration costs, implied synergy/EV
 
 ## Cost Synergies — $[X]M Total
 Table: Initiative | Category | Annual Run-Rate ($M) | Y1 | Y2 | Y3 | Confidence | Primary Owner
-MINIMUM 8 initiatives. Use sector-specific logic.
+MINIMUM 10 initiatives — must be sector-specific (no generic G&A bullets).
+For SaaS/Tech: focus on cloud cost, ARR consolidation, engineering rationalization, GTM model merge.
+For Healthcare/Life Sciences: focus on procurement/GPO leverage, R&D portfolio, regulatory pathway, payer mix.
+For Manufacturing: focus on plant footprint, procurement scale, SKU rationalization, logistics network.
 Categories: G&A | Procurement | Technology | Footprint | Headcount | Operations | Other
 Y1/Y2/Y3 values must follow 30/70/100 realisation curve.
 Amounts computed from deal_size × ${costPct}% midpoint.
 
 ## Revenue Synergies — $[X]M Total
 Table: Initiative | Mechanism | Y1 | Y2 | Y3 | Confidence | Key Dependency
-MINIMUM 5 initiatives. Realisation curve: 20/60/100.
+MINIMUM 6 initiatives covering: cross-sell, pricing optimisation, geographic expansion, product bundling, new product co-development, channel attach. Realisation curve: 20/60/100.
 Sector logic: SaaS → cross-sell/NRR/pricing; FS → AUM/branch; Healthcare → procurement/referral.
 Amounts: deal_size × ${revPct}% midpoint.
 
@@ -164,4 +167,10 @@ Format: "Deal A/B (Year): $XB — X% synergy/EV capture".`;
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
+OUTPUT QUALITY CONTROL:
+- Total length 800-1200 words
+- All $ values must be computed from deal_size — no generic % ranges
+- Each comparable transaction must be a real named deal (2021-2025) with actual deal value
+- No truncation — every section must be complete
+- No repetition between sections`;
 }
