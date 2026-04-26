@@ -1,12 +1,10 @@
-
-
 import { callProvider, probeBestModel, type ChatMessage, type ChatResult, type ProviderId, type Tier } from "./providers";
 
 export type RouteConfig = {
   tier: Tier;
   primaryProvider: ProviderId;
   primaryKey: string | null;
-  primaryModel?: string;           // resolved at Save time
+  primaryModel?: string;
   fallbackProvider?: ProviderId;
   fallbackKey?: string | null;
   fallbackModel?: string;
@@ -14,24 +12,27 @@ export type RouteConfig = {
 
 export async function routedCall(
   cfg: RouteConfig, messages: ChatMessage[], maxTokens = 1024
-): Promise<ChatResult & { viaFallback: boolean }> {
-  // Use cached model if we have it; else probe on demand.
+): Promise<ChatResult & { viaFallback: boolean; lastError?: string }> {
   let pModel = cfg.primaryModel;
   if (!pModel) {
     const p = await probeBestModel(cfg.primaryProvider, cfg.tier, cfg.primaryKey);
-    if (!p.ok) throw new Error(p.error ?? "probe failed");
+    if (!p.ok) throw new Error(`Probe failed for ${cfg.primaryProvider}: ${p.error ?? "unknown"} (tried: ${p.tried.join(", ")})`);
     pModel = p.model!;
   }
+
+  let lastError = "";
   try {
     let res;
     try {
       res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
-    } catch {
+    } catch (e1) {
+      lastError = e1 instanceof Error ? e1.message : String(e1);
       // single retry on transient failure
       res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
     }
     return { ...res, viaFallback: false };
-  } catch {
+  } catch (e2) {
+    lastError = e2 instanceof Error ? e2.message : String(e2);
     if (cfg.fallbackProvider) {
       let fModel = cfg.fallbackModel;
       if (!fModel) {
@@ -41,11 +42,13 @@ export async function routedCall(
       if (fModel) {
         try {
           const res = await callProvider(cfg.fallbackProvider, fModel, cfg.fallbackKey ?? null, messages, maxTokens);
-          return { ...res, viaFallback: true };
-        } catch { /* fall through */ }
+          return { ...res, viaFallback: true, lastError };
+        } catch (e3) {
+          lastError = e3 instanceof Error ? e3.message : String(e3);
+        }
       }
     }
     const res = await callProvider("free", "rules-v1", null, messages, maxTokens);
-    return { ...res, viaFallback: true };
+    return { ...res, viaFallback: true, lastError };
   }
 }
