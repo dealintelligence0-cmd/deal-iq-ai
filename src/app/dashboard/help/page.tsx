@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   BookOpen, ChevronRight, Search, Rocket, Upload, GitMerge,
   AlertTriangle, Briefcase, Sparkles, FileText, Download, Shield,
-  Settings as SettingsIcon, HelpCircle, Zap, FlaskConical, Globe, Trash2,
+  Settings as SettingsIcon, HelpCircle, Zap, FlaskConical, Globe, Trash2, History,
 } from "lucide-react";
 
 type Section = {
@@ -121,6 +121,35 @@ const MORE_SECTIONS: Section[] = [
     ],
   },
   {
+    id: "ai-tiers", title: "AI Tiers (Premium / Economic / Offline)", icon: Sparkles,
+    content: [
+      { heading: "Three tiers — pick before each generation", body: "Every AI generation (Proposals · PMI · Synergy · TSA) opens a confirmation modal. Pick the tier that matches your need, budget, and quality bar." },
+      { heading: "Premium AI", body: "Anthropic Claude / OpenAI GPT / xAI Grok. Best reasoning, deepest analysis, richest sector-specific output. Costs ~$0.05-0.20 per generation. Use for client-facing deliverables and IC papers." },
+      { heading: "Economic AI", body: "Groq / Gemini Flash / DeepSeek / Mistral. 80% of premium quality at 1-5% of cost. Often free under monthly limits. Use for drafts, internal reviews, exploratory work." },
+      { heading: "Offline (rule-based)", body: "Deterministic template — instant, free, no AI tokens. Available only for Proposals and PMI. Structurally complete but lacks deep reasoning. Use when AI quotas are exhausted or for predictable outputs." },
+      { heading: "How it works", body: "", steps: [
+        "Settings → save keys for both Premium and Economic tiers",
+        "Click Generate on any AI page → modal shows token estimates + costs",
+        "Pick tier → generation runs",
+        "Cost is logged with each saved output for budget tracking",
+      ]},
+    ],
+  },
+  {
+    id: "history", title: "History & Reuse", icon: History,
+    content: [
+      { heading: "Auto-saved on every generation", body: "Synergy, PMI, TSA, and Proposal outputs are saved to your private history (last 20 each). Saved with deal facts, provider, model, cost, and full content." },
+      { heading: "How to access", body: "", steps: [
+        "Click the History button (top-right of any AI page) — count badge shows saved items",
+        "Click Load on any item → reloads form fields + content",
+        "Click trash icon → permanently deletes that history entry",
+        "Cost shown per item — total $ visible across runs",
+      ]},
+      { heading: "Privacy", body: "History is per-user via Supabase RLS. Other users cannot see your runs. Delete anytime via the trash icon." },
+      { heading: "Use cases", body: "Reuse: pull up a prior Synergy model when client asks for an updated version. Compare: regenerate same deal with different AI tier to compare quality. Audit: see which tier + provider was used historically." },
+    ],
+  },
+  {
     id: "research", title: "Research Modes", icon: Globe,
     content: [
       { heading: "Two research modes", body: "Available on the Proposals page when you have a buyer and target. Pick from a dropdown:" },
@@ -183,12 +212,13 @@ const MORE_SECTIONS: Section[] = [
   },
   {
     id: "settings", title: "Settings", icon: SettingsIcon,
-    content: [
-      { heading: "Two AI tiers", body: "Fast Tier — high-volume enrichment. Smart Tier — proposals and deep reasoning. Each picks its own provider and uses Auto-detect to lock in the best available model." },
+  content: [
+      { heading: "Three AI tiers", body: "Premium Smart (Claude/GPT/Grok — best reasoning), Economic (Groq/Gemini Flash/DeepSeek — cheap & fast), Fast Tier (bulk enrichment). Save a key per tier. Generation modal lets you pick at runtime." },
+      { heading: "Saved Keys & Status", body: "Top section of Settings shows all saved keys with status badges (ACTIVE / INCOMPLETE / EMPTY). One-click Delete to remove. Refresh button re-checks DB state." },
       { heading: "15 AI providers supported", body: "Google, OpenAI, Anthropic, Mistral, DeepSeek, Alibaba Qwen, xAI Grok, Cohere, Groq, NVIDIA NIM, OpenRouter, Together, HuggingFace, Replicate, plus a free rule-based fallback." },
       { heading: "Web research provider", body: "Pick Tavily / Brave / Serper. Switch any time if a free tier exhausts. Combined free quota across all 3 = 5,500+ searches/month." },
-      { heading: "Security", body: "All API keys encrypted at rest with pgcrypto. Keys never exposed to your browser after saving — even on reload." },
-      { heading: "Danger Zone", body: "Settings → bottom of page. Live row counts for Deals, Proposals, Uploads. One-click clear with confirmation modal — useful for resetting between test runs. Auth account is preserved." },
+      { heading: "Security & RLS", body: "All API keys encrypted at rest with pgcrypto. Row-level security ensures keys are isolated per user — invisible to other accounts." },
+      { heading: "Admin Danger Zone", body: "Visible only to admin users. Live row counts + one-click delete with confirmation. Non-admins see a restricted message. Set role via SQL: UPDATE users SET role = 'admin' WHERE email = ...;" },
     ],
   },
   {
@@ -205,7 +235,8 @@ const MORE_SECTIONS: Section[] = [
       { heading: "Is my data private?", body: "Yes. RLS scopes every query to your user ID. API keys are encrypted. No user can see another user's data." },
       { heading: "Do AI providers see my deal data?", body: "Only when you trigger enrichment, research, or proposal generation. Anthropic and Google Enterprise APIs don't train on traffic by default." },
       { heading: "Which AI provider should I pick?", body: "Fast Tier: Groq (free, fastest). Smart Tier: Anthropic Claude (best reasoning) or Google Gemini Pro (free tier)." },
-      { heading: "What if all my free tiers exhaust?", body: "AI: rule-based fallback runs offline. Research: switch from Web to Prompt-Based mode in Proposals dropdown. Both work without quota." },
+      { heading: "What if all my free tiers exhaust?", body: "Pick Economic tier (Groq is free + fast) or Offline rule-based when generating. Research: switch from Web to Prompt-Based mode. Synergy/TSA require AI — switch tier in the modal." },
+      { heading: "How is cost tracked?", body: "Every AI generation logs estimated cost based on input/output tokens × provider rates. Visible in History per item. Total spend visible by summing cost column." },
       { heading: "Can I edit a generated proposal?", body: "Copy to clipboard, paste into Word/Docs, edit there. Direct in-app editing is on the roadmap." },
       { heading: "How do I reset everything?", body: "Settings → Danger Zone → Clear All Data. Auth is preserved." },
       { heading: "Multi-user workspaces?", body: "v1 is single-user. Multi-user orgs are planned for v2." },
