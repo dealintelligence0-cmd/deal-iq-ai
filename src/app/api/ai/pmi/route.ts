@@ -5,6 +5,7 @@ import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { buildIndustryContextBlock, getSynergyBenchmark, matchSector } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
+import { estimateCost } from "@/lib/ai/cost-estimator";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -15,12 +16,15 @@ export async function POST(req: Request) {
   const allowed = await checkRateLimit(supabase, "ai_pmi", 10, 60);
   if (!allowed) return NextResponse.json({ error: "Rate limit: 10 requests per minute" }, { status: 429 });
 
-  const body = await req.json() as {
+ const body = await req.json() as {
     buyer?: string; target?: string; sector?: string; geography?: string;
     deal_size?: string; synergy_ambition?: string; key_risks?: string;
     public_private?: string; listed?: string; known_issues?: string;
     tsa_needed?: boolean; cross_border?: boolean; notes?: string;
+    output_mode?: string;
+    tier?: "premium" | "economic" | "offline";
   };
+  const tier = body.tier ?? "premium";
 
   const {
     buyer = "", target = "", sector = "", geography = "",
@@ -37,15 +41,20 @@ export async function POST(req: Request) {
     dealSize: deal_size, notes: normalizePrompt(notes, 1000),
   });
 
-  const admin = createAdminClient();
+const admin = createAdminClient();
   const { data: settings } = await admin
     .from("ai_settings")
-    .select("premium_provider, premium_model, premium_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
+    .select("premium_provider, premium_model, premium_key_encrypted, economic_provider, economic_model, economic_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
     .eq("user_id", user.id)
     .maybeSingle();
 
+  const provCol = tier === "economic" ? "economic_provider" : "premium_provider";
+  const modelCol = tier === "economic" ? "economic_model" : "premium_model";
+  const keyCol = tier === "economic" ? "economic_key_encrypted" : "premium_key_encrypted";
+
+  const s = settings as Record<string, unknown> | null;
   let apiKey: string | null = null;
-  const cipher = (settings?.premium_key_encrypted ?? settings?.bulk_key_encrypted) as string | undefined;
+  const cipher = (s?.[keyCol] ?? s?.bulk_key_encrypted) as string | undefined;
   if (cipher) {
     try {
       const { data: dec } = await admin.rpc("decrypt_key", { cipher });
@@ -53,17 +62,18 @@ export async function POST(req: Request) {
     } catch { /* fallback */ }
   }
 
-  if (!apiKey || !settings?.premium_provider) {
+  const selectedProv = (s?.[provCol] ?? s?.bulk_provider) as string | null | undefined;
+  if (!apiKey || !selectedProv || selectedProv === "free") {
     return NextResponse.json({
-      error: "PMI Studio requires a Smart-tier AI key. Save one in Settings → AI Providers.",
+      error: `${tier === "economic" ? "Economic" : "Smart"}-tier AI provider not configured. Open Settings, save an API key for ${tier} tier.`,
     }, { status: 400 });
   }
 
   const cfg: RouteConfig = {
     tier: "smart",
-    primaryProvider: ((settings?.premium_provider ?? settings?.bulk_provider) as ProviderId) ?? "free",
+    primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: (settings?.premium_model ?? settings?.bulk_model) as string | undefined,
+    primaryModel: (s?.[modelCol] ?? s?.bulk_model) as string | undefined,
   };
   // Sector-specific functional emphasis (prevents generic output)
   const sectorFunctions: Record<string, string[]> = {
@@ -158,16 +168,36 @@ QUALITY CONTROL:
 
   try {
     const result = await routedCall(cfg, messages, 6000);
-    if (result.provider === "free" || result.model === "rules-v1") {
+   if (result.provider === "free" || result.model === "rules-v1") {
       return NextResponse.json({
-        error: `PMI AI failed. Real reason: ${result.lastError ?? "unknown"}. Provider: ${cfg.primaryProvider}/${cfg.primaryModel ?? "auto"}. Click Test Now in Settings to diagnose.`,
+        error: `PMI AI failed. Real reason: ${result.lastError ?? "unknown"}. Provider: ${cfg.primaryProvider}/${cfg.primaryModel ?? "auto"}.`,
       }, { status: 500 });
     }
+
+    const inputTokens = result.inputTokens ?? 0;
+    const outputTokens = result.outputTokens ?? 0;
+    const { cost } = estimateCost(result.provider, inputTokens, outputTokens);
+
+    await admin.from("ai_outputs").insert({
+      user_id: user.id,
+      module: "pmi",
+      buyer, target, sector, geography, deal_size,
+      tier, provider: result.provider, model: result.model,
+      input_tokens: inputTokens, output_tokens: outputTokens, cost_estimate_usd: cost,
+      content: result.text,
+      meta: {
+        synergy_ambition, public_private, listed,
+        tsa_needed, cross_border, output_mode: body.output_mode ?? "narrative",
+        key_risks, known_issues,
+      },
+    });
+
     return NextResponse.json({
       content: result.text,
       provider: result.provider,
       model: result.model,
       viaFallback: result.viaFallback,
+      tokens: { input: inputTokens, output: outputTokens, cost },
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
