@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PROVIDERS, type ProviderId } from "@/lib/ai/providers";
-import { CheckCircle2, XCircle, AlertCircle, Trash2, Key, Settings as SettingsIcon, Search, Loader2, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, Trash2, Key, Settings as SettingsIcon, Search, Loader2, RefreshCw, Shield } from "lucide-react";
 
 type Tier = "fast" | "smart";
 type KeyStatus = { kind: string; provider: string | null; model: string | null; has_key: boolean };
@@ -317,8 +317,8 @@ async function saveProvider(tier: Tier, p: ProviderId) {
         </div>
       </section>
 
-      {/* SECTION 4: DANGER ZONE */}
-      <DangerZone setStatus={setStatus} />
+      {/* SECTION 4: DANGER ZONE — admin only */}
+      <AdminDangerZone setStatus={setStatus} />
 
       {status && (
         <div className="sticky bottom-4 mx-auto max-w-3xl rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-lg dark:border-white/10 dark:bg-[#15151f]">
@@ -329,8 +329,9 @@ async function saveProvider(tier: Tier, p: ProviderId) {
   );
 }
 
-function DangerZone({ setStatus }: { setStatus: (s: string) => void }) {
+function AdminDangerZone({ setStatus }: { setStatus: (s: string) => void }) {
   const sb = createClient();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [confirming, setConfirming] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -347,7 +348,13 @@ function DangerZone({ setStatus }: { setStatus: (s: string) => void }) {
     setCounts(c);
   }, [sb]);
 
-  useEffect(() => { loadCounts(); }, [loadCounts]);
+  useEffect(() => {
+    (async () => {
+      const { data } = await sb.rpc("is_admin");
+      setIsAdmin(Boolean(data));
+      if (data) loadCounts();
+    })();
+  }, [sb, loadCounts]);
 
   async function purge(table: string) {
     setLoading(true);
@@ -361,6 +368,18 @@ function DangerZone({ setStatus }: { setStatus: (s: string) => void }) {
     loadCounts();
   }
 
+  if (isAdmin === null) return null;
+  if (!isAdmin) {
+    return (
+      <section className="card p-4 border-l-4 border-l-slate-300">
+        <p className="flex items-center gap-2 text-xs text-slate-500">
+          <Shield className="h-3 w-3" />
+          Danger Zone is restricted to admin users.
+        </p>
+      </section>
+    );
+  }
+
   const items = [
     { key: "deals", label: "Deals" },
     { key: "proposals", label: "Proposals" },
@@ -371,7 +390,8 @@ function DangerZone({ setStatus }: { setStatus: (s: string) => void }) {
   return (
     <section className="card p-5 border-l-4 border-l-red-500">
       <h2 className="flex items-center gap-2 text-base font-semibold text-red-700 dark:text-red-400">
-        <Trash2 className="h-4 w-4" /> Danger Zone — Reset Workspace
+        <Trash2 className="h-4 w-4" /> Danger Zone — Admin Only
+        <span className="ml-auto rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700">Admin</span>
       </h2>
       <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Permanently delete data to stay under free-tier limits. Auth account preserved.</p>
 
