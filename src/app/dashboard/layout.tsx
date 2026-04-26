@@ -1,10 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Footer from "@/components/Footer";
 import DisclaimerModal from "@/components/DisclaimerModal";
 import { LayoutDashboard, Briefcase, FileText, Layers, TrendingUp } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
@@ -20,12 +24,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           { href: "/dashboard/proposals", icon: FileText,        label: "Proposals" },
           { href: "/dashboard/pmi",       icon: Layers,          label: "PMI" },
           { href: "/dashboard/synergy",   icon: TrendingUp,      label: "Synergy" },
-        ].map((it) => (
-          <Link key={it.href} href={it.href} className="flex flex-col items-center text-[10px] text-slate-600 hover:text-indigo-600">
-            <it.icon className="h-5 w-5" />
-            {it.label}
-          </Link>
-        ))}
+        ].map((it) => {
+          const active = pathname === it.href || pathname.startsWith(it.href + "/");
+          return (
+            <Link key={it.href} href={it.href}
+              className={`flex flex-col items-center text-[10px] transition ${
+                active ? "text-indigo-600 dark:text-indigo-400"
+                : "text-slate-500 dark:text-slate-400 hover:text-indigo-500"
+              }`}>
+              <it.icon className="h-5 w-5" />
+              {it.label}
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );
