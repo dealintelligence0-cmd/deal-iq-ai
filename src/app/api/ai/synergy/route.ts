@@ -33,6 +33,9 @@ export async function POST(req: Request) {
     buyer, target, sector, geography,
     dealSize: deal_size, notes: normalizePrompt(notes, 1000),
   });
+  // Build route config (Smart tier — synergy modelling needs reasoning)
+  const admin = createAdminClient();
+
 // Pull live web research if user has a search key
   let researchBlock = "";
   try {
@@ -60,9 +63,6 @@ export async function POST(req: Request) {
   const ambitionMult = ambition === "aggressive" ? 1.0 : ambition === "conservative" ? 0.5 : 0.72;
   const costPct = ((bench.costLow + bench.costHigh) / 2 * ambitionMult * 100).toFixed(1);
   const revPct = ((bench.revLow + bench.revHigh) / 2 * ambitionMult * 100).toFixed(1);
-
-  // Build route config (Smart tier — synergy modelling needs reasoning)
-  const admin = createAdminClient();
   const { data: settings } = await admin
     .from("ai_settings")
     .select("premium_provider, premium_model, premium_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
