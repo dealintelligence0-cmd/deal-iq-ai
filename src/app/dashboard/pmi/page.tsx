@@ -53,30 +53,22 @@ export default function PmiStudioPage() {
     setGenerating(true);
     try {
       const industryCtx = buildIndustryContextBlock(sector, geography);
-      const res = await fetch("/api/ai/proposal", {
+      const res = await fetch("/api/ai/pmi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          proposal_type: "integration_blueprint",
-          client_name: "PMI Planner",
           buyer, target, sector, geography,
           deal_size: dealSize,
-          deal_type_input: "Integration",
-          notes: [
-            notes,
-            industryCtx,
-            keyRisks ? "[RISKS] " + keyRisks : "",
-            knownIssues ? "[KNOWN ISSUES] " + knownIssues : "",
-            tsaNeeded ? "[TSA REQUIRED] Include dedicated TSA design section with service catalog and exit milestones." : "",
-            crossBorder ? "[CROSS-BORDER] Include multi-jurisdiction regulatory section with specific jurisdiction analysis." : "",
-            "Synergy ambition: " + synergyAmbition,
-            "Public/Private: " + publicPrivate,
-            listed === "listed" ? "Target is listed — include market reaction and disclosure management section." : "",
-            "[MANDATORY] Include: integration strategy, functional plans for each workstream, dependency map, Day-0/Day-1/100-day plan, KPI tree linked to synergies, risk register. MBB consulting tone. No generic filler.",
-          ].filter(Boolean).join("\n"),
+          synergy_ambition: synergyAmbition,
+          key_risks: keyRisks,
+          public_private: publicPrivate,
+          listed,
+          known_issues: knownIssues,
+          tsa_needed: tsaNeeded,
+          cross_border: crossBorder,
+          notes,
         }),
-      });
-      const j = await res.json();
+      });      const j = await res.json();
       if (j.content) setContent(j.content);
       else if (j.error) alert("AI error: " + j.error);
     } catch {
