@@ -95,10 +95,8 @@ async function saveProvider(tier: Tier, p: ProviderId) {
     });
     const j = await r.json();
     setStatus(j.ok ? `✓ ${tier} key saved. Now click Auto-detect to verify.` : `Error: ${j.error}`);
-   if (j.ok) {
-      if (tier === "fast") setFastModel(j.model);
-      else if (tier === "economic") setEconModel(j.model);
-      else setSmartModel(j.model);
+    if (j.ok) {
+      if (tier === "fast") setFastKey("");
       else if (tier === "economic") setEconKey("");
       else setSmartKey("");
       const { data: ks } = await sb.rpc("ai_keys_status");
@@ -121,7 +119,9 @@ async function saveProvider(tier: Tier, p: ProviderId) {
     const j = await r.json();
     setTesting(null);
     if (j.ok) {
-      if (tier === "fast") setFastModel(j.model); else setSmartModel(j.model);
+      if (tier === "fast") setFastModel(j.model);
+      else if (tier === "economic") setEconModel(j.model);
+      else setSmartModel(j.model);
       setStatus(`✓ ${tier} key working — auto-selected model: ${j.model}`);
       const { data: ks } = await sb.rpc("ai_keys_status");
       if (ks) setKeysStatus(ks as KeyStatus[]);
@@ -153,6 +153,7 @@ async function saveProvider(tier: Tier, p: ProviderId) {
   const providers = Object.values(PROVIDERS);
   const fastStatus = keysStatus.find((k) => k.kind === "bulk");
   const smartStatus = keysStatus.find((k) => k.kind === "premium");
+  const economicStatus = keysStatus.find((k) => k.kind === "economic");
   const tavilyStatus = keysStatus.find((k) => k.kind === "tavily");
   const braveStatus = keysStatus.find((k) => k.kind === "brave");
   const serperStatus = keysStatus.find((k) => k.kind === "serper");
@@ -174,8 +175,9 @@ async function saveProvider(tier: Tier, p: ProviderId) {
         </div>
 
         <div className="space-y-2">
-          {[
-            { row: smartStatus, label: "Smart Tier (Proposals · PMI · Synergy · TSA)", color: "indigo" },
+         {[
+            { row: smartStatus, label: "Premium Smart Tier (Proposals · PMI · Synergy · TSA)", color: "indigo" },
+            { row: economicStatus, label: "Economic Tier (Groq, Gemini Flash, etc.)", color: "purple" },
             { row: fastStatus, label: "Fast Tier (Bulk Enrichment)", color: "emerald" },
             { row: tavilyStatus, label: "Tavily (Web Research)", color: "amber" },
             { row: braveStatus, label: "Brave (Web Research)", color: "amber" },
