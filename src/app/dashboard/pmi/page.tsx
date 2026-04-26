@@ -359,7 +359,7 @@ ${renderVisualProposal(content)}
           </div>
 
           <div className="flex gap-3">
-            <button onClick={generateWithAI} disabled={generating || !buyer || !target}
+            <button onClick={startAIGenerate} disabled={generating || !buyer || !target}
               className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
               {generating ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
               Generate with AI ✦
