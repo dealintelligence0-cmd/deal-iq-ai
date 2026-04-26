@@ -167,7 +167,7 @@ OUTPUT QUALITY CONTROL:
     const result = await routedCall(cfg, messages, 6000);
     if (result.provider === "free" || result.model === "rules-v1") {
       return NextResponse.json({
-        error: "AI generation failed — rule-based fallback returned. Verify your Smart-tier provider key in Settings.",
+        error: `AI provider call failed. Real reason: ${result.lastError ?? "unknown"}. Provider attempted: ${cfg.primaryProvider} / ${cfg.primaryModel ?? "auto"}. Open Settings → Test This Key to diagnose.`,
       }, { status: 500 });
     }
     return NextResponse.json({
