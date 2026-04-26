@@ -5,6 +5,7 @@ import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { buildIndustryContextBlock, getSynergyBenchmark } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
+import { estimateCost } from "@/lib/ai/cost-estimator";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -19,7 +20,9 @@ export async function POST(req: Request) {
     buyer?: string; target?: string; sector?: string; geography?: string;
     deal_size?: string; target_revenue?: string; target_ebitda?: string;
     buyer_revenue?: string; ambition?: string; notes?: string;
+    tier?: "premium" | "economic" | "offline";
   };
+  const tier = body.tier ?? "premium";
 
   const {
     buyer = "", target = "", sector = "", geography = "",
@@ -64,31 +67,39 @@ export async function POST(req: Request) {
   const ambitionMult = ambition === "aggressive" ? 1.0 : ambition === "conservative" ? 0.5 : 0.72;
   const costPct = ((bench.costLow + bench.costHigh) / 2 * ambitionMult * 100).toFixed(1);
   const revPct = ((bench.revLow + bench.revHigh) / 2 * ambitionMult * 100).toFixed(1);
-  const { data: settings } = await admin
+const { data: settings } = await admin
     .from("ai_settings")
-    .select("premium_provider, premium_model, premium_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
+    .select("premium_provider, premium_model, premium_key_encrypted, economic_provider, economic_model, economic_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
     .eq("user_id", user.id)
     .maybeSingle();
 
+  // Pick provider columns by tier
+  const provCol = tier === "economic" ? "economic_provider" : "premium_provider";
+  const modelCol = tier === "economic" ? "economic_model" : "premium_model";
+  const keyCol = tier === "economic" ? "economic_key_encrypted" : "premium_key_encrypted";
+
+  const s = settings as Record<string, unknown> | null;
   let apiKey: string | null = null;
-  const cipher = (settings?.premium_key_encrypted ?? settings?.bulk_key_encrypted) as string | undefined;
+  const cipher = (s?.[keyCol] ?? s?.bulk_key_encrypted) as string | undefined;
   if (cipher) {
     try {
       const { data: dec } = await admin.rpc("decrypt_key", { cipher });
       apiKey = dec as string | null;
-    } catch { /* fallback to free */ }
+    } catch { /* fallback */ }
   }
-const smartProv = settings?.premium_provider as string | null | undefined;
-  if (!apiKey || !smartProv || smartProv === "free") {
+
+  const selectedProv = (s?.[provCol] ?? s?.bulk_provider) as string | null | undefined;
+  if (!apiKey || !selectedProv || selectedProv === "free") {
     return NextResponse.json({
-      error: `Smart-tier AI provider is set to "${smartProv ?? "none"}". Open Settings, select a real AI provider (Anthropic, Google, OpenAI, Groq, etc.) for Smart Tier, save the API key, then click Auto-detect.`,
+      error: `${tier === "economic" ? "Economic" : "Smart"}-tier AI provider not configured. Open Settings, save an API key for ${tier} tier.`,
     }, { status: 400 });
   }
+
   const cfg: RouteConfig = {
     tier: "smart",
-    primaryProvider: ((settings?.premium_provider ?? settings?.bulk_provider) as ProviderId) ?? "free",
+    primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: (settings?.premium_model ?? settings?.bulk_model) as string | undefined,
+    primaryModel: (s?.[modelCol] ?? s?.bulk_model) as string | undefined,
   };
 
   const systemPrompt = `You are an MBB integration partner producing a detailed synergy model.
@@ -170,11 +181,28 @@ OUTPUT QUALITY CONTROL:
         error: `AI provider call failed. Real reason: ${result.lastError ?? "unknown"}. Provider attempted: ${cfg.primaryProvider} / ${cfg.primaryModel ?? "auto"}. Open Settings → Test This Key to diagnose.`,
       }, { status: 500 });
     }
+
+    // Save to history
+    const inputTokens = result.inputTokens ?? 0;
+    const outputTokens = result.outputTokens ?? 0;
+    const { cost } = estimateCost(result.provider, inputTokens, outputTokens);
+
+    await admin.from("ai_outputs").insert({
+      user_id: user.id,
+      module: "synergy",
+      buyer, target, sector, geography, deal_size,
+      tier, provider: result.provider, model: result.model,
+      input_tokens: inputTokens, output_tokens: outputTokens, cost_estimate_usd: cost,
+      content: result.text,
+      meta: { ambition, target_revenue, target_ebitda, buyer_revenue },
+    });
+
     return NextResponse.json({
       content: result.text,
       provider: result.provider,
       model: result.model,
       viaFallback: result.viaFallback,
+      tokens: { input: inputTokens, output: outputTokens, cost },
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
