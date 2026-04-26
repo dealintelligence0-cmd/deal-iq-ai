@@ -55,7 +55,8 @@ export async function POST(req: Request) {
       const { data: dec } = await admin.rpc("decrypt_key", { cipher: searchCipher });
       const searchKey = dec as string;
       const { researchDeal, briefToPromptBlock } = await import("@/lib/research/web-research");
-      const brief = await researchDeal(buyer, target, sector, geography, searchKey, provider);
+      const brief = await researchDeal(buyer, target, sector, geography, searchKey);
+      void provider;
       researchBlock = briefToPromptBlock(brief);
     }
   } catch { /* research is optional — proceed without */ }
