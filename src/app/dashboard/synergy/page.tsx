@@ -24,7 +24,8 @@ export default function SynergyEnginePage() {
   const [generating, setGen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-
+  const [error, setError] = useState<string | null>(null);
+  
   async function generate() {
     if (!buyer || !target || !dealSize) return;
     setGen(true);
@@ -43,8 +44,12 @@ export default function SynergyEnginePage() {
         }),
       });
       const j = await res.json();
-      if (j.content) setContent(j.content);
-      else alert(j.error ?? "Generation failed. Check API key in Settings.");
+      if (j.content) {
+        setContent(j.content);
+        setError(null);
+      } else {
+        setError(j.error ?? "Generation failed.");
+      }
     } catch {
       alert("Request failed. Check your API key in Settings.");
     }
@@ -128,12 +133,23 @@ export default function SynergyEnginePage() {
         </div>
 
         <div className="lg:col-span-2">
-          {!content && !generating && (
+          {!content && !generating && !error && (
             <div className="flex h-64 items-center justify-center rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
               <div className="text-center">
                 <TrendingUp className="mx-auto h-8 w-8 text-slate-300" />
                 <p className="mt-2 text-sm text-slate-400">Fill in deal details and click Generate to create your AI-powered synergy model</p>
+                <p className="mt-1 text-xs text-slate-400">Requires Smart-tier AI key (Anthropic / OpenAI / Gemini) saved in Settings</p>
               </div>
+            </div>
+          )}
+
+          {error && !generating && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/30 dark:bg-amber-950/20">
+              <p className="font-semibold text-amber-900 dark:text-amber-300">Setup needed</p>
+              <p className="mt-1 text-sm text-amber-800 dark:text-amber-300/80">{error}</p>
+              <a href="/dashboard/settings" className="mt-3 inline-block rounded bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700">
+                Open Settings
+              </a>
             </div>
           )}
 
