@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2 } from "lucide-react";
 import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
+import AIGenerateConfirm from "@/components/AIGenerateConfirm";
+import { createClient } from "@/lib/supabase/client";
 
 const MODES = [
   { id: "narrative",   label: "Narrative Proposal",   desc: "Full board-ready PMI proposal" },
@@ -30,9 +32,78 @@ export default function PmiStudioPage() {
   const [notes, setNotes] = useState("");
   const [outputMode, setOutputMode] = useState("narrative");
 
-  const [generating, setGenerating] = useState(false);
+ const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Modal + tiers
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [premiumTier, setPremiumTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
+  const [economicTier, setEconomicTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
+
+  // History
+  const sb = createClient();
+  type HistoryItem = {
+    id: string; buyer: string | null; target: string | null;
+    sector: string | null; deal_size: string | null;
+    tier: string | null; provider: string | null; model: string | null;
+    cost_estimate_usd: number | null;
+    content: string; created_at: string;
+  };
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await sb.auth.getUser();
+      if (!u.user) return;
+      const { data } = await sb.from("ai_settings")
+        .select("premium_provider,premium_model,premium_key_encrypted,economic_provider,economic_model,economic_key_encrypted")
+        .eq("user_id", u.user.id).maybeSingle();
+      if (data) {
+        setPremiumTier({
+          provider: data.premium_provider, model: data.premium_model,
+          hasKey: !!data.premium_key_encrypted && data.premium_provider !== "free",
+        });
+        setEconomicTier({
+          provider: data.economic_provider, model: data.economic_model,
+          hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free",
+        });
+      }
+      const { data: h } = await sb.from("ai_outputs")
+        .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
+        .eq("user_id", u.user.id).eq("module", "pmi")
+        .order("created_at", { ascending: false }).limit(20);
+      if (h) setHistory(h as HistoryItem[]);
+    })();
+  }, [sb]);
+
+  async function reloadHistory() {
+    const { data: u } = await sb.auth.getUser();
+    if (!u.user) return;
+    const { data: h } = await sb.from("ai_outputs")
+      .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
+      .eq("user_id", u.user.id).eq("module", "pmi")
+      .order("created_at", { ascending: false }).limit(20);
+    if (h) setHistory(h as HistoryItem[]);
+  }
+
+  async function deleteFromHistory(id: string) {
+    if (!confirm("Delete this saved PMI output?")) return;
+    await sb.from("ai_outputs").delete().eq("id", id);
+    reloadHistory();
+  }
+
+  function loadFromHistory(item: HistoryItem) {
+    setContent(item.content);
+    if (item.buyer) setBuyer(item.buyer);
+    if (item.target) setTarget(item.target);
+    if (item.sector) setSector(item.sector);
+    if (item.deal_size) setDealSize(item.deal_size);
+    setShowHistory(false);
+  }
+
+  // Add useEffect import — already imported via React 19? Otherwise add:
 
   function generate() {
     if (!buyer || !target) return;
@@ -48,11 +119,18 @@ export default function PmiStudioPage() {
     setGenerating(false);
   }
 
-  async function generateWithAI() {
+function startAIGenerate() {
+    if (!buyer || !target) return;
+    setConfirmOpen(true);
+  }
+
+  async function generateWithAI(tier: "premium" | "economic" | "offline") {
+    setConfirmOpen(false);
+    if (tier === "offline") { generate(); return; }
+
     if (!buyer || !target) return;
     setGenerating(true);
     try {
-      const industryCtx = buildIndustryContextBlock(sector, geography);
       const res = await fetch("/api/ai/pmi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -67,10 +145,15 @@ export default function PmiStudioPage() {
           tsa_needed: tsaNeeded,
           cross_border: crossBorder,
           notes,
+          output_mode: outputMode,
+          tier,
         }),
-      });      const j = await res.json();
-      if (j.content) setContent(j.content);
-      else if (j.error) alert("AI error: " + j.error);
+      });
+      const j = await res.json();
+      if (j.content) {
+        setContent(j.content);
+        reloadHistory();
+      } else if (j.error) alert("AI error: " + j.error);
     } catch {
       alert("Request failed. Check your API key in Settings.");
     }
@@ -121,18 +204,57 @@ ${renderVisualProposal(content)}
     win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 250);
   }
 
-  return (
+ return (
+    <>
+      <AIGenerateConfirm
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={generateWithAI}
+        module="pmi"
+        premiumProvider={{ tier: "premium", ...premiumTier }}
+        economicProvider={{ tier: "economic", ...economicTier }}
+        hasOfflineFallback={true}
+      />
     <div className="flex h-full min-h-screen flex-col lg:flex-row">
       <aside className="w-full shrink-0 border-b border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#15151f] lg:w-80 lg:border-b-0 lg:border-r lg:p-6">
-        <div className="page-header">
-          <div className="flex items-center gap-2">
-            <Layers className="h-5 w-5 text-white" />
-            <div>
-              <h1 className="text-lg font-semibold text-white">PMI Studio</h1>
-              <p className="text-[11px] text-white/60">Post-Merger Integration · Synergy · Roadmap</p>
+       <div className="page-header">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-white" />
+              <div>
+                <h1 className="text-lg font-semibold text-white">PMI Studio</h1>
+                <p className="text-[11px] text-white/60">Post-Merger Integration · Synergy · Roadmap</p>
+              </div>
             </div>
+            <button onClick={() => setShowHistory(!showHistory)}
+              className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20">
+              <History className="h-3 w-3" /> {history.length}
+            </button>
           </div>
         </div>
+
+        {showHistory && (
+          <div className="mb-3 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#15151f]">
+            {history.length === 0 ? (
+              <p className="px-2 py-3 text-[11px] text-slate-500">No PMI history yet.</p>
+            ) : history.map((h) => (
+              <div key={h.id} className="mb-1 flex items-center gap-2 rounded p-2 text-[10px] hover:bg-slate-50 dark:hover:bg-white/5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-slate-700 dark:text-slate-300">
+                    {h.target ?? "—"} · {h.buyer ?? "—"}
+                  </p>
+                  <p className="truncate text-slate-500">
+                    {h.provider ?? "—"} · {h.cost_estimate_usd ? `$${h.cost_estimate_usd.toFixed(4)}` : "Free"} · {new Date(h.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <button onClick={() => loadFromHistory(h)} className="rounded border border-slate-200 px-1.5 py-0.5 text-slate-700 dark:border-white/10 dark:text-slate-300">Load</button>
+                <button onClick={() => deleteFromHistory(h.id)} className="rounded bg-red-50 p-1 text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                  <Trash2 className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
@@ -285,7 +407,8 @@ ${renderVisualProposal(content)}
             </div>
           </div>
         )}
-      </main>
+    </main>
     </div>
+    </>
   );
 }
