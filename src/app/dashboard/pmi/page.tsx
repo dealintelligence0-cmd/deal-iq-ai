@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, Loader2, Copy, Printer, CheckCircle2 } from "lucide-react";
+import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles } from "lucide-react";
 import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
+import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
 
 const MODES = [
   { id: "narrative",   label: "Narrative Proposal",   desc: "Full board-ready PMI proposal" },
@@ -44,6 +45,43 @@ export default function PmiStudioPage() {
     };
     const result = generatePmiProposal(input);
     setContent(result);
+    setGenerating(false);
+  }
+
+  async function generateWithAI() {
+    if (!buyer || !target) return;
+    setGenerating(true);
+    try {
+      const industryCtx = buildIndustryContextBlock(sector, geography);
+      const res = await fetch("/api/ai/proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposal_type: "integration_blueprint",
+          client_name: "PMI Planner",
+          buyer, target, sector, geography,
+          deal_size: dealSize,
+          deal_type_input: "Integration",
+          notes: [
+            notes,
+            industryCtx,
+            keyRisks ? "[RISKS] " + keyRisks : "",
+            knownIssues ? "[KNOWN ISSUES] " + knownIssues : "",
+            tsaNeeded ? "[TSA REQUIRED] Include dedicated TSA design section with service catalog and exit milestones." : "",
+            crossBorder ? "[CROSS-BORDER] Include multi-jurisdiction regulatory section with specific jurisdiction analysis." : "",
+            "Synergy ambition: " + synergyAmbition,
+            "Public/Private: " + publicPrivate,
+            listed === "listed" ? "Target is listed — include market reaction and disclosure management section." : "",
+            "[MANDATORY] Include: integration strategy, functional plans for each workstream, dependency map, Day-0/Day-1/100-day plan, KPI tree linked to synergies, risk register. MBB consulting tone. No generic filler.",
+          ].filter(Boolean).join("\n"),
+        }),
+      });
+      const j = await res.json();
+      if (j.content) setContent(j.content);
+      else if (j.error) alert("AI error: " + j.error);
+    } catch {
+      alert("Request failed. Check your API key in Settings.");
+    }
     setGenerating(false);
   }
 
@@ -89,7 +127,7 @@ ${renderVisualProposal(content)}
     win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 250);
   }
 
-return (
+  return (
     <div className="flex h-full min-h-screen flex-col lg:flex-row">
       <aside className="w-full shrink-0 border-b border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#15151f] lg:w-80 lg:border-b-0 lg:border-r lg:p-6">
         <div className="page-header">
@@ -204,10 +242,17 @@ return (
             <p className="mt-1 text-[9px] text-slate-500">{MODES.find(m => m.id === outputMode)?.desc}</p>
           </div>
 
-          <button onClick={generate} disabled={generating || !buyer || !target}
-            className="w-full rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-3 py-2 text-sm font-semibold text-white hover:from-indigo-700 disabled:opacity-50">
-            {generating ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Generate PMI Proposal"}
-          </button>
+          <div className="flex gap-3">
+            <button onClick={generateWithAI} disabled={generating || !buyer || !target}
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+              {generating ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
+              Generate with AI ✦
+            </button>
+            <button onClick={generate} disabled={generating || !buyer || !target}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 disabled:opacity-40">
+              Quick (Offline)
+            </button>
+          </div>
         </div>
       </aside>
 
