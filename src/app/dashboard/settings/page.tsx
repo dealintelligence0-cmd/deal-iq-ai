@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { PROVIDERS, type ProviderId } from "@/lib/ai/providers";
 import { CheckCircle2, XCircle, AlertCircle, Trash2, Key, Settings as SettingsIcon, Search, Loader2, RefreshCw, Shield } from "lucide-react";
 
-type Tier = "fast" | "smart";
+type Tier = "fast" | "smart" | "economic";
 type KeyStatus = { kind: string; provider: string | null; model: string | null; has_key: boolean };
 
 export default function SettingsPage() {
@@ -16,12 +16,15 @@ export default function SettingsPage() {
   // Provider selection state
   const [fastProv, setFastProv] = useState<ProviderId>("free");
   const [smartProv, setSmartProv] = useState<ProviderId>("free");
+  const [econProv, setEconProv] = useState<ProviderId>("free");
   const [fastModel, setFastModel] = useState<string | null>(null);
   const [smartModel, setSmartModel] = useState<string | null>(null);
+  const [econModel, setEconModel] = useState<string | null>(null);
 
   // Key entry state
   const [fastKey, setFastKey] = useState("");
   const [smartKey, setSmartKey] = useState("");
+  const [econKey, setEconKey] = useState("");
   const [tavilyVal, setTavilyVal] = useState("");
   const [researchProv, setResearchProv] = useState<string>("tavily");
 
@@ -35,14 +38,16 @@ export default function SettingsPage() {
       if (!u.user) { setErr("Not signed in"); setLoaded(true); return; }
 
       const { data } = await sb.from("ai_settings")
-        .select("bulk_provider,premium_provider,bulk_model,premium_model,research_provider")
+        .select("bulk_provider,premium_provider,economic_provider,bulk_model,premium_model,economic_model,research_provider")
         .eq("user_id", u.user.id).maybeSingle();
 
       if (data) {
         if (PROVIDERS[data.bulk_provider as ProviderId]) setFastProv(data.bulk_provider as ProviderId);
         if (PROVIDERS[data.premium_provider as ProviderId]) setSmartProv(data.premium_provider as ProviderId);
+        if (PROVIDERS[data.economic_provider as ProviderId]) setEconProv(data.economic_provider as ProviderId);
         setFastModel(data.bulk_model ?? null);
         setSmartModel(data.premium_model ?? null);
+        setEconModel(data.economic_model ?? null);
         if (data.research_provider) setResearchProv(data.research_provider);
       } else {
         await sb.from("ai_settings").insert({ user_id: u.user.id });
@@ -59,12 +64,15 @@ export default function SettingsPage() {
 
 async function saveProvider(tier: Tier, p: ProviderId) {
     if (tier === "fast") { setFastProv(p); setFastModel(null); }
+    else if (tier === "economic") { setEconProv(p); setEconModel(null); }
     else { setSmartProv(p); setSmartModel(null); }
     const { data: u } = await sb.auth.getUser();
     if (!u.user) return;
+    const provCol = tier === "fast" ? "bulk_provider" : tier === "economic" ? "economic_provider" : "premium_provider";
+    const modelCol = tier === "fast" ? "bulk_model" : tier === "economic" ? "economic_model" : "premium_model";
     const { error } = await sb.from("ai_settings").update({
-      [tier === "fast" ? "bulk_provider" : "premium_provider"]: p,
-      [tier === "fast" ? "bulk_model" : "premium_model"]: null,
+      [provCol]: p,
+      [modelCol]: null,
     }).eq("user_id", u.user.id);
     if (error) {
       setStatus(`Error saving provider: ${error.message}`);
@@ -77,24 +85,29 @@ async function saveProvider(tier: Tier, p: ProviderId) {
   }
 
   async function saveKey(tier: Tier) {
-    const key = tier === "fast" ? fastKey : smartKey;
+    const key = tier === "fast" ? fastKey : tier === "economic" ? econKey : smartKey;
     if (!key.trim()) return;
     setStatus(`Saving ${tier} key...`);
+    const kind = tier === "fast" ? "bulk" : tier === "economic" ? "economic" : "premium";
     const r = await fetch("/api/ai/save-key", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ kind: tier === "fast" ? "bulk" : "premium", key: key.trim() }),
+      body: JSON.stringify({ kind, key: key.trim() }),
     });
     const j = await r.json();
     setStatus(j.ok ? `✓ ${tier} key saved. Now click Auto-detect to verify.` : `Error: ${j.error}`);
-    if (j.ok) {
-      if (tier === "fast") setFastKey(""); else setSmartKey("");
+   if (j.ok) {
+      if (tier === "fast") setFastModel(j.model);
+      else if (tier === "economic") setEconModel(j.model);
+      else setSmartModel(j.model);
+      else if (tier === "economic") setEconKey("");
+      else setSmartKey("");
       const { data: ks } = await sb.rpc("ai_keys_status");
       if (ks) setKeysStatus(ks as KeyStatus[]);
     }
   }
 
-  async function probe(tier: Tier) {
-    const provider = tier === "fast" ? fastProv : smartProv;
+ async function probe(tier: Tier) {
+    const provider = tier === "fast" ? fastProv : tier === "economic" ? econProv : smartProv;
     if (provider === "free") {
       setStatus("Cannot Auto-detect: provider is set to Free. Pick a real AI provider first.");
       return;
@@ -125,9 +138,10 @@ async function saveProvider(tier: Tier, p: ProviderId) {
     });
     const j = await r.json();
     setStatus(j.ok ? `✓ ${kind} key deleted` : `Error: ${j.error}`);
-    if (j.ok) {
+   if (j.ok) {
       if (kind === "bulk") { setFastModel(null); setFastProv("free"); }
       if (kind === "premium") { setSmartModel(null); setSmartProv("free"); }
+      if (kind === "economic") { setEconModel(null); setEconProv("free"); }
       const { data: ks } = await sb.rpc("ai_keys_status");
       if (ks) setKeysStatus(ks as KeyStatus[]);
     }
@@ -218,13 +232,15 @@ async function saveProvider(tier: Tier, p: ProviderId) {
         </div>
         <p className="mb-4 text-xs text-slate-500">Step 1: pick provider · Step 2: save key · Step 3: Auto-detect</p>
 
-        {(["smart", "fast"] as const).map((tier) => {
-          const prov = tier === "fast" ? fastProv : smartProv;
-          const model = tier === "fast" ? fastModel : smartModel;
-          const keyVal = tier === "fast" ? fastKey : smartKey;
-          const setKeyVal = tier === "fast" ? setFastKey : setSmartKey;
+       {(["smart", "economic", "fast"] as const).map((tier) => {
+          const prov = tier === "fast" ? fastProv : tier === "economic" ? econProv : smartProv;
+          const model = tier === "fast" ? fastModel : tier === "economic" ? econModel : smartModel;
+          const keyVal = tier === "fast" ? fastKey : tier === "economic" ? econKey : smartKey;
+          const setKeyVal = tier === "fast" ? setFastKey : tier === "economic" ? setEconKey : setSmartKey;
           const meta = PROVIDERS[prov];
-          const tierLabel = tier === "smart" ? "Smart Tier (Proposals · PMI · Synergy · TSA)" : "Fast Tier (Bulk Enrichment)";
+          const tierLabel = tier === "smart" ? "Premium Smart Tier (best quality, higher cost)"
+                          : tier === "economic" ? "Economic Tier (Groq, Gemini Flash, DeepSeek — cheap & fast)"
+                          : "Fast Tier (Bulk Enrichment)";
 
           return (
             <div key={tier} className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
