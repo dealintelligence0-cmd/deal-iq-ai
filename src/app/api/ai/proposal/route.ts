@@ -5,6 +5,8 @@ import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { classifyDeal, generateServices, expandService, expandCustomService, type Service, type DealInput } from "@/lib/intelligence/deal-classifier";
 import { buildDealContext, contextToPromptBlock, buildAdvisorVerdictPrompt, screenRegulatory, regulatoryToPromptBlock } from "@/lib/intelligence/context-engine";
+import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
+import { normalizePrompt, injectDealContext, buildRateLimitErrorMsg } from "@/lib/ai/utils";
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
@@ -93,7 +95,7 @@ export async function POST(req: Request) {
 
   const { checkRateLimit, logActivity } = await import("@/lib/security");
   const allowed = await checkRateLimit(supabase, "ai_proposal", 20, 60);
-  if (!allowed) return NextResponse.json({ error: "Rate limit: 20 proposals per minute" }, { status: 429 });
+  if (!allowed) return NextResponse.json({ error: buildRateLimitErrorMsg(20, 60) }, { status: 429 });
 
 const body = await req.json() as {
     proposal_type: ProposalType;
@@ -111,7 +113,16 @@ const body = await req.json() as {
     selected_services?: Service[];
     research_docs?: string;
   };
-  const { proposal_type, client_name, buyer, target, sector, geography, deal_size, notes, use_premium } = body;
+  const buyer = normalizePrompt(body.buyer ?? "", 200);
+  const target = normalizePrompt(body.target ?? "", 200);
+  const sector = normalizePrompt(body.sector ?? "", 100);
+  const geography = normalizePrompt(body.geography ?? "", 100);
+  const client_name = normalizePrompt(body.client_name ?? "", 200);
+  const deal_size = normalizePrompt(body.deal_size ?? "", 50);
+  const proposal_type = body.proposal_type;
+  const use_premium = !!body.use_premium;
+  const notes = normalizePrompt(body.notes ?? "", 3000);
+ 
 
   if (!PROPOSAL_PROMPTS[proposal_type]) {
     return NextResponse.json({ error: "Invalid proposal_type" }, { status: 400 });
@@ -175,6 +186,7 @@ const body = await req.json() as {
 - **Value Impact:** ${s.valueImpact}`).join("\n");
 
   const dealContext = `
+  const fullContext = dealContext + buildIndustryContextBlock(sector, geography);
 ## DEAL FACTS
 - Client / Advisory House: ${client_name || "N/A"}
 - Client Role: ${body.client_role ?? "buyer"}
