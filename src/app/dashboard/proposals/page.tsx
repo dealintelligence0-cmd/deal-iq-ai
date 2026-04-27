@@ -57,6 +57,9 @@ function ProposalsPageInner() {
   const [stakePercent, setStakePercent] = useState("");
   const [dealTypeInput, setDealTypeInput] = useState("");
   const [clientRole, setClientRole] = useState<"buyer" | "seller" | "pe" | "jv_partner">("buyer");
+  const [mandateType, setMandateType] = useState<string>("buy_side");
+  const [buyerType, setBuyerType] = useState<string>("strategic");
+  const [ownershipType, setOwnershipType] = useState<string>("majority");
   const [services, setServices] = useState<Service[]>([]);
   const [customServiceName, setCustomServiceName] = useState("");
   const [showClassification, setShowClassification] = useState(false);
@@ -219,6 +222,9 @@ async function runResearch(b: string, t: string, s: string, g: string, did?: str
           stake_percent: stakePercent ? Number(stakePercent) : undefined,
           deal_type_input: dealTypeInput || undefined,
           client_role: clientRole,
+          mandate_type: mandateType,
+          buyer_type: buyerType,
+          ownership_type: ownershipType,
           selected_services: services,
           research_docs: useResearch ? researchBrief : undefined,
         }),
@@ -452,6 +458,44 @@ strong { color: #0f172a; }
             </div>
           </div>
 
+          <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Mandate Type</label>
+              <select value={mandateType} onChange={(e) => setMandateType(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="buy_side">Buy-side advisory</option>
+                <option value="sell_side">Sell-side advisory</option>
+                <option value="vendor_assist">Vendor assist</option>
+                <option value="pmi_only">PMI only (post-close)</option>
+                <option value="carve_out">Carve-out</option>
+                <option value="synergy_capture">Synergy capture</option>
+                <option value="value_creation">Value creation post-close</option>
+                <option value="distressed">Distressed M&A</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Buyer Type</label>
+              <select value={buyerType} onChange={(e) => setBuyerType(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="strategic">Strategic corporate</option>
+                <option value="pe">PE sponsor</option>
+                <option value="family_office">Family office</option>
+                <option value="sovereign">Sovereign / infra</option>
+                <option value="founder">Founder buyer</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Ownership Type</label>
+              <select value={ownershipType} onChange={(e) => setOwnershipType(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="minority">Minority stake</option>
+                <option value="majority">Majority stake</option>
+                <option value="full">Full acquisition (100%)</option>
+                <option value="jv">Joint venture</option>
+                <option value="merger">Merger of equals</option>
+              </select>
+            </div>
           {classification && (
             <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3">
               <button onClick={() => setShowClassification(!showClassification)}
