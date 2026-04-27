@@ -27,9 +27,34 @@ export function injectDealContext(fields: {
   ].filter(Boolean).join("\n");
 }
 
+function renderMarkdownTables(md: string): string {
+  return md.replace(/((?:^[ \t]*\|[^\n]+\|[ \t]*\n?){2,})/gm, (block) => {
+    const rows = block.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (rows.length < 2) return block;
+    const dataRows = rows.filter((r) => !/^\|[\s\-:|]+\|?$/.test(r));
+    if (dataRows.length < 2) return block;
+    const parsed = dataRows.map((r) => {
+      const trimmed = r.replace(/^\|/, "").replace(/\|$/, "");
+      return trimmed.split("|").map((c) => c.trim());
+    });
+    const [head, ...body] = parsed;
+    if (!head || head.length === 0) return block;
+    return `\n<div class="my-4 overflow-x-auto"><table class="w-full border-collapse text-[12px]">
+<thead><tr class="border-b-2 border-indigo-200 bg-indigo-50 dark:bg-indigo-950/30">
+${head.map((h) => `<th class="px-3 py-2 text-left font-semibold text-indigo-900 dark:text-indigo-300">${h}</th>`).join("")}
+</tr></thead>
+<tbody>
+${body.map((row) => `<tr class="border-b border-slate-100 dark:border-white/5">
+${row.map((c) => `<td class="px-3 py-2 align-top text-slate-700 dark:text-slate-300">${c.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</td>`).join("")}
+</tr>`).join("")}
+</tbody></table></div>\n`;
+  });
+}
+
 export function cleanMarkdownToHTML(md: string): string {
   if (!md) return "";
-  let html = md
+  let html = renderMarkdownTables(md);
+  html = html
     .replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold text-slate-800 mt-5 mb-2 dark:text-slate-200">$1</h3>')
     .replace(/^## (.+)$/gm,  '<h2 class="text-lg font-bold text-slate-900 mt-6 mb-2 border-b border-slate-200 pb-1 dark:text-white dark:border-slate-700">$1</h2>')
     .replace(/^# (.+)$/gm,   '<h1 class="text-xl font-extrabold text-slate-900 mt-4 mb-3 dark:text-white">$1</h1>')
@@ -42,6 +67,8 @@ export function cleanMarkdownToHTML(md: string): string {
     .replace(/\n/g, '<br/>');
   html = '<p class="text-slate-700 leading-relaxed my-2 dark:text-slate-300">' + html + '</p>';
   html = html.replace(/<p[^>]*>\s*<\/p>/g, '');
+  // Strip <br> inside tables
+  html = html.replace(/<table[\s\S]*?<\/table>/g, (t) => t.replace(/<br\s*\/?>/g, ""));
   return html;
 }
 
