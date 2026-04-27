@@ -4,7 +4,7 @@ export type ProviderId =
   | "openrouter" | "together" | "huggingface" | "replicate"
   | "free";
 
-export type Tier = "fast" | "smart";
+export type Tier = "fast" | "smart" | "economic";
 export type ApiStyle = "anthropic" | "openai" | "gemini" | "groq" | "openrouter" | "together" | "rules";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
