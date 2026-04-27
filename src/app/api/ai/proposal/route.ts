@@ -78,7 +78,27 @@ INTEGRATION-STYLE SHIFTS (recommendations MUST adapt):
 - CONTROLLED AUTONOMY: governance overlay + selective shared services; finance consolidation; HR policies harmonised; technology kept separate Y1; gradual functional alignment Y2-Y3
 - FUNCTIONAL INTEGRATION: shared services for back-office (Finance, HR, IT, Procurement); operations remain separate; consolidated reporting; partial systems integration; cultural integration program
 - FULL ABSORPTION: complete org redesign; ERP/CRM consolidation; legal entity simplification; duplicate cost removal; single brand; combined GTM; centralised procurement; full systems migration
-- STANDALONE HOLDCO: target operates as independent unit; reporting line to holdco only; no operational integration; financial controls + capital allocation only`,
+- STANDALONE HOLDCO: target operates as independent unit; reporting line to holdco only; no operational integration; financial controls + capital allocation only
+
+"SO WHAT" REASONING (every section must answer):
+- Why does this matter NOW (timing, market window, competitive pressure)?
+- Why this buyer specifically (capability fit vs. alternatives)?
+- Why this structure (mandate / ownership / integration choice — what trade-off does it resolve)?
+- What happens if the client does NOTHING (counterfactual cost)?
+- What's the leading indicator that the thesis is breaking (early-warning trigger)?
+
+SYNERGY LOGIC (NO random numbers — every figure must show derivation):
+- Cost synergies: state as "X% of Y base = $Z" — e.g. "8% of $500M combined SG&A = $40M"
+- Revenue synergies: state mechanism + driver — e.g. "$30M from cross-selling Product A into 200 Target customers at $150K ARPU × 100% attach × 100% retention"
+- ALWAYS attach a confidence label: HIGH (proven precedent), MEDIUM (plan-dependent), STRETCH (requires breakthroughs)
+- ALWAYS explain WHY the synergy is credible — what does the buyer have that makes this achievable?
+- If baseline financials missing, state ranges with industry benchmark anchor: "2-4% logistics savings driven by route density (industry benchmark: 3-5%)"
+- Banned: "synergies of $XM" without derivation; "cost savings opportunity" without base; "cross-sell potential" without ARPU × attach × accounts math
+
+OUTPUT TONE:
+- Sharp, commercial, concise — no AI fluff, no filler adjectives
+- Cause→effect: every claim must have a "because [number/fact]" clause
+- Board-ready: assume reader is a CEO, CFO, or PE Investment Committee member who has 8 minutes`,
   executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
 ## Transaction Overview
 ## Strategic Rationale
