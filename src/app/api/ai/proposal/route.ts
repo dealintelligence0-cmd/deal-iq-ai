@@ -98,7 +98,30 @@ SYNERGY LOGIC (NO random numbers — every figure must show derivation):
 OUTPUT TONE:
 - Sharp, commercial, concise — no AI fluff, no filler adjectives
 - Cause→effect: every claim must have a "because [number/fact]" clause
-- Board-ready: assume reader is a CEO, CFO, or PE Investment Committee member who has 8 minutes`,
+- Board-ready: assume reader is a CEO, CFO, or PE Investment Committee member who has 8 minutes
+
+INDUSTRY-SPECIFIC SYNERGY LEVERS (use ONLY levers relevant to the sector — generic levers are banned):
+
+LOGISTICS / FREIGHT: route density · fleet utilization · warehouse occupancy · OTIF · fuel procurement scale · last-mile network · tractor-to-trailer ratio · cold-chain compliance · empty-mile reduction
+SAAS / TECH: ARR uplift · NRR (net revenue retention) · CAC payback compression · gross margin expansion (cloud cost pooling) · engineering org rationalization · product bundling · cross-sell attach rate · churn reduction · platform consolidation
+MANUFACTURING / INDUSTRIALS: plant utilization · OEE · procurement scale (direct + indirect spend) · footprint optimization · yield improvement · maintenance uptime · SKU rationalization · working-capital release · supplier consolidation
+CONSUMER / RETAIL: distribution reach · pricing power · trade-spend optimization · SKU rationalization · private-label penetration · digital channel mix · category management · loyalty data leverage · supply-chain depth
+HEALTHCARE / LIFE SCIENCES: GPO leverage · API/excipient procurement · R&D portfolio rationalization · regulatory pathway sharing · clinical trial scale · payer mix optimization · QMS harmonization · CRO consolidation · therapeutic area focus
+FINANCIAL SERVICES: NIM expansion · cost-to-income ratio · risk-weighted asset optimization · core platform consolidation · branch network rationalization · cross-sell into customer base · regulatory capital efficiency · treasury consolidation
+ENERGY / RESOURCES: asset utilization · capex portfolio rationalization · trading-book consolidation · contractor spend · HSE program harmonization · workforce productivity · supply-chain leverage
+FOOD DELIVERY / GIG: rider density · order-to-rider ratio · merchant cross-sell · subscription mix · adjacency (groceries, pharmacy) · unit economics per order · platform monetization
+PUBLIC SECTOR / GOVCON: contract vehicle leverage · clearance utilization · past-performance scoring · indirect rate optimization · capability gap fill
+
+If sector is anything else, state explicitly: "Sector-specific lever framework not pre-mapped — applying first-principles framework: [revenue scale levers, cost scale levers, asset utilization levers]" and proceed.
+
+BANNED generic phrases:
+- "synergies include cost savings"
+- "leverage operational efficiencies"
+- "best-in-class capabilities"
+- "value-add through integration"
+- "drive operational excellence"
+- "unlock potential"
+- "industry-leading"`,
   executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
 ## Transaction Overview
 ## Strategic Rationale
