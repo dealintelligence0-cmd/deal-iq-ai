@@ -71,7 +71,14 @@ OWNERSHIP-LENS SHIFTS:
 - Majority: reserved matters + delegated authority matrix; consolidation method (full/equity)
 - Full (100%): full integration mandate; legal entity simplification; cost-out
 - JV: governance, capital commitments, exit options, deadlock resolution
-- Merger of equals: integration co-leadership, cultural integration, brand strategy`,
+- Merger of equals: integration co-leadership, cultural integration, brand strategy
+
+INTEGRATION-STYLE SHIFTS (recommendations MUST adapt):
+- LIGHT TOUCH: retain target management autonomy; preserve speed; minimal IMO; reporting/governance overlay only; selective synergies (procurement + treasury only); NO ERP replacement Y1; preserve brand and product roadmap
+- CONTROLLED AUTONOMY: governance overlay + selective shared services; finance consolidation; HR policies harmonised; technology kept separate Y1; gradual functional alignment Y2-Y3
+- FUNCTIONAL INTEGRATION: shared services for back-office (Finance, HR, IT, Procurement); operations remain separate; consolidated reporting; partial systems integration; cultural integration program
+- FULL ABSORPTION: complete org redesign; ERP/CRM consolidation; legal entity simplification; duplicate cost removal; single brand; combined GTM; centralised procurement; full systems migration
+- STANDALONE HOLDCO: target operates as independent unit; reporting line to holdco only; no operational integration; financial controls + capital allocation only`,
   executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
 ## Transaction Overview
 ## Strategic Rationale
@@ -145,6 +152,7 @@ const body = await req.json() as {
     client_role?: "buyer" | "seller" | "pe" | "jv_partner";
     mandate_type?: string;
     buyer_type?: string;
+  integration_style?: string;
     ownership_type?: string;
     selected_services?: Service[];
     research_docs?: string;
@@ -154,6 +162,7 @@ const body = await req.json() as {
   const mandate_type = body.mandate_type ?? "buy_side";
   const buyer_type = body.buyer_type ?? "strategic";
   const ownership_type = body.ownership_type ?? "majority";
+  const integration_style = body.integration_style ?? "functional";
   const sector = normalizePrompt(body.sector ?? "", 100);
   const geography = normalizePrompt(body.geography ?? "", 100);
   const client_name = normalizePrompt(body.client_name ?? "", 200);
@@ -231,6 +240,7 @@ const body = await req.json() as {
 - Mandate Type: ${mandate_type}
 - Buyer Type: ${buyer_type}
 - Ownership Type: ${ownership_type}
+- Integration Style: ${integration_style}
 - Buyer / Acquirer: ${buyer}
 - Target Company: ${target}
 - Sector: ${sector || "N/A"}
