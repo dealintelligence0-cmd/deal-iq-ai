@@ -30,18 +30,18 @@ export type ProviderMeta = {
 
 export const PROVIDERS: Record<ProviderId, ProviderMeta> = {
 google: {
-    id: "google", label: "Google (Gemini / Gemma)", needsKey: true, apiStyle: "gemini",
+    id: "google", label: "Google (Gemini)", needsKey: true, apiStyle: "gemini",
     keyDocsUrl: "https://aistudio.google.com/apikey",
-    fastCandidates: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
-    smartCandidates: ["gemini-pro-latest", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
+    fastCandidates: ["gemini-2.5-flash", "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"],
+    smartCandidates: ["gemini-2.5-pro-preview-06-05", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"],
     listModelsUrl: "https://generativelanguage.googleapis.com/v1beta/models",
   },
   openai: {
     id: "openai", label: "OpenAI", needsKey: true, apiStyle: "openai",
     baseUrl: "https://api.openai.com/v1",
     keyDocsUrl: "https://platform.openai.com/api-keys",
-    fastCandidates: ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"],
-    smartCandidates: ["gpt-5.4-pro", "gpt-5", "o3", "gpt-4o", "gpt-4-turbo"],
+    fastCandidates: ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4o"],
+    smartCandidates: ["gpt-4.1", "gpt-4o", "gpt-4-turbo"],
     listModelsUrl: "https://api.openai.com/v1/models",
   },
   anthropic: {
