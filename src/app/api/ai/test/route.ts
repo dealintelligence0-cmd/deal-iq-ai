@@ -18,7 +18,10 @@ export async function POST(req: Request) {
 
   if (!apiKey && provider !== "free") {
     const admin = createAdminClient();
-    const col = kind === "fast" ? "bulk_key_encrypted" : "premium_key_encrypted";
+    const col =
+      kind === "fast"     ? "bulk_key_encrypted" :
+      kind === "economic" ? "economic_key_encrypted" :
+                            "premium_key_encrypted";
     const { data: row } = await admin.from("ai_settings").select(col).eq("user_id", user.id).single();
     const cipher = (row as Record<string, unknown>)?.[col];
     if (cipher) {
@@ -36,8 +39,11 @@ export async function POST(req: Request) {
   if (probe.ok && probe.model) {
     // Cache winner in ai_settings
     const admin = createAdminClient();
-    const col = kind === "fast" ? "bulk_model" : "premium_model";
-    await admin.from("ai_settings").update({ [col]: probe.model }).eq("user_id", user.id);
+    const modelCol =
+      kind === "fast"     ? "bulk_model" :
+      kind === "economic" ? "economic_model" :
+                            "premium_model";
+    await admin.from("ai_settings").update({ [modelCol]: probe.model }).eq("user_id", user.id);
     return NextResponse.json({
       ok: true, provider, model: probe.model, tried: probe.tried,
     });
