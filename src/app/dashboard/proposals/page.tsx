@@ -60,6 +60,7 @@ function ProposalsPageInner() {
   const [mandateType, setMandateType] = useState<string>("buy_side");
   const [buyerType, setBuyerType] = useState<string>("strategic");
   const [ownershipType, setOwnershipType] = useState<string>("majority");
+  const [integrationStyle, setIntegrationStyle] = useState<string>("functional");
   const [services, setServices] = useState<Service[]>([]);
   const [customServiceName, setCustomServiceName] = useState("");
   const [showClassification, setShowClassification] = useState(false);
@@ -224,7 +225,7 @@ async function runResearch(b: string, t: string, s: string, g: string, did?: str
           client_role: clientRole,
           mandate_type: mandateType,
           buyer_type: buyerType,
-          ownership_type: ownershipType,
+          ownership_type: ownershipType, integration_style: integrationStyle,
           selected_services: services,
           research_docs: useResearch ? researchBrief : undefined,
         }),
@@ -494,6 +495,17 @@ strong { color: #0f172a; }
                 <option value="full">Full acquisition (100%)</option>
                 <option value="jv">Joint venture</option>
                 <option value="merger">Merger of equals</option>
+              </select>
+            </div>
+          <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Integration Style</label>
+              <select value={integrationStyle} onChange={(e) => setIntegrationStyle(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="light_touch">Light touch (preserve autonomy)</option>
+                <option value="controlled_autonomy">Controlled autonomy</option>
+                <option value="functional">Functional integration</option>
+                <option value="full_absorption">Full absorption</option>
+                <option value="standalone_holdco">Standalone holdco</option>
               </select>
             </div>
           {classification && (
