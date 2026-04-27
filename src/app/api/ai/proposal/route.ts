@@ -48,7 +48,30 @@ QUALITY ENFORCEMENT (verify before output):
 - At least 1 comparable transaction cited with deal value
 - No unsubstantiated buzzwords
 - Deal structure (cash/stock split) specified where known
-- Each risk has probability estimate, $ impact range, named owner`,
+- Each risk has probability estimate, $ impact range, named owner
+
+MANDATE-DRIVEN POV (the proposal MUST shift focus based on Mandate Type):
+- BUY-SIDE: emphasize investment thesis, synergy case, diligence priorities, walk-away valuation, integration readiness
+- SELL-SIDE: emphasize equity story, buyer universe, valuation maximization, auction tactics, carve-out readiness, QoE prep, competitive tension
+- PMI ONLY: skip thesis sections; emphasize Day-1, IMO governance, 100-day plan, synergy tracking, operating model, RACI
+- CARVE-OUT: emphasize TSA framework, separation complexity, stranded cost management, standalone capability ramp
+- SYNERGY CAPTURE: skip mandate sales pitch; emphasize bottom-up synergy model, governance, capture milestones
+- VALUE CREATION: emphasize EBITDA bridge, levers, exit positioning
+- DISTRESSED: emphasize liquidity, restructuring options, stakeholder management, turnaround levers
+
+BUYER-LENS SHIFTS:
+- PE buyer: lead with IRR, leverage capacity, exit routes (3-5yr), bolt-on roadmap, MIP structure
+- Strategic buyer: lead with revenue/cost synergies, capability fit, competitive positioning
+- Family office: lead with long-term hold, dividend yield, succession alignment
+- Sovereign/infra: lead with regulatory comfort, ESG, long-duration capital fit
+- Founder buyer: lead with operational fit, cultural alignment, financing structure
+
+OWNERSHIP-LENS SHIFTS:
+- Minority: NO control assumptions. Focus on governance rights, board seats, veto matters, information rights, exit routes (drag/tag/ROFR)
+- Majority: reserved matters + delegated authority matrix; consolidation method (full/equity)
+- Full (100%): full integration mandate; legal entity simplification; cost-out
+- JV: governance, capital commitments, exit options, deadlock resolution
+- Merger of equals: integration co-leadership, cultural integration, brand strategy`,
   executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
 ## Transaction Overview
 ## Strategic Rationale
@@ -120,11 +143,17 @@ const body = await req.json() as {
     stake_percent?: number;
     deal_type_input?: string;
     client_role?: "buyer" | "seller" | "pe" | "jv_partner";
+    mandate_type?: string;
+    buyer_type?: string;
+    ownership_type?: string;
     selected_services?: Service[];
     research_docs?: string;
   };
   const buyer = normalizePrompt(body.buyer ?? "", 200);
   const target = normalizePrompt(body.target ?? "", 200);
+  const mandate_type = body.mandate_type ?? "buy_side";
+  const buyer_type = body.buyer_type ?? "strategic";
+  const ownership_type = body.ownership_type ?? "majority";
   const sector = normalizePrompt(body.sector ?? "", 100);
   const geography = normalizePrompt(body.geography ?? "", 100);
   const client_name = normalizePrompt(body.client_name ?? "", 200);
@@ -199,6 +228,9 @@ const body = await req.json() as {
 ## DEAL FACTS
 - Client / Advisory House: ${client_name || "N/A"}
 - Client Role: ${body.client_role ?? "buyer"}
+- Mandate Type: ${mandate_type}
+- Buyer Type: ${buyer_type}
+- Ownership Type: ${ownership_type}
 - Buyer / Acquirer: ${buyer}
 - Target Company: ${target}
 - Sector: ${sector || "N/A"}
