@@ -175,3 +175,13 @@ html.dark { color-scheme: dark; }
   th { background: #eef2ff !important; color: #3730a3 !important; -webkit-print-color-adjust: exact; }
   @page { margin: 20mm 18mm 24mm 18mm; }
 }
+
+/* Dashboard print mode */
+@media print {
+  .no-print { display: none !important; }
+  body, .dashboard-print { background: #fff !important; color: #0f172a !important; }
+  .card, .recharts-surface { break-inside: avoid; page-break-inside: avoid; }
+  aside, nav { display: none !important; }
+  @page { margin: 12mm; size: A4 landscape; }
+}
+
