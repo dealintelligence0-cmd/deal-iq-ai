@@ -204,7 +204,8 @@ html.dark { color-scheme: dark; }
 
   /* Force charts to fit landscape page */
   .recharts-wrapper, .recharts-surface { width: 100% !important; max-width: 100% !important; }
-  .recharts-responsive-container { height: 240px !important; }
+  .recharts-responsive-container { height: 200px !important; }
+  .recharts-default-legend { display: none !important; }
 
   /* Section spacing */
   h1 { font-size: 18px !important; margin: 0 0 6mm 0 !important; color: #1e1b4b !important; }
