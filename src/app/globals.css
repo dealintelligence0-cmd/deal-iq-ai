@@ -176,12 +176,51 @@ html.dark { color-scheme: dark; }
   @page { margin: 20mm 18mm 24mm 18mm; }
 }
 
-/* Dashboard print mode */
+/* Dashboard print mode — A4 landscape */
 @media print {
   .no-print { display: none !important; }
-  body, .dashboard-print { background: #fff !important; color: #0f172a !important; }
-  .card, .recharts-surface { break-inside: avoid; page-break-inside: avoid; }
-  aside, nav { display: none !important; }
-  @page { margin: 12mm; size: A4 landscape; }
+
+  html, body { background: #fff !important; color: #0f172a !important; margin: 0 !important; }
+  body * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  /* Hide chrome */
+  aside, nav, header > nav, .page-header { display: none !important; }
+
+  /* Force full-width content */
+  .dashboard-print { width: 100% !important; max-width: 100% !important; padding: 0 !important; }
+  main, .min-h-screen { display: block !important; padding: 0 !important; }
+
+  /* Card visuals */
+  .card { border: 0.5px solid #e2e8f0 !important; box-shadow: none !important; break-inside: avoid; page-break-inside: avoid; }
+
+  /* Make all 2-col grids stay 2-col on landscape (default Tailwind would collapse on print) */
+  .grid { display: grid !important; gap: 8mm !important; }
+  .lg\:grid-cols-2 { grid-template-columns: 1fr 1fr !important; }
+  .lg\:grid-cols-3 { grid-template-columns: 2fr 1fr !important; }
+  .sm\:grid-cols-2, .lg\:grid-cols-4 { grid-template-columns: repeat(4, 1fr) !important; }
+
+  /* Compress KPI cards */
+  .grid > div { font-size: 10px !important; }
+
+  /* Force charts to fit landscape page */
+  .recharts-wrapper, .recharts-surface { width: 100% !important; max-width: 100% !important; }
+  .recharts-responsive-container { height: 240px !important; }
+
+  /* Section spacing */
+  h1 { font-size: 18px !important; margin: 0 0 6mm 0 !important; color: #1e1b4b !important; }
+  h2 { font-size: 13px !important; margin: 4mm 0 2mm 0 !important; color: #3730a3 !important; }
+
+  /* Table */
+  table { width: 100% !important; font-size: 9px !important; }
+  th { background: #eef2ff !important; color: #3730a3 !important; padding: 4px 6px !important; }
+  td { padding: 4px 6px !important; }
+
+  /* Page setup */
+  @page { margin: 10mm 8mm 12mm 8mm; size: A4 landscape; }
+  @page :first { margin-top: 14mm; }
+
+  /* Prevent awkward breaks */
+  h1, h2, h3 { page-break-after: avoid; }
+  .recharts-wrapper { page-break-inside: avoid; }
 }
 
