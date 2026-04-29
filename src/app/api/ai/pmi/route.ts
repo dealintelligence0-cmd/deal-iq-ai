@@ -6,6 +6,7 @@ import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { buildIndustryContextBlock, getSynergyBenchmark, matchSector } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
+import { BIG4_PMI_KIT } from "@/lib/proposal/big4-pmi-templates";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -149,7 +150,9 @@ QUALITY CONTROL:
 - Every owner is a specific role (not "the team")
 - Every milestone has a date or day-number
 - Zero generic strategy filler
-- Output should be directly executable by an IMO PMO`;
+- Output should be directly executable by an IMO PMO
+CONTENT BACKBONE — Use this Big4 PMI kit as content reference. Tailor specifics to the deal facts above:
+${BIG4_PMI_KIT}`;
 
   const userPrompt = [
     dealCtx,
