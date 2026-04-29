@@ -102,35 +102,62 @@ export function HorizontalBars({
 }
 
 export function DealTypePie({ data }: { data: Bucket[] }) {
+  // Truncate long type labels for legend
+  const cleaned = data.slice(0, 6).map((d) => ({
+    ...d,
+    name: d.name && d.name.length > 24 ? d.name.slice(0, 22) + "…" : d.name,
+  }));
+  const total = cleaned.reduce((sum, d) => sum + (d.value ?? 0), 0);
+
   return (
-    <ChartFrame title="Deal Type Split" sub="Share of total value by type">
-      {data.length === 0 ? (
-        <EmptyState label="No deal types yet" />
+    <ChartFrame title="Deal Type Split" sub="By deal value (USD M)">
+      {cleaned.length === 0 ? (
+        <EmptyState label="No data yet" />
       ) : (
-        <ResponsiveContainer width="100%" height={280}>
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              innerRadius={55}
-              outerRadius={95}
-              paddingAngle={2}
-            >
-              {data.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              verticalAlign="bottom"
-              iconType="circle"
-              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="flex h-full flex-col">
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={cleaned}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={45}
+                outerRadius={75}
+                paddingAngle={2}
+                stroke="#fff"
+                strokeWidth={2}
+              >
+                {cleaned.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(val: number) => [`$${val.toFixed(1)}M (${total > 0 ? ((val/total)*100).toFixed(1) : 0}%)`, "Value"]}
+                contentStyle={{ borderRadius: 8, fontSize: 11, border: "1px solid #e2e8f0" }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+
+          {/* Custom legend with $ values + % share */}
+          <div className="mt-2 grid grid-cols-1 gap-1 text-[10px]">
+            {cleaned.map((d, i) => {
+              const pct = total > 0 ? ((d.value / total) * 100).toFixed(1) : "0";
+              return (
+                <div key={i} className="flex items-center justify-between gap-2 rounded px-1.5 py-0.5 hover:bg-slate-50 dark:hover:bg-white/5">
+                  <span className="flex items-center gap-1.5 truncate">
+                    <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="truncate text-slate-700 dark:text-slate-300">{d.name}</span>
+                  </span>
+                  <span className="shrink-0 font-mono text-slate-600 dark:text-slate-400">
+                    ${d.value.toFixed(0)}M · {pct}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </ChartFrame>
   );
