@@ -81,10 +81,12 @@ export function HorizontalBars({
             <YAxis
               type="category"
               dataKey="name"
-              tick={{ fontSize: 11, fill: "#334155" }}
-              width={100}
+              tick={{ fontSize: 10, fill: "#334155" }}
+              width={140}
               axisLine={false}
               tickLine={false}
+              interval={0}
+              tickFormatter={(v: string) => (v && v.length > 22 ? v.slice(0, 20) + "…" : v)}
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="value" name="Value ($M)" radius={[0, 6, 6, 0]}>
