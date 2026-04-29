@@ -91,8 +91,20 @@ export default function DashboardPage() {
 
   const activeChips = Object.entries(filters).filter(([, v]) => v) as [keyof Filters, string][];
   const hasFilters = activeChips.length > 0;
-  return (
+return (
     <div className="dashboard-print">
+      {/* Print-only executive header */}
+      <div className="hidden print:block mb-4 border-b-2 border-indigo-600 pb-2">
+        <div className="flex items-baseline justify-between">
+          <h1 className="text-lg font-bold text-slate-900">Executive Pipeline Dashboard</h1>
+          <p className="text-[10px] text-slate-500">Generated {new Date().toLocaleString()}</p>
+        </div>
+        <p className="text-[10px] text-slate-600">
+          {hasFilters ? `Filtered: ${activeChips.map(([k, v]) => `${k}=${v}`).join(" · ")}` : "All deals · No filters"}
+          {" · "}{filteredDeals.length} deals · {formatUsdShort(kpis?.totalValueUsd ?? 0)} total value
+        </p>
+      </div>
+
       <div className="page-header no-print">
         <div className="flex items-start justify-between">
           <div>
