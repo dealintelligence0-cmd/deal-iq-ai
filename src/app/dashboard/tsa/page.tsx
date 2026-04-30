@@ -111,6 +111,10 @@ export default function TSAGeneratorPage() {
           close_date: closeDate, functions: selectedFns,
           duration, pricing_basis: pricing, constraints, tier,
             model_override: modelOverride,
+          mandate_type: mandateType,
+          buyer_type: buyerTypeF,
+          ownership_type: ownershipType,
+          integration_style: integrationStyle,
         }),
       });
       const j = await res.json();
