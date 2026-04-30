@@ -124,7 +124,7 @@ function startAIGenerate() {
     setConfirmOpen(true);
   }
 
-  async function generateWithAI(tier: "premium" | "economic" | "offline") {
+  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
     if (tier === "offline") { generate(); return; }
 
@@ -147,6 +147,7 @@ function startAIGenerate() {
           notes,
           output_mode: outputMode,
           tier,
+          model_override: modelOverride,
         }),
       });
       const j = await res.json();
