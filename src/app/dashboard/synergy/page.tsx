@@ -34,6 +34,10 @@ export default function SynergyEnginePage() {
   const [targetEbitda, setTE] = useState("");
   const [buyerRevenue, setBR] = useState("");
   const [ambition, setAmb] = useState("base");
+  const [mandateType, setMandateType] = useState<string>("buy_side");
+  const [buyerTypeF, setBuyerTypeF] = useState<string>("strategic");
+  const [ownershipType, setOwnershipType] = useState<string>("majority");
+  const [integrationStyle, setIntegrationStyle] = useState<string>("functional");
   const [notes, setNotes] = useState("");
   const [generating, setGen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
