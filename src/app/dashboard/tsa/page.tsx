@@ -95,7 +95,7 @@ export default function TSAGeneratorPage() {
     setConfirmOpen(true);
   }
 
-  async function generate(tier: "premium" | "economic" | "offline") {
+ async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
     if (tier === "offline") {
       setError("Offline mode not available for TSA — needs AI for service catalog generation. Pick Premium or Economic.");
@@ -110,6 +110,7 @@ export default function TSAGeneratorPage() {
           seller, buyer, sector, deal_size: dealSize, geography,
           close_date: closeDate, functions: selectedFns,
           duration, pricing_basis: pricing, constraints, tier,
+            model_override: modelOverride,
         }),
       });
       const j = await res.json();
