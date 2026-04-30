@@ -74,8 +74,10 @@ const admin = createAdminClient();
     tier: "smart",
     primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: (s?.[modelCol] ?? s?.bulk_model) as string | undefined,
+   primaryModel: s?.[col_model] as string | undefined,
+    blockFreeFallback: true,
   };
+
   // Sector-specific functional emphasis (prevents generic output)
   const sectorFunctions: Record<string, string[]> = {
     "Technology, Media & Telecom": ["Product & Engineering", "Cloud & Infra", "GTM & Sales", "Customer Success", "Data & Analytics", "Talent (engineering retention)"],
