@@ -105,7 +105,7 @@ export default function PmiStudioPage() {
 
   // Add useEffect import — already imported via React 19? Otherwise add:
 
-  function generate() {
+ function generateOffline() {
     if (!buyer || !target) return;
     setGenerating(true);
     const input: PmiInput = {
@@ -126,7 +126,7 @@ function startAIGenerate() {
 
   async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
-    if (tier === "offline") { generate(); return; }
+    if (tier === "offline") { generateOffline(); return; }
 
     if (!buyer || !target) return;
     setGenerating(true);
@@ -365,7 +365,7 @@ ${renderVisualProposal(content)}
               {generating ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
               Generate with AI ✦
             </button>
-            <button onClick={generate} disabled={generating || !buyer || !target}
+            <button onClick={generateOffline} disabled={generating || !buyer || !target}
               className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 disabled:opacity-40">
               Quick (Offline)
             </button>
