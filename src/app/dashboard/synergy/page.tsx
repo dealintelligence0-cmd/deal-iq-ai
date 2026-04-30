@@ -84,7 +84,7 @@ export default function SynergyEnginePage() {
     setConfirmOpen(true);
   }
 
-  async function generate(tier: "premium" | "economic" | "offline") {
+  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
     setGen(true);
     setContent(null);
@@ -99,6 +99,7 @@ export default function SynergyEnginePage() {
           target_ebitda: targetEbitda,
           buyer_revenue: buyerRevenue,
           ambition, notes, tier,
+          model_override: modelOverride,
         }),
       });
       const j = await res.json();
