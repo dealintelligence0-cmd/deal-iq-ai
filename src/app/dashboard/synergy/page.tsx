@@ -100,6 +100,10 @@ export default function SynergyEnginePage() {
           buyer_revenue: buyerRevenue,
           ambition, notes, tier,
           model_override: modelOverride,
+          mandate_type: mandateType,
+          buyer_type: buyerTypeF,
+          ownership_type: ownershipType,
+          integration_style: integrationStyle,
         }),
       });
       const j = await res.json();
