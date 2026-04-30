@@ -6,6 +6,7 @@ import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { buildIndustryContextBlock, getSynergyBenchmark } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
+import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -21,6 +22,10 @@ export async function POST(req: Request) {
     deal_size?: string; target_revenue?: string; target_ebitda?: string;
     buyer_revenue?: string; ambition?: string; notes?: string;
     tier?: "premium" | "economic" | "offline";
+    mandate_type?: string;
+    buyer_type?: string;
+    ownership_type?: string;
+    integration_style?: string;
   };
   const tier = body.tier ?? "premium";
 
@@ -159,6 +164,13 @@ OUTPUT QUALITY CONTROL:
 - No truncation — every section must be complete
 - No repetition between sections`;
 
+  const advisoryRules = buildAdvisoryRules({
+    mandateType: body.mandate_type,
+    buyerType: body.buyer_type,
+    ownershipType: body.ownership_type,
+    integrationStyle: body.integration_style,
+    sector,
+  });
   const userPrompt = [
     dealCtx,
     industryCtx,
@@ -171,7 +183,7 @@ OUTPUT QUALITY CONTROL:
   ].filter(Boolean).join("\n");
 
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt },
+    { role: "system", content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
     { role: "user", content: userPrompt },
   ];
 
