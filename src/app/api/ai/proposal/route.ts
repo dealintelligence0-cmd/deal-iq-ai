@@ -171,7 +171,7 @@ export async function POST(req: Request) {
     tier: use_premium ? "smart" : "fast",
     primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: s?.[col_model] as string | undefined,
+    primaryModel: (body as Record<string, string | undefined>).model_override || (s?.[col_model] as string | undefined),
     blockFreeFallback: true,
   };
 
