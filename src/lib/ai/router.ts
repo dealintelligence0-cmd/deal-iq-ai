@@ -1,3 +1,5 @@
+
+
 import { callProvider, probeBestModel, type ChatMessage, type ChatResult, type ProviderId, type Tier } from "./providers";
 
 export type RouteConfig = {
@@ -8,6 +10,7 @@ export type RouteConfig = {
   fallbackProvider?: ProviderId;
   fallbackKey?: string | null;
   fallbackModel?: string;
+  blockFreeFallback?: boolean;
 };
 
 export async function routedCall(
@@ -19,7 +22,6 @@ export async function routedCall(
     if (!p.ok) throw new Error(`Probe failed for ${cfg.primaryProvider}: ${p.error ?? "unknown"} (tried: ${p.tried.join(", ")})`);
     pModel = p.model!;
   }
-
   let lastError = "";
   try {
     let res;
@@ -27,7 +29,6 @@ export async function routedCall(
       res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
     } catch (e1) {
       lastError = e1 instanceof Error ? e1.message : String(e1);
-      // single retry on transient failure
       res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
     }
     return { ...res, viaFallback: false };
@@ -47,6 +48,9 @@ export async function routedCall(
           lastError = e3 instanceof Error ? e3.message : String(e3);
         }
       }
+    }
+    if (cfg.blockFreeFallback) {
+      throw new Error(`AI generation failed: ${lastError}. No fallback available.`);
     }
     const res = await callProvider("free", "rules-v1", null, messages, maxTokens);
     return { ...res, viaFallback: true, lastError };
