@@ -74,7 +74,7 @@ const admin = createAdminClient();
     tier: "smart",
     primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-   primaryModel: (body as Record<string, string | undefined>).model_override || (s?.[modelCol] as string | undefined),
+   primaryModel: ((body as unknown) as { model_override?: string }).model_override || (s?.[modelCol] as string | undefined),
     blockFreeFallback: true,
   };
 
