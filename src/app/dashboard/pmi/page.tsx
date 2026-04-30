@@ -118,7 +118,7 @@ export default function PmiStudioPage() {
     setContent(result);
     setGenerating(false);
   }
-function startAIGenerate() {
+  function startAIGenerate() {
     if (!buyer || !target) return;
     setConfirmOpen(true);
   }
