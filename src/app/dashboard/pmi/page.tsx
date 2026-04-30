@@ -23,6 +23,10 @@ export default function PmiStudioPage() {
   const [geography, setGeography] = useState("");
   const [dealSize, setDealSize] = useState("");
   const [synergyAmbition, setSynergyAmbition] = useState<"low" | "medium" | "high">("medium");
+  const [mandateType, setMandateType] = useState<string>("buy_side");
+  const [buyerTypeF, setBuyerTypeF] = useState<string>("strategic");
+  const [ownershipType, setOwnershipType] = useState<string>("majority");
+  const [integrationStyle, setIntegrationStyle] = useState<string>("functional");
   const [keyRisks, setKeyRisks] = useState("");
   const [publicPrivate, setPublicPrivate] = useState<"public" | "private">("private");
   const [listed, setListed] = useState<"listed" | "unlisted">("unlisted");
@@ -148,6 +152,10 @@ export default function PmiStudioPage() {
           output_mode: outputMode,
           tier,
           model_override: modelOverride,
+          mandate_type: mandateType,
+          buyer_type: buyerTypeF,
+          ownership_type: ownershipType,
+          integration_style: integrationStyle,
         }),
       });
       const j = await res.json();
@@ -299,6 +307,52 @@ ${renderVisualProposal(content)}
                   {a}
                 </button>
               ))}
+            </div>
+         <div>
+              <label className="text-xs text-slate-500">Mandate Type</label>
+              <select value={mandateType} onChange={(e) => setMandateType(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="buy_side">Buy-side</option>
+                <option value="sell_side">Sell-side</option>
+                <option value="pmi_only">PMI only</option>
+                <option value="carve_out">Carve-out</option>
+                <option value="synergy_capture">Synergy capture</option>
+                <option value="value_creation">Value creation</option>
+                <option value="distressed">Distressed</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">Buyer Type</label>
+              <select value={buyerTypeF} onChange={(e) => setBuyerTypeF(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="strategic">Strategic</option>
+                <option value="pe">PE sponsor</option>
+                <option value="family_office">Family office</option>
+                <option value="sovereign">Sovereign / infra</option>
+                <option value="founder">Founder buyer</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">Ownership</label>
+              <select value={ownershipType} onChange={(e) => setOwnershipType(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="minority">Minority</option>
+                <option value="majority">Majority</option>
+                <option value="full">Full (100%)</option>
+                <option value="jv">Joint venture</option>
+                <option value="merger">Merger of equals</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">Integration Style</label>
+              <select value={integrationStyle} onChange={(e) => setIntegrationStyle(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                <option value="light_touch">Light touch</option>
+                <option value="controlled_autonomy">Controlled autonomy</option>
+                <option value="functional">Functional integration</option>
+                <option value="full_absorption">Full absorption</option>
+                <option value="standalone_holdco">Standalone holdco</option>
+              </select>
             </div>
           </div>
 
