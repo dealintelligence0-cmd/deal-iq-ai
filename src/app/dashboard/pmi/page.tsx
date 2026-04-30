@@ -210,7 +210,7 @@ ${renderVisualProposal(content)}
       <AIGenerateConfirm
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={generateWithAI}
+        onConfirm={generate}
         module="pmi"
         premiumProvider={{ tier: "premium", ...premiumTier }}
         economicProvider={{ tier: "economic", ...economicTier }}
