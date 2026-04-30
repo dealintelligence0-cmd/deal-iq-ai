@@ -30,6 +30,10 @@ export default function TSAGeneratorPage() {
   const [content, setContent] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mandateType, setMandateType] = useState<string>("buy_side");
+  const [buyerTypeF, setBuyerTypeF] = useState<string>("strategic");
+  const [ownershipType, setOwnershipType] = useState<string>("majority");
+  const [integrationStyle, setIntegrationStyle] = useState<string>("functional");
 
   const sb = createClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
