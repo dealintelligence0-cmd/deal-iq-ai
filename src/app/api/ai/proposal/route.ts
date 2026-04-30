@@ -336,7 +336,7 @@ const fullContext = dealContext + buildIndustryContextBlock(sector, geography);
   ];
 
   try {
-    const result = await routedCall(cfg, messages, use_premium ? 6000 : 3500);
+   const result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
 
     await admin.from("proposals").insert({
       user_id: user.id, proposal_type, client_name, buyer, target,
