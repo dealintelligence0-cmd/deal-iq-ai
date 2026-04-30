@@ -142,6 +142,12 @@ google: {
     fastCandidates: ["rules-v1"],
     smartCandidates: ["rules-v1"],
   },
+  export function getModelsForTier(provider: ProviderId, tier: "fast" | "smart" | "economic"): string[] {
+  const meta = PROVIDERS[provider];
+  if (!meta) return [];
+  if (tier === "smart") return meta.smartCandidates ?? [];
+  return meta.fastCandidates ?? [];
+}
 };
 
 export async function callProvider(
