@@ -74,7 +74,7 @@ const admin = createAdminClient();
     tier: "smart",
     primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-   primaryModel: s?.[col_model] as string | undefined,
+   primaryModel: s?.[modelCol] as string | undefined,
     blockFreeFallback: true,
   };
 
