@@ -125,6 +125,7 @@ function startAIGenerate() {
 
   async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
+    
     if (tier === "offline") { generateOffline(); return; }
 
     if (!buyer || !target) return;
