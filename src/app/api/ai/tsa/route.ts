@@ -73,7 +73,8 @@ export async function POST(req: Request) {
     tier: "smart",
     primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: (s?.[modelCol] ?? s?.bulk_model) as string | undefined,
+    primaryModel: s?.[col_model] as string | undefined,
+    blockFreeFallback: true,
   };
   // Pull live web research if a search key exists
   let researchBlock = "";
