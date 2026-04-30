@@ -139,16 +139,17 @@ google: {
   free: {
     id: "free", label: "Free (rule-based)", needsKey: false, apiStyle: "rules",
     keyDocsUrl: "",
-    fastCandidates: ["rules-v1"],
+  fastCandidates: ["rules-v1"],
     smartCandidates: ["rules-v1"],
   },
-  export function getModelsForTier(provider: ProviderId, tier: "fast" | "smart" | "economic"): string[] {
+};
+
+export function getModelsForTier(provider: ProviderId, tier: "fast" | "smart" | "economic"): string[] {
   const meta = PROVIDERS[provider];
   if (!meta) return [];
   if (tier === "smart") return meta.smartCandidates ?? [];
   return meta.fastCandidates ?? [];
 }
-};
 
 export async function callProvider(
   provider: ProviderId, model: string, apiKey: string | null,
