@@ -7,6 +7,7 @@ import { buildIndustryContextBlock, getSynergyBenchmark, matchSector } from "@/l
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
 import { BIG4_PMI_KIT } from "@/lib/proposal/big4-pmi-templates";
+import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
     tsa_needed?: boolean; cross_border?: boolean; notes?: string;
     output_mode?: string;
     tier?: "premium" | "economic" | "offline";
+   mandate_type?: string;
+    buyer_type?: string;
+    ownership_type?: string;
+    integration_style?: string;
   };
   const tier = body.tier ?? "premium";
 
@@ -155,6 +160,13 @@ QUALITY CONTROL:
 - Output should be directly executable by an IMO PMO
 CONTENT BACKBONE — Use this Big4 PMI kit as content reference. Tailor specifics to the deal facts above:
 ${BIG4_PMI_KIT}`;
+  const advisoryRules = buildAdvisoryRules({
+    mandateType: body.mandate_type,
+    buyerType: body.buyer_type,
+    ownershipType: body.ownership_type,
+    integrationStyle: body.integration_style,
+    sector,
+  });
 
   const userPrompt = [
     dealCtx,
@@ -167,7 +179,7 @@ ${BIG4_PMI_KIT}`;
   ].filter(Boolean).join("\n");
 
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt },
+    { role: "system", content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
     { role: "user", content: userPrompt },
   ];
 
