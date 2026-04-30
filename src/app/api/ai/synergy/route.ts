@@ -99,7 +99,7 @@ const { data: settings } = await admin
     tier: "smart",
     primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: s?.[modelCol] as string | undefined,
+    primaryModel: (body as Record<string, string | undefined>).model_override || (s?.[modelCol] as string | undefined),
     blockFreeFallback: true,
   };
 
