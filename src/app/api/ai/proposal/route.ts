@@ -7,20 +7,17 @@ import { classifyDeal, generateServices, expandService, expandCustomService, typ
 import { buildDealContext, contextToPromptBlock, buildAdvisorVerdictPrompt, screenRegulatory, regulatoryToPromptBlock } from "@/lib/intelligence/context-engine";
 import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext, buildRateLimitErrorMsg } from "@/lib/ai/utils";
+import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
 
 const PROPOSAL_PROMPTS: Record<ProposalType, string> = {
-  advisory: `You are an MBB senior partner. Write a consulting-grade M&A advisory proposal that a CEO or PE Investment Committee would accept verbatim.
+ advisory: `You are an MBB senior partner. Write a consulting-grade M&A advisory proposal that a CEO or PE Investment Committee would accept verbatim.
 
-CRITICAL RULES:
-1. If "LIVE WEB RESEARCH" appears in the user message, you MUST cite specific facts from it using [1], [2], [3] markers throughout the proposal.
-2. Reference the buyer's recent activity, target's actual metrics, and current sector dynamics — NEVER use generic phrases like "in the sector" if specifics are available.
-3. If "INSIDER INSIGHTS" appears, weave them into Strategic Rationale and Why This Deal Matters sections.
-4. Use specific dollar figures from the deal facts. Compute synergies as ~10% of deal value (revenue) + ~13% (cost).
+CRITICAL: If "LIVE WEB RESEARCH" appears, cite via [1], [2] markers. If "INSIDER INSIGHTS" appears, weave into Strategic Rationale.
 
-STRUCTURE (use exact ## H2 headings, in order):
+STRUCTURE (exact ## headings):
 ## Executive Summary
 ## Why This Deal Matters
 ## Strategic Rationale
@@ -34,94 +31,13 @@ STRUCTURE (use exact ## H2 headings, in order):
 ## Why Us
 ## Next Steps
 
-In Risk & Mitigation: list 6 risks, each as "**Risk Title** — Mitigation: ...".
-In Functional Workstreams: cover Finance, HR, IT, Operations, Sales, Procurement, Legal, Tax, Cyber — each as "**[Function]:** key actions".
-In Value Creation: include "$XM revenue + $YM cost = $ZM total" line.
+In Risk & Mitigation: 6 risks as "**Risk** — Mitigation: ..." with probability + $ impact.
+In Functional Workstreams: cover Finance, HR, IT, Operations, Sales, Procurement, Legal, Tax, Cyber.
+In Value Creation: include "$XM revenue + $YM cost = $ZM total" with derivation.
 
-Length: 1500-2000 words. Use Markdown. Be specific, numeric, and authoritative.
+Length: 1500-2000 words. Markdown. Specific, numeric, authoritative.
 
-QUALITY ENFORCEMENT (verify before output):
-- Currency consistent throughout — no mixing € and $
-- Implied EV/EBITDA multiple stated in Executive Summary
-- Synergy derivation shows computation (not just % range)
-- Antitrust risk assessed with specific jurisdictions named
-- At least 1 comparable transaction cited with deal value
-- No unsubstantiated buzzwords
-- Deal structure (cash/stock split) specified where known
-- Each risk has probability estimate, $ impact range, named owner
-
-MANDATE-DRIVEN POV (the proposal MUST shift focus based on Mandate Type):
-- BUY-SIDE: emphasize investment thesis, synergy case, diligence priorities, walk-away valuation, integration readiness
-- SELL-SIDE: emphasize equity story, buyer universe, valuation maximization, auction tactics, carve-out readiness, QoE prep, competitive tension
-- PMI ONLY: skip thesis sections; emphasize Day-1, IMO governance, 100-day plan, synergy tracking, operating model, RACI
-- CARVE-OUT: emphasize TSA framework, separation complexity, stranded cost management, standalone capability ramp
-- SYNERGY CAPTURE: skip mandate sales pitch; emphasize bottom-up synergy model, governance, capture milestones
-- VALUE CREATION: emphasize EBITDA bridge, levers, exit positioning
-- DISTRESSED: emphasize liquidity, restructuring options, stakeholder management, turnaround levers
-
-BUYER-LENS SHIFTS:
-- PE buyer: lead with IRR, leverage capacity, exit routes (3-5yr), bolt-on roadmap, MIP structure
-- Strategic buyer: lead with revenue/cost synergies, capability fit, competitive positioning
-- Family office: lead with long-term hold, dividend yield, succession alignment
-- Sovereign/infra: lead with regulatory comfort, ESG, long-duration capital fit
-- Founder buyer: lead with operational fit, cultural alignment, financing structure
-
-OWNERSHIP-LENS SHIFTS:
-- Minority: NO control assumptions. Focus on governance rights, board seats, veto matters, information rights, exit routes (drag/tag/ROFR)
-- Majority: reserved matters + delegated authority matrix; consolidation method (full/equity)
-- Full (100%): full integration mandate; legal entity simplification; cost-out
-- JV: governance, capital commitments, exit options, deadlock resolution
-- Merger of equals: integration co-leadership, cultural integration, brand strategy
-
-INTEGRATION-STYLE SHIFTS (recommendations MUST adapt):
-- LIGHT TOUCH: retain target management autonomy; preserve speed; minimal IMO; reporting/governance overlay only; selective synergies (procurement + treasury only); NO ERP replacement Y1; preserve brand and product roadmap
-- CONTROLLED AUTONOMY: governance overlay + selective shared services; finance consolidation; HR policies harmonised; technology kept separate Y1; gradual functional alignment Y2-Y3
-- FUNCTIONAL INTEGRATION: shared services for back-office (Finance, HR, IT, Procurement); operations remain separate; consolidated reporting; partial systems integration; cultural integration program
-- FULL ABSORPTION: complete org redesign; ERP/CRM consolidation; legal entity simplification; duplicate cost removal; single brand; combined GTM; centralised procurement; full systems migration
-- STANDALONE HOLDCO: target operates as independent unit; reporting line to holdco only; no operational integration; financial controls + capital allocation only
-
-"SO WHAT" REASONING (every section must answer):
-- Why does this matter NOW (timing, market window, competitive pressure)?
-- Why this buyer specifically (capability fit vs. alternatives)?
-- Why this structure (mandate / ownership / integration choice — what trade-off does it resolve)?
-- What happens if the client does NOTHING (counterfactual cost)?
-- What's the leading indicator that the thesis is breaking (early-warning trigger)?
-
-SYNERGY LOGIC (NO random numbers — every figure must show derivation):
-- Cost synergies: state as "X% of Y base = $Z" — e.g. "8% of $500M combined SG&A = $40M"
-- Revenue synergies: state mechanism + driver — e.g. "$30M from cross-selling Product A into 200 Target customers at $150K ARPU × 100% attach × 100% retention"
-- ALWAYS attach a confidence label: HIGH (proven precedent), MEDIUM (plan-dependent), STRETCH (requires breakthroughs)
-- ALWAYS explain WHY the synergy is credible — what does the buyer have that makes this achievable?
-- If baseline financials missing, state ranges with industry benchmark anchor: "2-4% logistics savings driven by route density (industry benchmark: 3-5%)"
-- Banned: "synergies of $XM" without derivation; "cost savings opportunity" without base; "cross-sell potential" without ARPU × attach × accounts math
-
-OUTPUT TONE:
-- Sharp, commercial, concise — no AI fluff, no filler adjectives
-- Cause→effect: every claim must have a "because [number/fact]" clause
-- Board-ready: assume reader is a CEO, CFO, or PE Investment Committee member who has 8 minutes
-
-INDUSTRY-SPECIFIC SYNERGY LEVERS (use ONLY levers relevant to the sector — generic levers are banned):
-
-LOGISTICS / FREIGHT: route density · fleet utilization · warehouse occupancy · OTIF · fuel procurement scale · last-mile network · tractor-to-trailer ratio · cold-chain compliance · empty-mile reduction
-SAAS / TECH: ARR uplift · NRR (net revenue retention) · CAC payback compression · gross margin expansion (cloud cost pooling) · engineering org rationalization · product bundling · cross-sell attach rate · churn reduction · platform consolidation
-MANUFACTURING / INDUSTRIALS: plant utilization · OEE · procurement scale (direct + indirect spend) · footprint optimization · yield improvement · maintenance uptime · SKU rationalization · working-capital release · supplier consolidation
-CONSUMER / RETAIL: distribution reach · pricing power · trade-spend optimization · SKU rationalization · private-label penetration · digital channel mix · category management · loyalty data leverage · supply-chain depth
-HEALTHCARE / LIFE SCIENCES: GPO leverage · API/excipient procurement · R&D portfolio rationalization · regulatory pathway sharing · clinical trial scale · payer mix optimization · QMS harmonization · CRO consolidation · therapeutic area focus
-FINANCIAL SERVICES: NIM expansion · cost-to-income ratio · risk-weighted asset optimization · core platform consolidation · branch network rationalization · cross-sell into customer base · regulatory capital efficiency · treasury consolidation
-ENERGY / RESOURCES: asset utilization · capex portfolio rationalization · trading-book consolidation · contractor spend · HSE program harmonization · workforce productivity · supply-chain leverage
-FOOD DELIVERY / GIG: rider density · order-to-rider ratio · merchant cross-sell · subscription mix · adjacency (groceries, pharmacy) · unit economics per order · platform monetization
-PUBLIC SECTOR / GOVCON: contract vehicle leverage · clearance utilization · past-performance scoring · indirect rate optimization · capability gap fill
-
-If sector is anything else, state explicitly: "Sector-specific lever framework not pre-mapped — applying first-principles framework: [revenue scale levers, cost scale levers, asset utilization levers]" and proceed.
-
-BANNED generic phrases:
-- "synergies include cost savings"
-- "leverage operational efficiencies"
-- "best-in-class capabilities"
-- "value-add through integration"
-- "drive operational excellence"
-- "unlock potential"
-- "industry-leading"`,
+QUALITY: Currency consistent. EV/EBITDA stated. Synergy derivation shown. Antitrust jurisdictions named. 1+ comparable transaction cited. No buzzwords. Each risk has prob + $ + owner.`,
   executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
 ## Transaction Overview
 ## Strategic Rationale
@@ -327,10 +243,18 @@ const fullContext = dealContext + buildIndustryContextBlock(sector, geography);
   const regFlags = screenRegulatory({ deal_size_usd: ctx.deal_size_usd, geography, sector });
   const regBlock = regulatoryToPromptBlock(regFlags);
 
+  const advisoryRules = buildAdvisoryRules({
+    mandateType: mandate_type,
+    buyerType: buyer_type,
+    ownershipType: ownership_type,
+    integrationStyle: integration_style,
+    sector,
+  });
+
   const messages: ChatMessage[] = [
     { role: "system", content: PROPOSAL_PROMPTS[proposal_type]
-        + "\n\nADDITIONAL RULES:\n- Use consistent currency throughout.\n- State EV/EBITDA multiple if computable.\n- Banned generic phrases: 'market is growing', 'there are risks', 'synergies include cost savings', 'leverage', 'value-add', 'best-in-class'.\n- EVERY claim must cite a number (%, $, or months).\n- Use cause→effect reasoning.\n- Write to the decision-maker (CEO / IC / Board / PE Partner) implied by client_role.\n\n"
-        + advisorBlock },
+        + "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" + advisoryRules
+        + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock },
     { role: "user", content:
       `Using the structured DEAL CONTEXT, classification, services, regulatory screening, and any research/insights below, generate the ${proposal_type.replace(/_/g, " ")} document. Open with the 10-section ADVISOR VERDICT, then continue with standard sections. The Risk & Mitigation section MUST include a Regulatory Compliance subsection referencing each flagged filing.\n\n${ctxBlock}\n${regBlock}\n${fullContext}` },
   ];
