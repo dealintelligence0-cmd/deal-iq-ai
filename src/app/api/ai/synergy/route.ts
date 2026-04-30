@@ -99,7 +99,8 @@ const { data: settings } = await admin
     tier: "smart",
     primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: (s?.[modelCol] ?? s?.bulk_model) as string | undefined,
+    primaryModel: s?.[col_model] as string | undefined,
+    blockFreeFallback: true,
   };
 
   const systemPrompt = `You are an MBB integration partner producing a detailed synergy model.
