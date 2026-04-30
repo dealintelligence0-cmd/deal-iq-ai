@@ -6,6 +6,7 @@ import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
+import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -22,6 +23,10 @@ export async function POST(req: Request) {
     functions?: string[]; duration?: string;
     pricing_basis?: string; constraints?: string;
     tier?: "premium" | "economic" | "offline";
+    mandate_type?: string;
+    buyer_type?: string;
+    ownership_type?: string;
+    integration_style?: string;
   };
   const tier = body.tier ?? "premium";
 
@@ -152,7 +157,14 @@ OUTPUT QUALITY CONTROL:
 - Every exit dependency must name a specific predecessor service
 - For cross-border deals: explicit data residency + regulatory regime per jurisdiction
 - Stranded cost risk quantified in $ for each function`;
-  
+
+  const advisoryRules = buildAdvisoryRules({
+    mandateType: body.mandate_type,
+    buyerType: body.buyer_type,
+    ownershipType: body.ownership_type,
+    integrationStyle: body.integration_style,
+    sector,
+  });
   const userPrompt = [
     dealCtx,
     industryCtx,
@@ -165,7 +177,7 @@ OUTPUT QUALITY CONTROL:
   ].filter(Boolean).join("\n");
 
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt },
+    { role: "system", content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
     { role: "user", content: userPrompt },
   ];
 
