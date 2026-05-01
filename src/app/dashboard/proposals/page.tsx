@@ -54,6 +54,8 @@ function ProposalsPageInner() {
     noteAsks ? `[ASKS] ${noteAsks}` : "",
   ].filter(Boolean).join("\n");
   const [usePremium, setUsePremium] = useState(false);
+  const [generationMode, setGenerationMode] = useState<"standard" | "advanced">("standard");
+  const [premiumMode, setPremiumMode] = useState(false);
   const [stakePercent, setStakePercent] = useState("");
   const [dealTypeInput, setDealTypeInput] = useState("");
   const [clientRole, setClientRole] = useState<"buyer" | "seller" | "pe" | "jv_partner">("buyer");
@@ -227,6 +229,8 @@ async function runResearch(b: string, t: string, s: string, g: string, did?: str
           buyer_type: buyerType,
           ownership_type: ownershipType, integration_style: integrationStyle,
           selected_services: services,
+          generation_mode: generationMode,
+          premium_mode: premiumMode,
           research_docs: useResearch ? researchBrief : undefined,
         }),
       });
@@ -625,6 +629,46 @@ strong { color: #0f172a; }
             </div>
           )}
 
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+  <p className="text-xs font-medium text-slate-700">Generation Mode</p>
+  <div className="mt-2 grid grid-cols-2 gap-2">
+    <button
+      onClick={() => setGenerationMode("standard")}
+      className={`rounded border px-2 py-1 text-xs ${
+        generationMode === "standard" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200"
+      }`}
+    >
+      Standard Mode
+    </button>
+    <button
+      onClick={() => setGenerationMode("advanced")}
+      className={`rounded border px-2 py-1 text-xs ${
+        generationMode === "advanced" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200"
+      }`}
+    >
+      Advanced Mode
+    </button>
+  </div>
+</div>
+
+<div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+  <div>
+    <p className="text-xs font-medium text-slate-700">Premium Mode (Research Required)</p>
+    <p className="text-[10px] text-slate-500">Forces research-backed generation path</p>
+  </div>
+  <button
+    onClick={() => setPremiumMode(!premiumMode)}
+    className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+      premiumMode ? "bg-purple-600" : "bg-slate-300"
+    }`}
+  >
+    <span
+      className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+        premiumMode ? "translate-x-4" : "translate-x-0.5"
+      }`}
+    />
+  </button>
+</div>
           <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
             <div>
               <p className="text-xs font-medium text-slate-700">Premium AI</p>
