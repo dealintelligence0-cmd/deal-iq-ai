@@ -365,13 +365,14 @@ try {
   });
 
   await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
-
+   
   return NextResponse.json({
-    content: result.text,
-    provider: result.provider,
-    model: result.model,
-    viaFallback: result.viaFallback,
-  });
-} catch (e) {
-  return NextResponse.json({ error: String(e) }, { status: 500 });
+      content: result.text,
+      provider: result.provider,
+      model: result.model,
+      viaFallback: result.viaFallback,
+    });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
 }
