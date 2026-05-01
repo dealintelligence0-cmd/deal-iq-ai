@@ -10,6 +10,10 @@ import { buildDealContext, contextToPromptBlock, buildAdvisorVerdictPrompt, scre
 import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
 import { normalizePrompt, buildRateLimitErrorMsg } from "@/lib/ai/utils";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
+import { getAdvancedPromptBuilder } from "@/lib/advanced/prompts";
+import { deriveSynergies } from "@/lib/advanced/engines/synergy_engine";
+import { deriveDealRisks } from "@/lib/advanced/engines/risk_engine";
+import { validateRequiredSections } from "@/lib/advanced/validators/output_validator";
 
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -119,6 +123,8 @@ export async function POST(req: Request) {
     integration_style?: string;
     selected_services?: Service[];
     research_docs?: string;
+    generation_mode?: "standard" | "advanced";
+premium_mode?: boolean;
   };
 
   const buyer = normalizePrompt(body.buyer ?? "", 200);
@@ -134,6 +140,8 @@ export async function POST(req: Request) {
   const proposal_type = body.proposal_type;
   const use_premium = !!body.use_premium;
   const notes = normalizePrompt(body.notes ?? "", 3000);
+  const generation_mode = body.generation_mode ?? "standard";
+const premium_mode = !!body.premium_mode;
 
   if (!PROPOSAL_PROMPTS[proposal_type]) {
     return NextResponse.json({ error: "Invalid proposal_type" }, { status: 400 });
@@ -258,18 +266,80 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
     integrationStyle: integration_style,
     sector,
   });
+  
+  const advancedBuilder = getAdvancedPromptBuilder(mandate_type);
+const isAdvancedMode = generation_mode === "advanced" && !!advancedBuilder;
+const synergyLines = deriveSynergies({
+  sector,
+  revenue: Number((deal_size || "").replace(/[^0-9.]/g, "")) || undefined,
+  researchNotes: body.research_docs,
+});
+const riskLines = deriveDealRisks({ geography, researchNotes: body.research_docs });
 
-  const messages: ChatMessage[] = [
-    { role: "system", content: PROPOSAL_PROMPTS[proposal_type]
-        + "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" + advisoryRules
-        + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock },
-    { role: "user", content:
-      `Generate the ${proposal_type.replace(/_/g, " ")} document. Open with the 10-section ADVISOR VERDICT, then continue with standard sections. Risk & Mitigation MUST include Regulatory Compliance subsection referencing each flagged filing.\n\n${ctxBlock}\n${regBlock}\n${fullContext}` },
-  ];
+const systemPrompt = isAdvancedMode
+  ? advancedBuilder!({ buyer, target, sector, geography, dealSize: deal_size, notes, researchInsights: body.research_docs })
+  : PROPOSAL_PROMPTS[proposal_type];
+
+const messages: ChatMessage[] = [
+  {
+    role: "system",
+    content:
+      systemPrompt
+      + "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" + advisoryRules
+      + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock,
+  },
+  {
+    role: "user",
+    content:
+      `Generate the ${proposal_type.replace(/_/g, " ")} document. ${
+        isAdvancedMode
+          ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations."
+          : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."
+      } Risk & Mitigation MUST include Regulatory Compliance subsection referencing each flagged filing.
+
+## ADVANCED SYNERGY REASONING
+${JSON.stringify(synergyLines, null, 2)}
+
+## ADVANCED RISK REASONING
+${JSON.stringify(riskLines, null, 2)}
+
+${ctxBlock}
+${regBlock}
+${fullContext}`,
+  },
+];
 
   try {
     const result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
+if (premium_mode && !body.research_docs) {
+  return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
+}
+    let result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
+    if (isAdvancedMode) {
+  const validation = validateRequiredSections(
+    result.text,
+    mandate_type === "carve_out"
+      ? [
+          "Separation Critical Path",
+          "Stranded Cost Quantification",
+          "TSA Service Catalog",
+          "Standalone Capability Gap Analysis",
+          "Day-1 Cutover Plan",
+          "Customer Continuity Plan",
+          "Regulatory & Compliance Risks (deal-specific)",
+          "Technology Separation Blueprint",
+        ]
+      : []
+  );
 
+  if (!validation.ok) {
+    const retryMessages: ChatMessage[] = [
+      ...messages,
+      { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` },
+    ];
+    result = await routedCall(cfg, retryMessages, use_premium ? 8000 : 6000);
+  }
+}
     if (result.provider === "free" || result.model === "rules-v1") {
       return NextResponse.json({
         error: `Proposal AI failed. Real reason: ${result.lastError ?? "unknown"}. Provider: ${cfg.primaryProvider}/${cfg.primaryModel ?? "auto"}.`,
