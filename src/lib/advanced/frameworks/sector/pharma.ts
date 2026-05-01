@@ -13,4 +13,8 @@ export const pharmaSectorFramework = {
     "Large-cap pharma procurement programs often deliver mid-single-digit savings over 24 months.",
     "Commercial model integration tends to realize 30-50% of run-rate within year one.",
   ],
+  regulatoryWatchouts: [
+    "FDA/EMA manufacturing and quality transfer approvals can delay realization.",
+    "Pharmacovigilance system migration requires continuity and audit readiness.",
+  ],
 };
