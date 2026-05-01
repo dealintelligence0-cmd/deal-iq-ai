@@ -41,7 +41,7 @@
  ## Next Steps
  
  In Risk & Mitigation: 6 risks as "**Risk** — Mitigation: ..." with probability + $ impact + owner.
-@@ -88,73 +92,78 @@ QUALITY: Currency consistent. EV/EBITDA stated. Synergy derivation shown. Antitr
+QUALITY: Currency consistent. EV/EBITDA stated. Synergy derivation shown. Antitr
  ## Quick Wins Checklist
  ## Success Metrics
  ## Stakeholder Communication
@@ -120,7 +120,7 @@
        const { data: dec } = await admin.rpc("decrypt_key", { cipher });
        apiKey = dec as string | null;
      } catch { /* fallback */ }
-@@ -229,67 +238,97 @@ ${classification.keyRisks.map((r) => `- ${r}`).join("\n")}
+ ${classification.keyRisks.map((r) => `- ${r}`).join("\n")}
  
  ## MANDATORY WORKSTREAMS
  ${classification.mandatoryWorkstreams.map((w) => `- ${w}`).join("\n")}
