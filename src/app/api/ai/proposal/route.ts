@@ -117,6 +117,7 @@ export async function POST(req: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { checkRateLimit, logActivity } = await import("@/lib/security");
@@ -135,6 +136,7 @@ export async function POST(req: Request) {
     use_premium?: boolean;
     generation_mode?: "standard" | "advanced";
     premium_mode?: boolean;
+    research_mode?: "web" | "prompt";
     stake_percent?: number;
     deal_type_input?: string;
     client_role?: "buyer" | "seller" | "pe" | "jv_partner";
@@ -180,6 +182,7 @@ export async function POST(req: Request) {
   let apiKey: string | null = null;
   const s = settings as Record<string, unknown> | null;
   const cipher = s?.[col_key] as string | undefined;
+
   if (cipher) {
     try {
       const { data: dec } = await admin.rpc("decrypt_key", { cipher });
@@ -221,6 +224,7 @@ export async function POST(req: Request) {
     normalized_value_usd: null,
     notes,
   };
+
   const classification = classifyDeal(dealInput);
 
   let services: Service[] = body.selected_services?.filter((svc) => svc.selected) ?? [];
@@ -366,8 +370,12 @@ ${fullContext}`,
   ];
 
   try {
-    if (premium_mode && !body.research_docs) {
-      return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
+    // Keep strict guard only for web-research premium mode.
+    if (premium_mode && body.research_mode === "web" && !body.research_docs) {
+      return NextResponse.json(
+        { error: "Premium Mode requires research context before generation." },
+        { status: 400 }
+      );
     }
 
     let result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
@@ -392,7 +400,10 @@ ${fullContext}`,
       if (!validation.ok) {
         const retryMessages: ChatMessage[] = [
           ...messages,
-          { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` },
+          {
+            role: "user",
+            content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.`,
+          },
         ];
         result = await routedCall(cfg, retryMessages, use_premium ? 8000 : 6000);
       }
@@ -425,7 +436,9 @@ ${fullContext}`,
       via_fallback: result.viaFallback,
     });
 
-    await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
+    await logActivity(supabase, "proposal_generated", "proposals", undefined, {
+      type: proposal_type,
+    });
 
     return NextResponse.json({
       content: result.text,
