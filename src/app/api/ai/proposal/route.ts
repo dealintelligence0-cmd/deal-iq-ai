@@ -309,57 +309,69 @@ ${fullContext}`,
   },
 ];
 
-  try {
-    const result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
-if (premium_mode && !body.research_docs) {
-  return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
-}
-    let result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
-    if (isAdvancedMode) {
-  const validation = validateRequiredSections(
-    result.text,
-    mandate_type === "carve_out"
-      ? [
-          "Separation Critical Path",
-          "Stranded Cost Quantification",
-          "TSA Service Catalog",
-          "Standalone Capability Gap Analysis",
-          "Day-1 Cutover Plan",
-          "Customer Continuity Plan",
-          "Regulatory & Compliance Risks (deal-specific)",
-          "Technology Separation Blueprint",
-        ]
-      : []
-  );
-
-  if (!validation.ok) {
-    const retryMessages: ChatMessage[] = [
-      ...messages,
-      { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` },
-    ];
-    result = await routedCall(cfg, retryMessages, use_premium ? 8000 : 6000);
+try {
+  if (premium_mode && !body.research_docs) {
+    return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
   }
-}
-    if (result.provider === "free" || result.model === "rules-v1") {
-      return NextResponse.json({
-        error: `Proposal AI failed. Real reason: ${result.lastError ?? "unknown"}. Provider: ${cfg.primaryProvider}/${cfg.primaryModel ?? "auto"}.`,
-      }, { status: 500 });
+
+  let result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
+
+  if (isAdvancedMode) {
+    const validation = validateRequiredSections(
+      result.text,
+      mandate_type === "carve_out"
+        ? [
+            "Separation Critical Path",
+            "Stranded Cost Quantification",
+            "TSA Service Catalog",
+            "Standalone Capability Gap Analysis",
+            "Day-1 Cutover Plan",
+            "Customer Continuity Plan",
+            "Regulatory & Compliance Risks (deal-specific)",
+            "Technology Separation Blueprint",
+          ]
+        : []
+    );
+
+    if (!validation.ok) {
+      const retryMessages: ChatMessage[] = [
+        ...messages,
+        { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` },
+      ];
+      result = await routedCall(cfg, retryMessages, use_premium ? 8000 : 6000);
     }
-
-    await admin.from("proposals").insert({
-      user_id: user.id, proposal_type, client_name, buyer, target,
-      sector, geography, deal_size, notes,
-      content: result.text, provider: result.provider,
-      model: result.model, via_fallback: result.viaFallback,
-    });
-    await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
-    return NextResponse.json({
-      content: result.text,
-      provider: result.provider,
-      model: result.model,
-      viaFallback: result.viaFallback,
-    });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
   }
+
+  if (result.provider === "free" || result.model === "rules-v1") {
+    return NextResponse.json({
+      error: `Proposal AI failed. Real reason: ${result.lastError ?? "unknown"}. Provider: ${cfg.primaryProvider}/${cfg.primaryModel ?? "auto"}.`,
+    }, { status: 500 });
+  }
+
+  await admin.from("proposals").insert({
+    user_id: user.id,
+    proposal_type,
+    client_name,
+    buyer,
+    target,
+    sector,
+    geography,
+    deal_size,
+    notes,
+    content: result.text,
+    provider: result.provider,
+    model: result.model,
+    via_fallback: result.viaFallback,
+  });
+
+  await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
+
+  return NextResponse.json({
+    content: result.text,
+    provider: result.provider,
+    model: result.model,
+    viaFallback: result.viaFallback,
+  });
+} catch (e) {
+  return NextResponse.json({ error: String(e) }, { status: 500 });
 }
