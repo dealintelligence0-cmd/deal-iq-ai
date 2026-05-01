@@ -23,22 +23,79 @@ export type ProposalType =
   | "hundred_day_plan";
 
 const PROPOSAL_PROMPTS: Record<ProposalType, string> = {
-  advisory: `You are an MBB senior partner. Write a consulting-grade M&A advisory proposal.
+  advisory: `You are an MBB senior partner. Write a consulting-grade M&A advisory proposal that a CEO or PE Investment Committee would accept verbatim.
 
-STRUCTURE:
+CRITICAL: If "LIVE WEB RESEARCH" appears, cite via [1], [2] markers. If "INSIDER INSIGHTS" appears, weave into Strategic Rationale.
+
+STRUCTURE (exact ## headings):
 ## Executive Summary
+## Why This Deal Matters
 ## Strategic Rationale
+## Market & Industry Context
 ## Value Creation & Synergies
-## Integration Strategy
+## Integration / Separation Strategy
 ## Risk & Mitigation
-## Governance
+## Functional Workstreams
+## Governance Model
 ## 100-Day Plan
-## Recommendation
+## Why Us
+## Next Steps
 
-Ensure:
-- Numeric synergy logic
-- Explicit risks with mitigation
-- Clear recommendation`,
+In Risk & Mitigation: 6 risks as "**Risk** — Mitigation: ..." with probability + $ impact + owner.
+In Functional Workstreams: cover Finance, HR, IT, Operations, Sales, Procurement, Legal, Tax, Cyber.
+In Value Creation: include "$XM revenue + $YM cost = $ZM total" with derivation.
+
+Length: 1500-2000 words. Markdown. Specific, numeric, authoritative.
+
+QUALITY: Currency consistent. EV/EBITDA stated. Synergy derivation shown. Antitrust jurisdictions named. 1+ comparable transaction cited. No buzzwords.`,
+
+  executive_summary: `You are a senior MD writing a board-ready executive summary. Be precise, numbers-driven, no fluff.
+## Transaction Overview
+## Strategic Rationale
+## Value Creation Thesis
+## Key Risks & Mitigants
+## Recommendation & Next Steps
+500-700 words. Use Markdown.`,
+
+  board_memo: `You are a CFO writing a formal board memo for transaction approval.
+## Purpose
+## Transaction Details
+## Strategic Fit
+## Financial Impact
+## Key Risks & Mitigants
+## Regulatory & Approvals
+## Board Resolution Sought
+600-800 words. Formal tone.`,
+
+  investment_teaser: `You are a confidential investment teaser. Marketing tone, value-forward.
+## Transaction Opportunity
+## Business Overview
+## Investment Highlights
+## Financial Snapshot
+## Growth Opportunities
+## Transaction Structure
+## Process & Contact
+500-700 words.`,
+
+  integration_blueprint: `You are an integration specialist writing a post-merger integration blueprint.
+## Integration Vision
+## IMO Setup & Governance
+## Day-1 Priorities
+## Workstream Architecture
+## Synergy Capture Plan
+## Communication Strategy
+## Risk Management
+1000-1400 words. Operationally specific.`,
+
+  hundred_day_plan: `You are a strategy consultant writing a 100-day post-close action plan.
+## Objective
+## Days 1-30: Stabilize
+## Days 31-60: Integrate
+## Days 61-100: Accelerate
+## Quick Wins Checklist
+## Success Metrics
+## Stakeholder Communication
+900-1200 words. Action-oriented.`,
 };
 
 export async function POST(req: Request) {
