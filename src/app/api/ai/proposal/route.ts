@@ -5,8 +5,21 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
-import { classifyDeal, generateServices, expandService, expandCustomService, type Service, type DealInput } from "@/lib/intelligence/deal-classifier";
-import { buildDealContext, contextToPromptBlock, buildAdvisorVerdictPrompt, screenRegulatory, regulatoryToPromptBlock } from "@/lib/intelligence/context-engine";
+import {
+  classifyDeal,
+  generateServices,
+  expandService,
+  expandCustomService,
+  type Service,
+  type DealInput,
+} from "@/lib/intelligence/deal-classifier";
+import {
+  buildDealContext,
+  contextToPromptBlock,
+  buildAdvisorVerdictPrompt,
+  screenRegulatory,
+  regulatoryToPromptBlock,
+} from "@/lib/intelligence/context-engine";
 import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
 import { normalizePrompt, buildRateLimitErrorMsg } from "@/lib/ai/utils";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
@@ -16,8 +29,12 @@ import { deriveDealRisks } from "@/lib/advanced/engines/risk_engine";
 import { validateRequiredSections } from "@/lib/advanced/validators/output_validator";
 
 export type ProposalType =
-  | "advisory" | "executive_summary" | "board_memo"
-  | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
+  | "advisory"
+  | "executive_summary"
+  | "board_memo"
+  | "investment_teaser"
+  | "integration_blueprint"
+  | "hundred_day_plan";
 
 const PROPOSAL_PROMPTS: Record<ProposalType, string> = {
   advisory: `You are an MBB senior partner. Write a consulting-grade M&A advisory proposal that a CEO or PE Investment Committee would accept verbatim.
@@ -97,14 +114,16 @@ QUALITY: Currency consistent. EV/EBITDA stated. Synergy derivation shown. Antitr
 
 export async function POST(req: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { checkRateLimit, logActivity } = await import("@/lib/security");
   const allowed = await checkRateLimit(supabase, "ai_proposal", 20, 60);
   if (!allowed) return NextResponse.json({ error: buildRateLimitErrorMsg(20, 60) }, { status: 429 });
 
-  const body = await req.json() as {
+  const body = (await req.json()) as {
     proposal_type: ProposalType;
     client_name: string;
     buyer: string;
@@ -114,6 +133,8 @@ export async function POST(req: Request) {
     deal_size: string;
     notes: string;
     use_premium?: boolean;
+    generation_mode?: "standard" | "advanced";
+    premium_mode?: boolean;
     stake_percent?: number;
     deal_type_input?: string;
     client_role?: "buyer" | "seller" | "pe" | "jv_partner";
@@ -123,8 +144,6 @@ export async function POST(req: Request) {
     integration_style?: string;
     selected_services?: Service[];
     research_docs?: string;
-    generation_mode?: "standard" | "advanced";
-premium_mode?: boolean;
   };
 
   const buyer = normalizePrompt(body.buyer ?? "", 200);
@@ -139,9 +158,9 @@ premium_mode?: boolean;
   const deal_size = normalizePrompt(body.deal_size ?? "", 50);
   const proposal_type = body.proposal_type;
   const use_premium = !!body.use_premium;
-  const notes = normalizePrompt(body.notes ?? "", 3000);
   const generation_mode = body.generation_mode ?? "standard";
-const premium_mode = !!body.premium_mode;
+  const premium_mode = !!body.premium_mode;
+  const notes = normalizePrompt(body.notes ?? "", 3000);
 
   if (!PROPOSAL_PROMPTS[proposal_type]) {
     return NextResponse.json({ error: "Invalid proposal_type" }, { status: 400 });
@@ -165,26 +184,38 @@ const premium_mode = !!body.premium_mode;
     try {
       const { data: dec } = await admin.rpc("decrypt_key", { cipher });
       apiKey = dec as string | null;
-    } catch { /* fallback */ }
+    } catch {
+      // fallback
+    }
   }
 
   const selectedProv = s?.[col_provider] as string | null | undefined;
   if (!apiKey || !selectedProv || selectedProv === "free") {
-    return NextResponse.json({
-      error: `${use_premium ? "Smart" : "Fast"}-tier AI provider not configured. Open Settings, save a key for ${use_premium ? "Smart" : "Fast"} tier, click Auto-detect.`,
-    }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: `${use_premium ? "Smart" : "Fast"}-tier AI provider not configured. Open Settings, save a key for ${
+          use_premium ? "Smart" : "Fast"
+        } tier, click Auto-detect.`,
+      },
+      { status: 400 }
+    );
   }
 
   const cfg: RouteConfig = {
     tier: use_premium ? "smart" : "fast",
     primaryProvider: (selectedProv as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: ((body as unknown) as { model_override?: string }).model_override || (s?.[col_model] as string | undefined),
+    primaryModel:
+      ((body as unknown) as { model_override?: string }).model_override ||
+      (s?.[col_model] as string | undefined),
     blockFreeFallback: true,
   };
 
   const dealInput: DealInput = {
-    buyer, target, sector, country: geography,
+    buyer,
+    target,
+    sector,
+    country: geography,
     deal_type: body.deal_type_input ?? null,
     stake_percent: body.stake_percent ?? null,
     normalized_value_usd: null,
@@ -192,22 +223,34 @@ const premium_mode = !!body.premium_mode;
   };
   const classification = classifyDeal(dealInput);
 
-  let services: Service[] = body.selected_services?.filter((s) => s.selected) ?? [];
+  let services: Service[] = body.selected_services?.filter((svc) => svc.selected) ?? [];
   if (services.length === 0) {
     services = generateServices(classification, dealInput)
-      .filter((s) => s.selected)
-      .map((s) => s.type === "custom" ? expandCustomService(s.name, classification, dealInput) : expandService(s, classification, dealInput));
+      .filter((svc) => svc.selected)
+      .map((svc) =>
+        svc.type === "custom"
+          ? expandCustomService(svc.name, classification, dealInput)
+          : expandService(svc, classification, dealInput)
+      );
   } else {
-    services = services.map((s) => s.type === "custom" ? expandCustomService(s.name, classification, dealInput) : expandService(s, classification, dealInput));
+    services = services.map((svc) =>
+      svc.type === "custom"
+        ? expandCustomService(svc.name, classification, dealInput)
+        : expandService(svc, classification, dealInput)
+    );
   }
 
-  const servicesBlock = services.map((s, i) => `
-### Service ${i + 1}: ${s.name}
-- **Objective:** ${s.objective}
-- **Scope:** ${(s.scope ?? []).join("; ")}
-- **Key Activities:** ${(s.activities ?? []).join("; ")}
-- **Deliverables:** ${(s.deliverables ?? []).join("; ")}
-- **Value Impact:** ${s.valueImpact}`).join("\n");
+  const servicesBlock = services
+    .map(
+      (svc, i) => `
+### Service ${i + 1}: ${svc.name}
+- **Objective:** ${svc.objective}
+- **Scope:** ${(svc.scope ?? []).join("; ")}
+- **Key Activities:** ${(svc.activities ?? []).join("; ")}
+- **Deliverables:** ${(svc.deliverables ?? []).join("; ")}
+- **Value Impact:** ${svc.valueImpact}`
+    )
+    .join("\n");
 
   const dealContext = `
 ## DEAL FACTS
@@ -247,7 +290,11 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
   const fullContext = dealContext + buildIndustryContextBlock(sector, geography);
 
   const ctx = buildDealContext({
-    buyer, target, sector, geography, deal_size,
+    buyer,
+    target,
+    sector,
+    geography,
+    deal_size,
     stake_percent: body.stake_percent,
     deal_type_input: body.deal_type_input,
     client_role: body.client_role,
@@ -259,6 +306,15 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
   const regFlags = screenRegulatory({ deal_size_usd: ctx.deal_size_usd, geography, sector });
   const regBlock = regulatoryToPromptBlock(regFlags);
 
+  const advancedBuilder = getAdvancedPromptBuilder(mandate_type);
+  const isAdvancedMode = generation_mode === "advanced" && !!advancedBuilder;
+  const synergyLines = deriveSynergies({
+    sector,
+    revenue: Number((deal_size || "").replace(/[^0-9.]/g, "")) || undefined,
+    researchNotes: body.research_docs,
+  });
+  const riskLines = deriveDealRisks({ geography, researchNotes: body.research_docs });
+
   const advisoryRules = buildAdvisoryRules({
     mandateType: mandate_type,
     buyerType: buyer_type,
@@ -266,32 +322,32 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
     integrationStyle: integration_style,
     sector,
   });
-  
-  const advancedBuilder = getAdvancedPromptBuilder(mandate_type);
-const isAdvancedMode = generation_mode === "advanced" && !!advancedBuilder;
-const synergyLines = deriveSynergies({
-  sector,
-  revenue: Number((deal_size || "").replace(/[^0-9.]/g, "")) || undefined,
-  researchNotes: body.research_docs,
-});
-const riskLines = deriveDealRisks({ geography, researchNotes: body.research_docs });
 
-const systemPrompt = isAdvancedMode
-  ? advancedBuilder!({ buyer, target, sector, geography, dealSize: deal_size, notes, researchInsights: body.research_docs })
-  : PROPOSAL_PROMPTS[proposal_type];
+  const systemPrompt = isAdvancedMode
+    ? advancedBuilder!({
+        buyer,
+        target,
+        sector,
+        geography,
+        dealSize: deal_size,
+        notes,
+        researchInsights: body.research_docs,
+      })
+    : PROPOSAL_PROMPTS[proposal_type];
 
-const messages: ChatMessage[] = [
-  {
-    role: "system",
-    content:
-      systemPrompt
-      + "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" + advisoryRules
-      + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock,
-  },
-  {
-    role: "user",
-    content:
-      `Generate the ${proposal_type.replace(/_/g, " ")} document. ${
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content:
+        systemPrompt +
+        "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" +
+        advisoryRules +
+        "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" +
+        advisorBlock,
+    },
+    {
+      role: "user",
+      content: `Generate the ${proposal_type.replace(/_/g, " ")} document. ${
         isAdvancedMode
           ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations."
           : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."
@@ -306,67 +362,72 @@ ${JSON.stringify(riskLines, null, 2)}
 ${ctxBlock}
 ${regBlock}
 ${fullContext}`,
-  },
-];
+    },
+  ];
 
-try {
-  if (premium_mode && !body.research_docs) {
-    return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
-  }
-
-  let result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
-
-  if (isAdvancedMode) {
-    const validation = validateRequiredSections(
-      result.text,
-      mandate_type === "carve_out"
-        ? [
-            "Separation Critical Path",
-            "Stranded Cost Quantification",
-            "TSA Service Catalog",
-            "Standalone Capability Gap Analysis",
-            "Day-1 Cutover Plan",
-            "Customer Continuity Plan",
-            "Regulatory & Compliance Risks (deal-specific)",
-            "Technology Separation Blueprint",
-          ]
-        : []
-    );
-
-    if (!validation.ok) {
-      const retryMessages: ChatMessage[] = [
-        ...messages,
-        { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` },
-      ];
-      result = await routedCall(cfg, retryMessages, use_premium ? 8000 : 6000);
+  try {
+    if (premium_mode && !body.research_docs) {
+      return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
     }
-  }
 
-  if (result.provider === "free" || result.model === "rules-v1") {
+    let result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
+
+    if (isAdvancedMode) {
+      const validation = validateRequiredSections(
+        result.text,
+        mandate_type === "carve_out"
+          ? [
+              "Separation Critical Path",
+              "Stranded Cost Quantification",
+              "TSA Service Catalog",
+              "Standalone Capability Gap Analysis",
+              "Day-1 Cutover Plan",
+              "Customer Continuity Plan",
+              "Regulatory & Compliance Risks (deal-specific)",
+              "Technology Separation Blueprint",
+            ]
+          : []
+      );
+
+      if (!validation.ok) {
+        const retryMessages: ChatMessage[] = [
+          ...messages,
+          { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` },
+        ];
+        result = await routedCall(cfg, retryMessages, use_premium ? 8000 : 6000);
+      }
+    }
+
+    if (result.provider === "free" || result.model === "rules-v1") {
+      return NextResponse.json(
+        {
+          error: `Proposal AI failed. Real reason: ${result.lastError ?? "unknown"}. Provider: ${cfg.primaryProvider}/${
+            cfg.primaryModel ?? "auto"
+          }.`,
+        },
+        { status: 500 }
+      );
+    }
+
+    await admin.from("proposals").insert({
+      user_id: user.id,
+      proposal_type,
+      client_name,
+      buyer,
+      target,
+      sector,
+      geography,
+      deal_size,
+      notes,
+      content: result.text,
+      provider: result.provider,
+      model: result.model,
+      via_fallback: result.viaFallback,
+    });
+
+    await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
+
     return NextResponse.json({
-      error: `Proposal AI failed. Real reason: ${result.lastError ?? "unknown"}. Provider: ${cfg.primaryProvider}/${cfg.primaryModel ?? "auto"}.`,
-    }, { status: 500 });
-  }
-
-  await admin.from("proposals").insert({
-    user_id: user.id,
-    proposal_type,
-    client_name,
-    buyer,
-    target,
-    sector,
-    geography,
-    deal_size,
-    notes,
-    content: result.text,
-    provider: result.provider,
-    model: result.model,
-    via_fallback: result.viaFallback,
-  });
-
-  await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
-   
-  return NextResponse.json({
       content: result.text,
       provider: result.provider,
       model: result.model,
