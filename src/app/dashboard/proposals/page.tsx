@@ -53,8 +53,9 @@ function ProposalsPageInner() {
     noteWins ? `[WINS] ${noteWins}` : "",
     noteAsks ? `[ASKS] ${noteAsks}` : "",
   ].filter(Boolean).join("\n");
+
   const [usePremium, setUsePremium] = useState(false);
-  const [generationMode, setGenerationMode] = useState<"standard" | "advanced">("standard");
+  const [generationMode, setGenerationMode] = useState<"standard"|"advanced">("standard");
   const [premiumMode, setPremiumMode] = useState(false);
   const [stakePercent, setStakePercent] = useState("");
   const [dealTypeInput, setDealTypeInput] = useState("");
@@ -74,6 +75,21 @@ function ProposalsPageInner() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [dealId, setDealId] = useState<string>("");
+
+  const [generating, setGenerating] = useState(false);
+  const [content, setContent] = useState<string | null>(null);
+  const [provider, setProvider] = useState("");
+  const [model, setModel] = useState("");
+  const [via, setVia] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const [qualityScore, setQualityScore] = useState<number | null>(null);
+  const [evidenceCoverage, setEvidenceCoverage] = useState<number | null>(null);
+  const [scenarioCount, setScenarioCount] = useState<number>(0);
+
+  const [history, setHistory] = useState<SavedProposal[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     const b = searchParams.get("buyer");
@@ -113,7 +129,6 @@ function ProposalsPageInner() {
       });
       let j = await r.json();
 
-      // Auto-fallback: web mode failed → retry as prompt-based
       if (!j.brief && researchMode === "web") {
         setResearchStatus("Web research failed — falling back to prompt-based AI...");
         r = await fetch("/api/research", {
@@ -136,10 +151,10 @@ function ProposalsPageInner() {
         setUsePremium(true);
         setResearchStatus(j.cached ? `✓ Loaded cached research (${j.brief.citations.length} sources)` : `✓ Fresh research complete (${j.brief.citations.length} sources)`);
         return block;
+      } else {
+        setResearchStatus(`✗ ${j.error ?? "Research failed"}`);
+        return null;
       }
-
-      setResearchStatus(`✗ ${j.error ?? "Research failed"}`);
-      return null;
     } catch (e) {
       setResearchStatus(`✗ ${String(e)}`);
       return null;
@@ -148,39 +163,58 @@ function ProposalsPageInner() {
     }
   }
 
-  const classification: DealClassification | null = (buyer || target)
-    ? classifyDeal({
+  const classification: DealClassification | null = (buyer || target) ? classifyDeal({
+    buyer, target, sector, country: geography,
+    deal_type: dealTypeInput,
+    stake_percent: stakePercent ? Number(stakePercent) : null,
+    notes,
+  }) : null;
+
+  useEffect(() => {
+    if (classification && services.length === 0) {
+      setServices(generateServices(classification, {
         buyer, target, sector, country: geography,
         deal_type: dealTypeInput,
         stake_percent: stakePercent ? Number(stakePercent) : null,
         notes,
-      })
-    : null;
-
-  useEffect(() => {
-    if (classification && services.length === 0) {
-      setServices(
-        generateServices(classification, {
-          buyer, target, sector, country: geography,
-          deal_type: dealTypeInput,
-          stake_percent: stakePercent ? Number(stakePercent) : null,
-          notes,
-        })
-      );
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buyer, target, sector, geography, dealTypeInput, stakePercent]);
 
+  useEffect(() => {
+    (async () => {
+      const sb = (await import("@/lib/supabase/client")).createClient();
+      const { data } = await sb.from("proposals")
+        .select("id,proposal_type,buyer,target,content,provider,model,created_at")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (data) {
+        setHistory(data.map((d) => ({
+          id: d.id,
+          label: `${(PROPOSAL_OPTIONS.find(o => o.value === d.proposal_type)?.label ?? d.proposal_type)} — ${d.target ?? d.buyer ?? "Unnamed"}`,
+          content: d.content,
+          createdAt: new Date(d.created_at).toLocaleString(),
+          provider: d.provider ?? "",
+          model: d.model ?? "",
+        })));
+      }
+    })();
+  }, []);
+
   function toggleService(id: string) {
-    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, selected: !s.selected } : s)));
+    setServices((prev) => prev.map((s) => s.id === id ? { ...s, selected: !s.selected } : s));
   }
 
   function addCustomService() {
     if (!customServiceName.trim()) return;
-    setServices((prev) => [
-      ...prev,
-      { id: "custom_" + Date.now(), name: customServiceName.trim(), type: "custom", selected: true },
-    ]);
+    setServices((prev) => [...prev, {
+      id: "custom_" + Date.now(),
+      name: customServiceName.trim(),
+      type: "custom",
+      selected: true,
+    }]);
     setCustomServiceName("");
   }
 
@@ -188,53 +222,13 @@ function ProposalsPageInner() {
     setServices((prev) => prev.filter((s) => s.id !== id));
   }
 
-  const [generating, setGenerating] = useState(false);
-  const [content, setContent] = useState<string | null>(null);
-  const [provider, setProvider] = useState("");
-  const [model, setModel] = useState("");
-  const [via, setVia] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const [history, setHistory] = useState<SavedProposal[]>([]);
-  useEffect(() => {
-    (async () => {
-      const sb = (await import("@/lib/supabase/client")).createClient();
-      const { data } = await sb
-        .from("proposals")
-        .select("id,proposal_type,buyer,target,content,provider,model,created_at")
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (data) {
-        setHistory(
-          data.map((d) => ({
-            id: d.id,
-            label: `${PROPOSAL_OPTIONS.find((o) => o.value === d.proposal_type)?.label ?? d.proposal_type} — ${d.target ?? d.buyer ?? "Unnamed"}`,
-            content: d.content,
-            createdAt: new Date(d.created_at).toLocaleString(),
-            provider: d.provider ?? "",
-            model: d.model ?? "",
-          }))
-        );
-      }
-    })();
-  }, []);
-
-  const [showHistory, setShowHistory] = useState(false);
-
   async function generate() {
-    setGenerating(true);
-    setError(null);
-    setContent(null);
-
+    setGenerating(true); setError(null); setContent(null);
     try {
       let resolvedResearchBrief = researchBrief;
-
       if (premiumMode && !resolvedResearchBrief && buyer && target) {
         resolvedResearchBrief = (await runResearch(buyer, target, sector, geography, dealId)) ?? "";
       }
-
       if (premiumMode && !resolvedResearchBrief) {
         setError("Premium Mode requires research context. Click 'Run Live Research Now' first.");
         return;
@@ -244,13 +238,8 @@ function ProposalsPageInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          proposal_type: proposalType,
-          client_name: clientName,
-          buyer,
-          target,
-          sector,
-          geography,
-          deal_size: dealSize,
+          proposal_type: proposalType, client_name: clientName,
+          buyer, target, sector, geography, deal_size: dealSize,
           notes: useResearch && resolvedResearchBrief ? `${notes}\n\n${resolvedResearchBrief}` : notes,
           use_premium: usePremium,
           research_mode: researchMode,
@@ -261,8 +250,7 @@ function ProposalsPageInner() {
           client_role: clientRole,
           mandate_type: mandateType,
           buyer_type: buyerType,
-          ownership_type: ownershipType,
-          integration_style: integrationStyle,
+          ownership_type: ownershipType, integration_style: integrationStyle,
           selected_services: services,
           research_docs: useResearch ? resolvedResearchBrief : undefined,
         }),
@@ -276,18 +264,19 @@ function ProposalsPageInner() {
         setProvider(data.provider);
         setModel(data.model ?? "");
         setVia(data.viaFallback ?? false);
+        setQualityScore(data.qualityScore ?? null);
+        setEvidenceCoverage(data.evidenceCoverage ?? null);
+        setScenarioCount(Array.isArray(data.scenarios) ? data.scenarios.length : 0);
+
         const label = PROPOSAL_OPTIONS.find((o) => o.value === proposalType)?.label ?? proposalType;
-        setHistory((prev) => [
-          {
-            id: Date.now().toString(),
-            label: `${label} — ${target || buyer || "Unnamed"}`,
-            content: data.content,
-            createdAt: new Date().toLocaleString(),
-            provider: data.provider,
-            model: data.model ?? "",
-          },
-          ...prev,
-        ].slice(0, 20));
+        setHistory((prev) => [{
+          id: Date.now().toString(),
+          label: `${label} — ${target || buyer || "Unnamed"}`,
+          content: data.content,
+          createdAt: new Date().toLocaleString(),
+          provider: data.provider,
+          model: data.model ?? "",
+        }, ...prev].slice(0, 20));
       }
     } catch (e) {
       setError(String(e));
@@ -307,12 +296,10 @@ function ProposalsPageInner() {
     if (!content) return;
     const win = window.open("", "_blank");
     if (!win) return;
-
     const label = PROPOSAL_OPTIONS.find((o) => o.value === proposalType)?.label ?? "";
     const dealTitle = [target, "·", buyer].filter(Boolean).join(" ");
     const today = new Date().toLocaleDateString();
-    const footerText =
-      "This document is for informational purposes only and does not constitute financial, legal, or investment advice. No reliance should be placed on this analysis. Independent verification is required.";
+    const footerText = "This document is for informational purposes only and does not constitute financial, legal, or investment advice. No reliance should be placed on this analysis. Independent verification is required.";
 
     win.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8"/>
@@ -380,9 +367,9 @@ strong { color: #0f172a; }
     <p>This document was generated using AI-powered analysis tools. Before relying on any portion of this content, please review the limitations below.</p>
     <ul>
       <li>AI-generated insights may be incomplete, inaccurate, or rely on outdated public information.</li>
-      <li>The platform is provided on an “as is” basis without any warranties, express or implied.</li>
+      <li>The platform is provided on an &ldquo;as is&rdquo; basis without any warranties, express or implied.</li>
       <li>The platform owner accepts no liability for decisions, outcomes, or losses arising from use of, or reliance on, this analysis.</li>
-      <li>Use of the platform and its outputs is at the user’s sole risk.</li>
+      <li>Use of the platform and its outputs is at the user&apos;s sole risk.</li>
       <li>Independent professional diligence is required before any financial, legal, regulatory, or investment decision.</li>
     </ul>
     <p style="margin-top:24px;color:#94a3b8;font-size:10px;">© ${new Date().getFullYear()} Rahul Yadav. All rights reserved. Unauthorized replication or commercial use is prohibited.</p>
@@ -401,7 +388,7 @@ strong { color: #0f172a; }
   return (
     <div className="flex h-full min-h-screen flex-col gap-0 lg:flex-row">
       <aside className="w-full shrink-0 border-b border-slate-200 bg-white p-6 lg:w-80 lg:border-b-0 lg:border-r lg:overflow-y-auto">
-        <div className="mb-6 flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-6">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
             <FileText className="h-4 w-4 text-white" />
           </div>
@@ -411,28 +398,21 @@ strong { color: #0f172a; }
           </div>
         </div>
 
-        {/* Document Type */}
         <div className="mb-5">
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Document Type
-          </label>
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Document Type</label>
           <div className="space-y-1.5">
             {PROPOSAL_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setProposalType(opt.value)}
                 className={`w-full rounded-lg border px-3 py-2.5 text-left transition ${
-                  proposalType === opt.value
-                    ? "border-indigo-300 bg-indigo-50"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
+                  proposalType === opt.value ? "border-indigo-300 bg-indigo-50" : "border-slate-200 bg-white hover:bg-slate-50"
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <span className="text-base">{opt.icon}</span>
                   <div>
-                    <p className={`text-xs font-semibold ${proposalType === opt.value ? "text-indigo-700" : "text-slate-700"}`}>
-                      {opt.label}
-                    </p>
+                    <p className={`text-xs font-semibold ${proposalType === opt.value ? "text-indigo-700" : "text-slate-700"}`}>{opt.label}</p>
                     <p className="text-[10px] text-slate-400">{opt.desc}</p>
                   </div>
                 </div>
@@ -441,10 +421,8 @@ strong { color: #0f172a; }
           </div>
         </div>
 
-        {/* Deal Details */}
         <div className="space-y-3">
           <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Deal Details</label>
-
           {[
             { label: "Client / Advisory House", value: clientName, set: setClientName, placeholder: "e.g. Goldman Sachs" },
             { label: "Buyer / Acquirer", value: buyer, set: setBuyer, placeholder: "e.g. Reliance Industries" },
@@ -455,13 +433,8 @@ strong { color: #0f172a; }
           ].map((f) => (
             <div key={f.label}>
               <label className="mb-1 block text-[11px] font-medium text-slate-600">{f.label}</label>
-              <input
-                type="text"
-                value={f.value}
-                onChange={(e) => f.set(e.target.value)}
-                placeholder={f.placeholder}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-200"
-              />
+              <input type="text" value={f.value} onChange={(e) => f.set(e.target.value)} placeholder={f.placeholder}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-200" />
             </div>
           ))}
 
@@ -496,38 +469,21 @@ strong { color: #0f172a; }
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-600">
-              Deal Type (e.g. Acquisition, PE Buyout, JV, Carve-out)
-            </label>
-            <input
-              type="text"
-              value={dealTypeInput}
-              onChange={(e) => setDealTypeInput(e.target.value)}
-              placeholder="Acquisition"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-200"
-            />
+            <label className="mb-1 block text-[11px] font-medium text-slate-600">Deal Type (e.g. Acquisition, PE Buyout, JV, Carve-out)</label>
+            <input type="text" value={dealTypeInput} onChange={(e) => setDealTypeInput(e.target.value)} placeholder="Acquisition"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-200" />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-600">Stake %</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={stakePercent}
-                onChange={(e) => setStakePercent(e.target.value)}
-                placeholder="100"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-indigo-300 focus:outline-none"
-              />
+              <input type="number" min="0" max="100" value={stakePercent} onChange={(e) => setStakePercent(e.target.value)} placeholder="100"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-indigo-300 focus:outline-none" />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-600">Client Role</label>
-              <select
-                value={clientRole}
-                onChange={(e) => setClientRole(e.target.value as typeof clientRole)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-indigo-300 focus:outline-none"
-              >
+              <select value={clientRole} onChange={(e) => setClientRole(e.target.value as typeof clientRole)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-indigo-300 focus:outline-none">
                 <option value="buyer">Buyer</option>
                 <option value="seller">Seller</option>
                 <option value="pe">PE Fund</option>
@@ -608,13 +564,12 @@ strong { color: #0f172a; }
 
           {services.length > 0 && (
             <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-600">
-                Services ({services.filter((s) => s.selected).length} selected)
-              </label>
+              <label className="mb-1 block text-[11px] font-medium text-slate-600">Services ({services.filter(s => s.selected).length} selected)</label>
               <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
                 {services.map((s) => (
                   <label key={s.id} className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-slate-50">
-                    <input type="checkbox" checked={s.selected} onChange={() => toggleService(s.id)} className="mt-0.5 rounded border-slate-300" />
+                    <input type="checkbox" checked={s.selected} onChange={() => toggleService(s.id)}
+                      className="mt-0.5 rounded border-slate-300" />
                     <span className="flex-1 text-slate-700">{s.name}</span>
                     <span className={`text-[9px] uppercase ${s.type === "core" ? "text-indigo-600" : s.type === "custom" ? "text-purple-600" : "text-slate-400"}`}>{s.type}</span>
                     {s.type === "custom" && (
@@ -651,7 +606,6 @@ strong { color: #0f172a; }
                   ? "Fetches live web sources. Requires search-provider API key."
                   : "Uses your Smart-tier LLM with a custom prompt. No web access."}
               </p>
-
               {researchMode === "prompt" && (
                 <>
                   <button onClick={() => setShowPromptEditor(!showPromptEditor)}
@@ -665,13 +619,10 @@ strong { color: #0f172a; }
                         rows={8}
                         placeholder="Leave empty to use default research template. Variables: {{buyer}} {{target}} {{sector}} {{geography}} {{deal_size}}"
                         className="w-full rounded border border-slate-200 px-2 py-1.5 font-mono text-[10px]" />
-                      <button
-                        onClick={async () => {
-                          const m = await import("@/lib/research/web-research");
-                          setCustomPrompt(m.DEFAULT_RESEARCH_PROMPT);
-                        }}
-                        className="mt-1 text-[10px] text-slate-500 hover:text-indigo-600"
-                      >
+                      <button onClick={async () => {
+                        const m = await import("@/lib/research/web-research");
+                        setCustomPrompt(m.DEFAULT_RESEARCH_PROMPT);
+                      }} className="mt-1 text-[10px] text-slate-500 hover:text-indigo-600">
                         Load default template
                       </button>
                     </div>
@@ -713,14 +664,8 @@ strong { color: #0f172a; }
           <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
             <p className="text-xs font-medium text-slate-700">Generation Mode</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <button onClick={() => setGenerationMode("standard")}
-                className={`rounded border px-2 py-1 text-xs ${generationMode === "standard" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200"}`}>
-                Standard Mode
-              </button>
-              <button onClick={() => setGenerationMode("advanced")}
-                className={`rounded border px-2 py-1 text-xs ${generationMode === "advanced" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200"}`}>
-                Advanced Mode
-              </button>
+              <button onClick={() => setGenerationMode("standard")} className={`rounded border px-2 py-1 text-xs ${generationMode==="standard" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200"}`}>Standard Mode</button>
+              <button onClick={() => setGenerationMode("advanced")} className={`rounded border px-2 py-1 text-xs ${generationMode==="advanced" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200"}`}>Advanced Mode</button>
             </div>
           </div>
 
@@ -752,7 +697,6 @@ strong { color: #0f172a; }
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
               : <><Sparkles className="h-4 w-4" /> Generate Document</>}
           </button>
-
           {(!buyer && !target) && (
             <p className="text-center text-[10px] text-slate-400">Enter buyer or target to generate</p>
           )}
@@ -827,6 +771,13 @@ strong { color: #0f172a; }
                   </p>
                 </div>
               </div>
+
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                {qualityScore !== null && <span className="rounded bg-emerald-50 px-2 py-1">Quality Score: {qualityScore}/100</span>}
+                {evidenceCoverage !== null && <span className="rounded bg-indigo-50 px-2 py-1">Evidence: {evidenceCoverage}%</span>}
+                <span className="rounded bg-slate-100 px-2 py-1">Scenarios: {scenarioCount}</span>
+              </div>
+
               <div className="flex gap-2">
                 <button onClick={copyToClipboard}
                   className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
@@ -868,9 +819,7 @@ strong { color: #0f172a; }
 
               <article
                 className="max-w-none"
-                dangerouslySetInnerHTML={{
-                  __html: renderVisualProposal(content) + (researchBrief ? renderCitations(researchBrief) : ""),
-                }}
+                dangerouslySetInnerHTML={{ __html: renderVisualProposal(content) + (researchBrief ? renderCitations(researchBrief) : "") }}
               />
 
               <div className="mt-8 border-t border-slate-100 pt-4 text-[10px] text-slate-400">
