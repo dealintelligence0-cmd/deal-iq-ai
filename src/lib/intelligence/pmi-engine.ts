@@ -1,3 +1,5 @@
+
+
 export type PmiInput = {
   buyer: string;
   target: string;
@@ -86,7 +88,6 @@ export function generatePmiProposal(p: PmiInput): string {
   const T = p.target || "Target";
   const S = p.sector || "the sector";
   const G = p.geography || "the target geography";
-  const V = p.deal_size || "indicative value";
   const hasValue = s.value > 0;
 
   out.push(`## Executive Summary
@@ -202,4 +203,12 @@ ${p.known_issues ? `| Known issue: ${p.known_issues.slice(0,80)} | — | — | S
 ${p.key_risks ? `\n**Client-flagged risks:** ${p.key_risks}` : ""}`);
 
   return out.join("\n\n");
+}
+
+export function buildPmiDependencyMap() {
+  return {
+    ERP: ["Finance close", "Procure-to-pay", "Order-to-cash"],
+    CRM: ["Pipeline continuity", "Account ownership", "Customer service"],
+    SupplyChain: ["Inventory visibility", "Supplier onboarding", "Logistics planning"],
+  };
 }
