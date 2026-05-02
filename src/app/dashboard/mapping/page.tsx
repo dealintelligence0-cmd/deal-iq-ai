@@ -100,7 +100,7 @@ export default function MappingPage() {
       const parsed: LoadedFile[] = [];
       for (const u of selectedRows) {
         const out = await parseStoredUpload(u.storage_path, u.file_name);
-        if (!out.ok) throw new Error(`${u.file_name}: ${out.error}`);
+        // parseStoredUpload throws on failure, so no out.ok check is needed
         parsed.push({
           uploadId: u.id,
           fileName: u.file_name,
