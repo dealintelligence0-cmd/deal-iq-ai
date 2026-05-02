@@ -14,6 +14,10 @@ export interface EnrichmentInput {
 }
 
 export interface EnrichmentOutput {
+  rationale?: string;
+  synergy_drivers?: string[];
+  risks?: string[];
+  comparable_deals?: string[];  
   id: string;
   clean_buyer: string;
   clean_target: string;
@@ -47,7 +51,7 @@ export function buildEnrichPrompt(deal: EnrichmentInput): ChatMessage[] {
     {
       role: "system",
       content: `You are an M&A analyst. Respond with ONLY a JSON object, no prose, no markdown fences. Keys:
-clean_buyer, clean_target, classified_deal_type (${DEAL_TYPES.join("|")}), priority_score (1-10), advisory_score (1-10), risk_flag (low|medium|high), deal_status (live|rumor|announced|closed|dropped), ai_summary (2-3 sentences), confidence (0-1).`,
+clean_buyer, clean_target, classified_deal_type (${DEAL_TYPES.join("|")}), priority_score (1-10), advisory_score (1-10), risk_flag (low|medium|high), deal_status (live|rumor|announced|closed|dropped), ai_summary (1 sentence max 200 chars), rationale, synergy_drivers (array), risks (array), comparable_deals (array), confidence (0-1).`,
     },
     {
       role: "user",
@@ -74,7 +78,11 @@ const parsed = tryParseJson(text);
       risk_flag: ["low", "medium", "high"].includes(riskRaw) ? riskRaw : "medium",
       deal_status: ["live", "rumor", "announced", "closed", "dropped"].includes(statusRaw)
         ? statusRaw : (fallback?.status ?? "announced"),
-      ai_summary: String(parsed.ai_summary ?? "").slice(0, 600),
+     ai_summary: String(parsed.ai_summary ?? "").slice(0, 200),
+      rationale: String(parsed.rationale ?? "").slice(0, 260),
+      synergy_drivers: Array.isArray(parsed.synergy_drivers) ? parsed.synergy_drivers.map(String).slice(0,4) : [],
+      risks: Array.isArray(parsed.risks) ? parsed.risks.map(String).slice(0,4) : [],
+      comparable_deals: Array.isArray(parsed.comparable_deals) ? parsed.comparable_deals.map(String).slice(0,3) : [],
       confidence: clamp(Number(parsed.confidence) || 0.7, 0, 1),
     };
   }
@@ -108,8 +116,7 @@ function deriveRuleBased(id: string, d: EnrichmentInput): EnrichmentOutput {
   const risk = size >= 5e9 ? "high" : size >= 5e8 ? "medium" : "low";
   const status = d.status && ["live","rumor","announced","closed","dropped"].includes(d.status)
     ? d.status : "announced";
-  const summary = `${d.buyer ?? "Buyer"} in deal with ${d.target ?? "target"}${d.sector ? ` in ${d.sector}` : ""}${d.country ? ` (${d.country})` : ""}${size ? `, valued at $${(size/1e6).toFixed(0)}M` : ""}. Rule-based analysis — add AI key in Settings for detailed summary.`;
-
+ const summary = `${d.buyer ?? "Buyer"} in deal with ${d.target ?? "target"}${d.sector ? ` in ${d.sector}` : ""}${d.country ? ` (${d.country})` : ""}${size ? `, valued at $${(size/1e6).toFixed(0)}M` : ""}. Rule-based synthesis for weekly origination triage.`;
   return {
     id,
     clean_buyer: d.buyer ?? "",
@@ -121,6 +128,11 @@ function deriveRuleBased(id: string, d: EnrichmentInput): EnrichmentOutput {
     deal_status: status,
     ai_summary: summary,
     confidence: 0.5,
+    rationale: "Rule-based pattern using type, size, sector, and status",
+    synergy_drivers: ["commercial expansion", "cost optimization"],
+    risks: ["regulatory", "execution"],
+    comparable_deals: [],
+    
   };
 }
 
