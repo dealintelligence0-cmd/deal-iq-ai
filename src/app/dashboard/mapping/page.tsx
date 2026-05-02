@@ -100,13 +100,12 @@ export default function MappingPage() {
       const parsed: LoadedFile[] = [];
       for (const u of selectedRows) {
         const out = await parseStoredUpload(u.storage_path, u.file_name);
-        // parseStoredUpload throws on failure, so no out.ok check is needed
         parsed.push({
-          uploadId: u.id,
-          fileName: u.file_name,
-          headers: out.headers,
-          rows: out.rows,
-        });
+        uploadId: u.id,
+        fileName: u.file_name,
+        headers: out.headers,
+        rows: out.rows,
+       });
       }
 
       setLoaded(parsed);
@@ -422,12 +421,12 @@ export default function MappingPage() {
               </div>
             ) : (
               <>
-                <TemplateBar
-                  templates={templates}
-                  onApply={(tpl) => setMapping(tpl.mapping)}
-                  onSave={saveTemplate}
-                  saving={savingTpl}
-                />
+               <TemplateBar
+               templates={templates}
+               onLoad={(tpl) => setMapping(tpl.mapping)}
+               onSave={saveTemplate}
+               saving={savingTpl}
+               />
                 <div className="mt-3">
                   <MappingGrid mapping={mapping} onChange={setMapping} />
                 </div>
