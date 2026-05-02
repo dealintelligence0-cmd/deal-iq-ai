@@ -1,3 +1,5 @@
+
+
 import type { ChatMessage } from "./providers";
 
 export interface EnrichmentInput {
@@ -17,7 +19,7 @@ export interface EnrichmentOutput {
   rationale?: string;
   synergy_drivers?: string[];
   risks?: string[];
-  comparable_deals?: string[];  
+  comparable_deals?: string[];
   id: string;
   clean_buyer: string;
   clean_target: string;
@@ -78,7 +80,7 @@ const parsed = tryParseJson(text);
       risk_flag: ["low", "medium", "high"].includes(riskRaw) ? riskRaw : "medium",
       deal_status: ["live", "rumor", "announced", "closed", "dropped"].includes(statusRaw)
         ? statusRaw : (fallback?.status ?? "announced"),
-     ai_summary: String(parsed.ai_summary ?? "").slice(0, 200),
+      ai_summary: String(parsed.ai_summary ?? "").slice(0, 200),
       rationale: String(parsed.rationale ?? "").slice(0, 260),
       synergy_drivers: Array.isArray(parsed.synergy_drivers) ? parsed.synergy_drivers.map(String).slice(0,4) : [],
       risks: Array.isArray(parsed.risks) ? parsed.risks.map(String).slice(0,4) : [],
@@ -116,7 +118,8 @@ function deriveRuleBased(id: string, d: EnrichmentInput): EnrichmentOutput {
   const risk = size >= 5e9 ? "high" : size >= 5e8 ? "medium" : "low";
   const status = d.status && ["live","rumor","announced","closed","dropped"].includes(d.status)
     ? d.status : "announced";
- const summary = `${d.buyer ?? "Buyer"} in deal with ${d.target ?? "target"}${d.sector ? ` in ${d.sector}` : ""}${d.country ? ` (${d.country})` : ""}${size ? `, valued at $${(size/1e6).toFixed(0)}M` : ""}. Rule-based synthesis for weekly origination triage.`;
+  const summary = `${d.buyer ?? "Buyer"} in deal with ${d.target ?? "target"}${d.sector ? ` in ${d.sector}` : ""}${d.country ? ` (${d.country})` : ""}${size ? `, valued at $${(size/1e6).toFixed(0)}M` : ""}. Rule-based synthesis for weekly origination triage.`;
+
   return {
     id,
     clean_buyer: d.buyer ?? "",
@@ -132,7 +135,6 @@ function deriveRuleBased(id: string, d: EnrichmentInput): EnrichmentOutput {
     synergy_drivers: ["commercial expansion", "cost optimization"],
     risks: ["regulatory", "execution"],
     comparable_deals: [],
-    
   };
 }
 
