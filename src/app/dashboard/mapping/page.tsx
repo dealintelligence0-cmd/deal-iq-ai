@@ -99,7 +99,7 @@ export default function MappingPage() {
     try {
       const parsed: LoadedFile[] = [];
       for (const u of selectedRows) {
-        const out = await parseStoredUpload(supabase, u.storage_path);
+        const out = await parseStoredUpload(u.storage_path, u.file_name);
         if (!out.ok) throw new Error(`${u.file_name}: ${out.error}`);
         parsed.push({
           uploadId: u.id,
