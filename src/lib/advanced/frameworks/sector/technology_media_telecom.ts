@@ -6,8 +6,9 @@ export const technologyMediaTelecomSectorFramework = {
     "Which capabilities are mission-critical to win in the next 24 months?",
   ],
   calculationHeuristics: [
-    "Model gross margin uplift and SG&A overlap on addressable cost base.",
+    "Model cloud/infrastructure run-rate savings, duplicated tooling retirement, and SG&A overlap.",
     "Use scenario-based realization timing with downside leakage assumptions.",
+    "Model churn/cross-sell effects by product bundle and installed base overlap.",
   ],
   industryBenchmarks: [
     "Benchmark run-rate synergy capture against recent public transactions.",
