@@ -1,3 +1,5 @@
+
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -7,6 +9,7 @@ import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
+import { buildPmiDependencyMap } from "@/lib/intelligence/pmi-engine";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -176,9 +179,12 @@ OUTPUT QUALITY CONTROL:
     researchBlock ? "[USE RESEARCH] Cite live findings using [1], [2] markers — reference seller's actual operational footprint and buyer's capability gaps." : "",
   ].filter(Boolean).join("\n");
 
+  const dependencyMap = buildPmiDependencyMap();
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
-    { role: "user", content: userPrompt },
+    { role: "user", content: `${userPrompt}
+
+Mandatory TSA dependencies (ERP/CRM/Supply Chain) with cost derivation and failure scenarios: ${JSON.stringify(dependencyMap)}` },
   ];
 
 try {
