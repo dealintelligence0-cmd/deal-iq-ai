@@ -1,3 +1,5 @@
+
+
 export const pharmaSectorFramework = {
   analyticalQuestions: [
     "What percentage of revenue sits in patent-exposed molecules within 3-5 years?",
@@ -16,5 +18,6 @@ export const pharmaSectorFramework = {
   regulatoryWatchouts: [
     "FDA/EMA manufacturing and quality transfer approvals can delay realization.",
     "Pharmacovigilance system migration requires continuity and audit readiness.",
+    "Market concentration in therapeutic classes can drive FTC/EC remedy scrutiny.",
   ],
 };
