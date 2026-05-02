@@ -6,6 +6,7 @@ export type QualityScore = {
   repeatedPhrasePenalty: number;
   missingOwnerPenalty: number;
   missingJurisdictionPenalty: number;
+  genericLanguagePenalty: number;
 };
 
 export function evaluateProposalQuality(content: string): QualityScore {
@@ -25,18 +26,14 @@ export function evaluateProposalQuality(content: string): QualityScore {
 
   const hasJurisdiction = /HSR|EU Merger|CCI|CMA|DOJ|FTC|jurisdiction/i.test(content);
   const missingJurisdictionPenalty = hasJurisdiction ? 0 : 10;
+  const genericLanguagePenalty = /best-in-class|robust framework|world-class|seamless integration/gi.test(content) ? 10 : 0;
 
   let score = 100;
   if (numericDensity < 2) score -= 20;
   score -= repeatedPhrasePenalty;
   score -= missingOwnerPenalty;
   score -= missingJurisdictionPenalty;
+  score -= genericLanguagePenalty;
 
-  return {
-    score: Math.max(0, Math.min(100, score)),
-    numericDensity,
-    repeatedPhrasePenalty,
-    missingOwnerPenalty,
-    missingJurisdictionPenalty,
-  };
+  return { score: Math.max(0, Math.min(100, score)), numericDensity, repeatedPhrasePenalty, missingOwnerPenalty, missingJurisdictionPenalty, genericLanguagePenalty };
 }
