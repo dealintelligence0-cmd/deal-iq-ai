@@ -1,4 +1,5 @@
 
+
 import { createClient } from "@/lib/supabase/client";
 let dealsCache: { data: Deal[]; expires: number } | null = null;
 const CACHE_MS = 60_000; // 60s
