@@ -43,6 +43,9 @@ export type NormalizedDealRecord = {
   priority_score: number;
   advisory_score: number;
   risk_score: number;
+  priority_reason: string;
+  advisory_reason: string;
+  risk_reason: string;
   score_breakdown: string;
   deal_takeaway: string;
   targeting_recommendation: "HIGH" | "MEDIUM" | "LOW";
@@ -138,13 +141,16 @@ export function normalizeSourceRow(row: SourceRow): NormalizedDealRecord {
   const priority_score = Math.round(clamp(sizeScore + crossBorder + classScore + (flow !== "other" ? 15 : 8), 0, 100));
   const advisory_score = Math.round(clamp((deal_type === "JV" ? 65 : 55) + (flow !== "other" ? 15 : 5) + (stake_status === "control" ? 10 : 0), 0, 100));
   const risk_score = Math.round(clamp((flow !== "domestic" ? 30 : 15) + (deal_type === "Merger" ? 25 : 12) + (stake_status === "control" ? 10 : 20), 0, 100));
+  const priority_reason = `Size ${range ? range.maxBn.toFixed(1)+"Bn INR" : "unknown"}, ${extracted.length > 1 ? "cross-border" : "single-country"}, ${deal_type} profile.`;
+  const advisory_reason = `Flow ${flow}, stake ${stake_status}, ${deal_type} complexity informs advisory demand.`;
+  const risk_reason = `Risk driven by ${flow !== "domestic" ? "cross-border exposure" : "domestic concentration"}, ${deal_type} execution, and ${stake_status} ownership.`;
   const score_breakdown = `priority(size=${Math.round(sizeScore)}, crossborder=${crossBorder}, type=${classScore}) advisory(flow=${flow}) risk(type=${deal_type}, stake=${stake_status})`;
   const deal_takeaway = `${deal_summary}. Target via ${deal_type} advisory angle with focus on ${flow} execution and regulatory planning.`;
   const targeting_recommendation = priority_score >= 75 ? "HIGH" : priority_score >= 55 ? "MEDIUM" : "LOW";
   const targeting_reason = targeting_recommendation === "HIGH" ? "High strategic relevance and advisory wallet." : targeting_recommendation === "MEDIUM" ? "Solid opportunity with selective pursuit." : "Low immediate payoff versus complexity.";
   const confidence_level = !date || buyer.includes("Unknown") || target.includes("Unknown") ? "low" : extracted.length === 0 ? "medium" : "high";
 
-  return { date, buyer, target, sector, country, geographies_involved, deal_value_inr_range: inrRange, deal_value_usd_range: usdRange, deal_type, deal_summary, india_flow: flow, stake_value: stake, stake_status, priority_score, advisory_score, risk_score, score_breakdown, deal_takeaway, targeting_recommendation, targeting_reason, confidence_level, dedup_key: `${companyKey(buyer)}|${companyKey(target)}|${date ?? ""}` };
+  return { date, buyer, target, sector, country, geographies_involved, deal_value_inr_range: inrRange, deal_value_usd_range: usdRange, deal_type, deal_summary, india_flow: flow, stake_value: stake, stake_status, priority_score, advisory_score, risk_score, priority_reason, advisory_reason, risk_reason, score_breakdown, deal_takeaway, targeting_recommendation, targeting_reason, confidence_level, dedup_key: `${companyKey(buyer)}|${companyKey(target)}|${date ?? ""}` };
 }
 
 export function dedupeAgainstRecent(rows: NormalizedDealRecord[], existing: Array<{ buyer: string | null; target: string | null; date: string | null }>): NormalizedDealRecord[] {
