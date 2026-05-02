@@ -22,9 +22,7 @@ import {
 import { cleanseBatch, type RawDeal } from "@/lib/cleansing/engine";
 import { normalizeSourceRow } from "@/lib/data/pipeline";
 import MappingGrid from "@/components/mapping/MappingGrid";
-import TemplateBar, {
-  type Template,
-} from "@/components/mapping/TemplateBar";
+import TemplateBar, { type Template } from "@/components/mapping/TemplateBar";
 
 type UploadRow = {
   id: string;
@@ -53,11 +51,8 @@ export default function MappingPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [savingTpl, setSavingTpl] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(
-    null
-  );
+  const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
 
-  // Load all uploads + templates on mount
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -91,6 +86,18 @@ export default function MappingPage() {
     [uploads, selected]
   );
 
+  // ✅ required for MappingGrid headers prop
+  const mergedHeaders = useMemo(() => {
+    const set = new Set<string>();
+    loaded.forEach((f) => f.headers.forEach((h) => set.add(h)));
+    return Array.from(set);
+  }, [loaded]);
+
+  const totalRows = useMemo(
+    () => loaded.reduce((s, f) => s + f.rows.length, 0),
+    [loaded]
+  );
+
   async function parseSelectedFiles() {
     if (selectedRows.length === 0) return;
     setParsing(true);
@@ -101,18 +108,16 @@ export default function MappingPage() {
       for (const u of selectedRows) {
         const out = await parseStoredUpload(u.storage_path, u.file_name);
         parsed.push({
-        uploadId: u.id,
-        fileName: u.file_name,
-        headers: out.headers,
-        rows: out.rows,
-       });
+          uploadId: u.id,
+          fileName: u.file_name,
+          headers: out.headers,
+          rows: out.rows,
+        });
       }
 
       setLoaded(parsed);
 
-      const unionHeaders = Array.from(
-        new Set(parsed.flatMap((p) => p.headers))
-      );
+      const unionHeaders = Array.from(new Set(parsed.flatMap((p) => p.headers)));
       const initial = autoMap(unionHeaders);
       setMapping(initial);
       setToast({ type: "ok", msg: `Loaded ${parsed.length} file(s). Auto-mapped columns.` });
@@ -122,11 +127,6 @@ export default function MappingPage() {
       setParsing(false);
     }
   }
-
-  const totalRows = useMemo(
-    () => loaded.reduce((s, f) => s + f.rows.length, 0),
-    [loaded]
-  );
 
   async function saveTemplate(name: string) {
     if (!mapping) return;
@@ -141,10 +141,12 @@ export default function MappingPage() {
       setToast({ type: "err", msg: error.message });
       return;
     }
+
     const { data } = await supabase
       .from("mapping_templates")
       .select("id,name,mapping_json")
       .order("updated_at", { ascending: false });
+
     setTemplates(
       (data ?? []).map((t) => ({
         id: t.id,
@@ -178,80 +180,74 @@ export default function MappingPage() {
       let totalExceptions = 0;
 
       for (const f of loaded) {
-        // 1) Apply mapping
         const mapped = applyMapping(f.rows, mapping, f.fileName) as RawDeal[];
-
-        // 2) Cleanse + dedupe within batch
         const { results, duplicatesRemoved, blanksRemoved } = cleanseBatch(mapped);
         totalDupes += duplicatesRemoved;
         totalBlanks += blanksRemoved;
 
         const dealRows = results.map((r) => {
           const normalized = normalizeSourceRow({
-            "Date": r.cleaned.deal_date ?? undefined,
-            "Bidders": r.cleaned.buyer ?? undefined,
-            "Targets": r.cleaned.target ?? undefined,
+            Date: r.cleaned.deal_date ?? undefined,
+            Bidders: r.cleaned.buyer ?? undefined,
+            Targets: r.cleaned.target ?? undefined,
             "Dominant Sector": r.cleaned.sector ?? undefined,
             "Dominant Geography": r.cleaned.country ?? undefined,
-            "Geography": r.cleaned.country ?? undefined,
+            Geography: r.cleaned.country ?? undefined,
             "Intelligence Type": r.cleaned.deal_type ?? undefined,
             "Stake Value": r.cleaned.stake_percent != null ? String(r.cleaned.stake_percent) : undefined,
             "Intelligence Size": r.cleaned.value_raw ?? undefined,
-            "Opportunity": r.cleaned.notes ?? undefined,
-            "Heading": r.cleaned.notes ?? undefined,
+            Opportunity: r.cleaned.notes ?? undefined,
+            Heading: r.cleaned.notes ?? undefined,
           });
 
           return {
-          created_by: u.user!.id,
-          source_upload_id: f.uploadId,
-          deal_date: orNull(normalized.date ?? r.cleaned.deal_date),
-          buyer: orNull(r.cleaned.buyer),
-          target: orNull(r.cleaned.target),
-          sector: orNull(normalized.sector ?? r.cleaned.sector),
-          country: orNull(normalized.country ?? r.cleaned.country),
-          deal_type: orNull(normalized.deal_type ?? r.cleaned.deal_type),
-          value_raw: orNull(r.cleaned.value_raw),
-          normalized_value_usd: r.cleaned.normalized_value_usd,
-          stake_percent: r.cleaned.stake_percent,
-          status: r.cleaned.status ?? "announced",
-          notes: orNull(normalized.deal_takeaway || r.cleaned.notes),
-          source_file: f.fileName,
-          confidence_score: r.cleaned.confidence_score,
-          data_quality_score: r.cleaned.data_quality_score,
-          // schema-safe optional fields (new deployments)
-          geographies_involved: normalized.geographies_involved,
-          india_flow: normalized.india_flow,
-          deal_value_inr_range: normalized.deal_value_inr_range,
-          deal_value_usd_range: normalized.deal_value_usd_range,
-          deal_summary: normalized.deal_summary,
-          stake_status: normalized.stake_status,
-          priority_score: normalized.priority_score,
-          advisory_score: normalized.advisory_score,
-          risk_score: normalized.risk_score,
-          priority_reason: normalized.priority_reason,
-          advisory_reason: normalized.advisory_reason,
-          risk_reason: normalized.risk_reason,
-          score_breakdown: normalized.score_breakdown,
-          deal_takeaway: normalized.deal_takeaway,
-          targeting_recommendation: normalized.targeting_recommendation,
-          confidence_level: normalized.confidence_level,
-        }});
+            created_by: u.user!.id,
+            source_upload_id: f.uploadId,
+            deal_date: orNull(normalized.date ?? r.cleaned.deal_date),
+            buyer: orNull(r.cleaned.buyer),
+            target: orNull(r.cleaned.target),
+            sector: orNull(normalized.sector ?? r.cleaned.sector),
+            country: orNull(normalized.country ?? r.cleaned.country),
+            deal_type: orNull(normalized.deal_type ?? r.cleaned.deal_type),
+            value_raw: orNull(r.cleaned.value_raw),
+            normalized_value_usd: r.cleaned.normalized_value_usd,
+            stake_percent: r.cleaned.stake_percent,
+            status: r.cleaned.status ?? "announced",
+            notes: orNull(normalized.deal_takeaway || r.cleaned.notes),
+            source_file: f.fileName,
+            confidence_score: r.cleaned.confidence_score,
+            data_quality_score: r.cleaned.data_quality_score,
+            geographies_involved: normalized.geographies_involved,
+            india_flow: normalized.india_flow,
+            deal_value_inr_range: normalized.deal_value_inr_range,
+            deal_value_usd_range: normalized.deal_value_usd_range,
+            deal_summary: normalized.deal_summary,
+            stake_status: normalized.stake_status,
+            priority_score: normalized.priority_score,
+            advisory_score: normalized.advisory_score,
+            risk_score: normalized.risk_score,
+            priority_reason: normalized.priority_reason,
+            advisory_reason: normalized.advisory_reason,
+            risk_reason: normalized.risk_reason,
+            score_breakdown: normalized.score_breakdown,
+            deal_takeaway: normalized.deal_takeaway,
+            targeting_recommendation: normalized.targeting_recommendation,
+            confidence_level: normalized.confidence_level,
+          };
+        });
 
-        // Insert deals in chunks of 500, capture IDs back for exception linking
         const insertedIds: string[] = [];
         for (let i = 0; i < dealRows.length; i += 500) {
           const chunk = dealRows.slice(i, i + 500);
           let inserted: Array<{ id: string }> | null = null;
           let error: { message: string } | null = null;
 
-          // First attempt: full normalized payload (for upgraded schema)
           {
             const res = await supabase.from("deals").insert(chunk).select("id");
             inserted = res.data as Array<{ id: string }> | null;
             error = res.error ? { message: res.error.message } : null;
           }
 
-          // Fallback: legacy-safe payload if new columns do not exist yet
           if (error && /column|schema cache|does not exist/i.test(error.message)) {
             const legacyChunk = chunk.map((r) => ({
               created_by: r.created_by,
@@ -275,16 +271,17 @@ export default function MappingPage() {
             inserted = retry.data as Array<{ id: string }> | null;
             error = retry.error ? { message: retry.error.message } : null;
           }
+
           if (error) {
             setToast({ type: "err", msg: error.message });
             setImporting(false);
             return;
           }
+
           (inserted ?? []).forEach((d) => insertedIds.push(d.id));
           totalInserted += chunk.length;
         }
 
-        // Build exceptions with deal_id references
         const exRows: Array<{
           created_by: string;
           deal_id: string;
@@ -294,6 +291,7 @@ export default function MappingPage() {
           raw_value: string | null;
           suggested_value: string | null;
         }> = [];
+
         results.forEach((res, idx) => {
           const dealId = insertedIds[idx];
           if (!dealId) return;
@@ -310,12 +308,10 @@ export default function MappingPage() {
           });
         });
 
-        // Batch insert exceptions
         for (let i = 0; i < exRows.length; i += 500) {
           const chunk = exRows.slice(i, i + 500);
           const { error } = await supabase.from("exceptions").insert(chunk);
           if (error) {
-            // Non-fatal: log but continue
             console.error("Exception insert failed:", error.message);
           } else {
             totalExceptions += chunk.length;
@@ -341,8 +337,7 @@ export default function MappingPage() {
         File Mapping
       </h1>
       <p className="mb-5 text-sm text-slate-500">
-        Map source columns from uploaded files, cleanse/standardize rows, and
-        import into your deals database.
+        Map source columns from uploaded files, cleanse/standardize rows, and import into your deals database.
       </p>
 
       {toast && (
@@ -358,7 +353,6 @@ export default function MappingPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        {/* Left: uploads */}
         <div className="xl:col-span-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-slate-800">1) Select uploaded files</h2>
@@ -409,7 +403,6 @@ export default function MappingPage() {
           </div>
         </div>
 
-        {/* Right: mapping + import */}
         <div className="xl:col-span-8 space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-slate-800">2) Column mapping</h2>
@@ -421,15 +414,15 @@ export default function MappingPage() {
               </div>
             ) : (
               <>
-               <TemplateBar
-               templates={templates}
-               onLoad={(tpl) => setMapping(tpl.mapping)}
-               onSave={saveTemplate}
-               saving={savingTpl}
-               />
-               <div className="mt-3">
-                <MappingGrid headers={mergedHeaders} mapping={mapping} onChange={setMapping} />
-               </div>
+                <TemplateBar
+                  templates={templates}
+                  onLoad={(tpl) => setMapping(tpl.mapping)}
+                  onSave={saveTemplate}
+                  saving={savingTpl}
+                />
+                <div className="mt-3">
+                  <MappingGrid headers={mergedHeaders} mapping={mapping} onChange={setMapping} />
+                </div>
               </>
             )}
           </div>
