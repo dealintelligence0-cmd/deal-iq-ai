@@ -1,3 +1,5 @@
+
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -7,6 +9,7 @@ import { buildIndustryContextBlock, getSynergyBenchmark } from "@/lib/intelligen
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
+import { buildSynergyLevers } from "@/lib/advanced/engines/synergy_engine";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -171,6 +174,8 @@ OUTPUT QUALITY CONTROL:
     integrationStyle: body.integration_style,
     sector,
   });
+  const synergyLevers = buildSynergyLevers({ sector, revenueUsd: Number((deal_size||"").replace(/[^0-9.]/g, "")) || undefined });
+
   const userPrompt = [
     dealCtx,
     industryCtx,
@@ -180,6 +185,7 @@ OUTPUT QUALITY CONTROL:
     target_ebitda ? `Target EBITDA: ${target_ebitda}` : "",
     buyer_revenue ? `Buyer Revenue: ${buyer_revenue}` : "",
     researchBlock ? "[USE RESEARCH] Cite specific findings from LIVE WEB RESEARCH using [1], [2] markers throughout. Reference buyer's recent activity, target's actual metrics, and current sector dynamics — never use generic phrases when specifics are available." : "",
+    `Analytical lever inputs (use these exact ranges and formulas): ${JSON.stringify(synergyLevers)}`,
   ].filter(Boolean).join("\n");
 
   const messages: ChatMessage[] = [
