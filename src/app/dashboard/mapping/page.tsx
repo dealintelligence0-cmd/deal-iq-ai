@@ -2,195 +2,209 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
+import { useEffect, useMemo, useState } from "react";
 import {
-  UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2,
+  GitMerge,
+  Loader2,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { parseStoredUpload } from "@/lib/supabase/parse-storage";
 import {
-  cleanAndNormalizeRows,
-  type MappingField,
-  type RawRow,
-} from "@/lib/cleansing/normalizer";
+  FIELD_DEFS,
+  autoMap,
+  applyMapping,
+  missingRequired,
+  type FieldMapping,
+} from "@/lib/mapping";
+import { cleanseBatch, type RawDeal } from "@/lib/cleansing/engine";
 import { normalizeSourceRow } from "@/lib/data/pipeline";
+import MappingGrid from "@/components/mapping/MappingGrid";
+import TemplateBar, {
+  type Template,
+} from "@/components/mapping/TemplateBar";
 
-type UploadRec = { uploadId: string; fileName: string; rows: RawRow[] };
-
-const FIELDS: Array<{ key: MappingField; label: string; required?: boolean }> = [
-  { key: "deal_date", label: "Deal Date", required: true },
-  { key: "buyer", label: "Buyer", required: true },
-  { key: "target", label: "Target", required: true },
-  { key: "sector", label: "Sector", required: true },
-  { key: "country", label: "Country" },
-  { key: "deal_type", label: "Deal Type" },
-  { key: "value_raw", label: "Value (raw text)" },
-  { key: "normalized_value_usd", label: "Value (USD numeric)" },
-  { key: "stake_percent", label: "Stake %" },
-  { key: "status", label: "Status" },
-  { key: "notes", label: "Notes" },
-  { key: "confidence_score", label: "Confidence Score" },
-  { key: "data_quality_score", label: "Data Quality Score" },
-];
-
-const statusClass = (t: "ok" | "err") =>
-  t === "ok" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200";
-
-const HEADER_HINTS: Record<MappingField, string[]> = {
-  deal_date: ["date", "deal date", "announcement date", "close date"],
-  buyer: ["buyer", "acquirer", "investor", "bidder"],
-  target: ["target", "seller", "company", "asset"],
-  sector: ["sector", "industry", "vertical"],
-  country: ["country", "geo", "geography", "location"],
-  deal_type: ["deal type", "type", "transaction type", "intelligence type"],
-  value_raw: ["value", "deal value", "amount", "ticket", "size", "valuation"],
-  normalized_value_usd: ["usd", "value usd", "amount usd"],
-  stake_percent: ["stake", "ownership", "%", "percent"],
-  status: ["status", "stage"],
-  notes: ["notes", "description", "summary", "headline", "opportunity"],
-  confidence_score: ["confidence", "confidence score"],
-  data_quality_score: ["quality", "quality score", "data quality"],
+type UploadRow = {
+  id: string;
+  file_name: string;
+  storage_path: string;
+  row_count: number;
+  status: string;
+  metadata: { headers?: string[] } | null;
 };
 
-function normHeader(h: string) {
-  return h.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function autoMap(headers: string[]): Partial<Record<MappingField, string>> {
-  const mapped: Partial<Record<MappingField, string>> = {};
-  const normalizedHeaders = headers.map((h) => ({ raw: h, n: normHeader(h) }));
-
-  for (const f of FIELDS) {
-    const hints = HEADER_HINTS[f.key];
-    const direct = normalizedHeaders.find((h) => hints.some((x) => h.n === x));
-    const fuzzy = normalizedHeaders.find((h) => hints.some((x) => h.n.includes(x) || x.includes(h.n)));
-    const hit = direct ?? fuzzy;
-    if (hit) mapped[f.key] = hit.raw;
-  }
-
-  return mapped;
-}
-
-function orNull<T>(v: T | undefined | null): T | null {
-  return v == null ? null : v;
-}
+type LoadedFile = {
+  uploadId: string;
+  fileName: string;
+  headers: string[];
+  rows: Record<string, unknown>[];
+};
 
 export default function MappingPage() {
   const supabase = createClient();
-
-  const [uploads, setUploads] = useState<UploadRec[]>([]);
-  const [active, setActive] = useState<string>("");
-  const [mapping, setMapping] = useState<Partial<Record<MappingField, string>>>({});
+  const [uploads, setUploads] = useState<UploadRow[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [loaded, setLoaded] = useState<LoadedFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [parsing, setParsing] = useState(false);
+  const [mapping, setMapping] = useState<FieldMapping | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [savingTpl, setSavingTpl] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
-
-  const current = useMemo(
-    () => uploads.find((u) => u.uploadId === active) ?? null,
-    [uploads, active]
+  const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(
+    null
   );
 
-  const headers = useMemo(() => {
-    if (!current) return [];
-    const set = new Set<string>();
-    current.rows.forEach((r) => Object.keys(r).forEach((k) => set.add(k)));
-    return Array.from(set);
-  }, [current]);
+  // Load all uploads + templates on mount
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
 
-  const totalRows = current?.rows.length ?? 0;
+      const [{ data: upData }, { data: tplData }] = await Promise.all([
+        supabase
+          .from("uploads")
+          .select("id,file_name,storage_path,row_count,status,metadata")
+          .order("created_at", { ascending: false })
+          .limit(100),
+        supabase
+          .from("mapping_templates")
+          .select("id,name,mapping_json")
+          .order("updated_at", { ascending: false }),
+      ]);
 
-  async function onPickFile(file: File) {
-    setToast(null);
-    const ab = await file.arrayBuffer();
-    const wb = XLSX.read(ab, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+      setUploads((upData ?? []) as UploadRow[]);
+      setTemplates(
+        (tplData ?? []).map((t) => ({
+          id: t.id,
+          name: t.name,
+          mapping: t.mapping_json as FieldMapping,
+        }))
+      );
+      setLoading(false);
+    })();
+  }, [supabase]);
 
-    const rows: RawRow[] = json.map((r, i) => {
-      const row: RawRow = { __rowNum__: i + 2 };
-      for (const [k, v] of Object.entries(r)) row[k] = String(v ?? "");
-      return row;
-    });
+  const selectedRows = useMemo(
+    () => uploads.filter((u) => selected.has(u.id)),
+    [uploads, selected]
+  );
 
-    const { data: uRow, error: uErr } = await supabase
-      .from("uploads")
-      .insert({ file_name: file.name, row_count: rows.length })
-      .select("id")
-      .single();
-    if (uErr || !uRow?.id) {
-      setToast({ type: "err", msg: uErr?.message ?? "Failed to register upload." });
-      return;
-    }
-
-    const rec: UploadRec = { uploadId: uRow.id, fileName: file.name, rows };
-    setUploads((p) => [rec, ...p]);
-    setActive(uRow.id);
-
-    const auto = autoMap(Object.keys(rows[0] ?? {}));
-    setMapping(auto);
-    setToast({ type: "ok", msg: `Loaded ${rows.length} rows from ${file.name}` });
-  }
-
-  async function runImport() {
-    if (!current) return;
-    setImporting(true);
+  async function parseSelectedFiles() {
+    if (selectedRows.length === 0) return;
+    setParsing(true);
     setToast(null);
 
     try {
-      const m = mapping as Record<MappingField, string>;
-      const missingRequired = FIELDS.filter((f) => f.required && !m[f.key]).map((f) => f.label);
-      if (missingRequired.length) {
-        setToast({ type: "err", msg: `Missing required mappings: ${missingRequired.join(", ")}` });
-        setImporting(false);
-        return;
-      }
-
-      const { results, blanksRemoved } = cleanAndNormalizeRows(current.rows, m);
-      const nonBlank = results.length;
-
-      if (nonBlank === 0) {
-        setToast({ type: "err", msg: "All rows were blank after cleanup. Nothing to import." });
-        setImporting(false);
-        return;
-      }
-
-      const totalDupes = results.filter((r) => r.duplicate).length;
-      let totalBlanks = 0;
-      let totalInserted = 0;
-      let totalExceptions = 0;
-      totalBlanks += blanksRemoved;
-
-      const {
-        data: u,
-        error: uErr,
-      } = await supabase.auth.getUser();
-
-      if (uErr || !u.user) {
-        setToast({ type: "err", msg: "Not authenticated." });
-        setImporting(false);
-        return;
-      }
-
-      const deduped = results.filter((r) => !r.duplicate);
-      totalExceptions = deduped.reduce((s, r) => s + r.exceptions.length, 0);
-
-      const dealRows = deduped.map((r) => {
-        const normalized = normalizeSourceRow({
-          "Date": r.cleaned.deal_date ?? undefined,
-          "Bidders": r.cleaned.buyer ?? undefined,
-          "Targets": r.cleaned.target ?? undefined,
-          "Dominant Sector": r.cleaned.sector ?? undefined,
-          "Dominant Geography": r.cleaned.country ?? undefined,
-          "Geography": r.cleaned.country ?? undefined,
-          "Intelligence Type": r.cleaned.deal_type ?? undefined,
-          "Stake Value": r.cleaned.stake_percent != null ? String(r.cleaned.stake_percent) : undefined,
-          "Intelligence Size": r.cleaned.value_raw ?? undefined,
-          "Opportunity": r.cleaned.notes ?? undefined,
-          "Heading": r.cleaned.notes ?? undefined,
+      const parsed: LoadedFile[] = [];
+      for (const u of selectedRows) {
+        const out = await parseStoredUpload(supabase, u.storage_path);
+        if (!out.ok) throw new Error(`${u.file_name}: ${out.error}`);
+        parsed.push({
+          uploadId: u.id,
+          fileName: u.file_name,
+          headers: out.headers,
+          rows: out.rows,
         });
+      }
 
-        return {
+      setLoaded(parsed);
+
+      const unionHeaders = Array.from(
+        new Set(parsed.flatMap((p) => p.headers))
+      );
+      const initial = autoMap(unionHeaders);
+      setMapping(initial);
+      setToast({ type: "ok", msg: `Loaded ${parsed.length} file(s). Auto-mapped columns.` });
+    } catch (e: any) {
+      setToast({ type: "err", msg: e?.message ?? "Failed to parse selected files." });
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  const totalRows = useMemo(
+    () => loaded.reduce((s, f) => s + f.rows.length, 0),
+    [loaded]
+  );
+
+  async function saveTemplate(name: string) {
+    if (!mapping) return;
+    setSavingTpl(true);
+    setToast(null);
+    const { error } = await supabase
+      .from("mapping_templates")
+      .insert({ name, mapping_json: mapping });
+    setSavingTpl(false);
+
+    if (error) {
+      setToast({ type: "err", msg: error.message });
+      return;
+    }
+    const { data } = await supabase
+      .from("mapping_templates")
+      .select("id,name,mapping_json")
+      .order("updated_at", { ascending: false });
+    setTemplates(
+      (data ?? []).map((t) => ({
+        id: t.id,
+        name: t.name,
+        mapping: t.mapping_json as FieldMapping,
+      }))
+    );
+    setToast({ type: "ok", msg: `Saved template "${name}"` });
+  }
+
+  async function runImport() {
+    if (!mapping || loaded.length === 0) return;
+    setImporting(true);
+    setToast(null);
+
+    const missing = missingRequired(mapping);
+    if (missing.length) {
+      const labels = FIELD_DEFS.filter((d) => missing.includes(d.key)).map((d) => d.label);
+      setToast({ type: "err", msg: `Missing required mappings: ${labels.join(", ")}` });
+      setImporting(false);
+      return;
+    }
+
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Not authenticated");
+
+      let totalInserted = 0;
+      let totalDupes = 0;
+      let totalBlanks = 0;
+      let totalExceptions = 0;
+
+      for (const f of loaded) {
+        // 1) Apply mapping
+        const mapped = applyMapping(f.rows, mapping, f.fileName) as RawDeal[];
+
+        // 2) Cleanse + dedupe within batch
+        const { results, duplicatesRemoved, blanksRemoved } = cleanseBatch(mapped);
+        totalDupes += duplicatesRemoved;
+        totalBlanks += blanksRemoved;
+
+        const dealRows = results.map((r) => {
+          const normalized = normalizeSourceRow({
+            "Date": r.cleaned.deal_date ?? undefined,
+            "Bidders": r.cleaned.buyer ?? undefined,
+            "Targets": r.cleaned.target ?? undefined,
+            "Dominant Sector": r.cleaned.sector ?? undefined,
+            "Dominant Geography": r.cleaned.country ?? undefined,
+            "Geography": r.cleaned.country ?? undefined,
+            "Intelligence Type": r.cleaned.deal_type ?? undefined,
+            "Stake Value": r.cleaned.stake_percent != null ? String(r.cleaned.stake_percent) : undefined,
+            "Intelligence Size": r.cleaned.value_raw ?? undefined,
+            "Opportunity": r.cleaned.notes ?? undefined,
+            "Heading": r.cleaned.notes ?? undefined,
+          });
+
+          return {
           created_by: u.user!.id,
-          source_upload_id: current.uploadId,
+          source_upload_id: f.uploadId,
           deal_date: orNull(normalized.date ?? r.cleaned.deal_date),
           buyer: orNull(r.cleaned.buyer),
           target: orNull(r.cleaned.target),
@@ -202,7 +216,7 @@ export default function MappingPage() {
           stake_percent: r.cleaned.stake_percent,
           status: r.cleaned.status ?? "announced",
           notes: orNull(normalized.deal_takeaway || r.cleaned.notes),
-          source_file: current.fileName,
+          source_file: f.fileName,
           confidence_score: r.cleaned.confidence_score,
           data_quality_score: r.cleaned.data_quality_score,
           // schema-safe optional fields (new deployments)
@@ -222,86 +236,91 @@ export default function MappingPage() {
           deal_takeaway: normalized.deal_takeaway,
           targeting_recommendation: normalized.targeting_recommendation,
           confidence_level: normalized.confidence_level,
-        };
-      });
+        }});
 
-      const insertedIds: string[] = [];
-      for (let i = 0; i < dealRows.length; i += 500) {
-        const chunk = dealRows.slice(i, i + 500);
-        let inserted: Array<{ id: string }> | null = null;
-        let error: { message: string } | null = null;
+        // Insert deals in chunks of 500, capture IDs back for exception linking
+        const insertedIds: string[] = [];
+        for (let i = 0; i < dealRows.length; i += 500) {
+          const chunk = dealRows.slice(i, i + 500);
+          let inserted: Array<{ id: string }> | null = null;
+          let error: { message: string } | null = null;
 
-        {
-          const res = await supabase.from("deals").insert(chunk).select("id");
-          inserted = res.data as Array<{ id: string }> | null;
-          error = res.error ? { message: res.error.message } : null;
+          // First attempt: full normalized payload (for upgraded schema)
+          {
+            const res = await supabase.from("deals").insert(chunk).select("id");
+            inserted = res.data as Array<{ id: string }> | null;
+            error = res.error ? { message: res.error.message } : null;
+          }
+
+          // Fallback: legacy-safe payload if new columns do not exist yet
+          if (error && /column|schema cache|does not exist/i.test(error.message)) {
+            const legacyChunk = chunk.map((r) => ({
+              created_by: r.created_by,
+              source_upload_id: r.source_upload_id,
+              deal_date: r.deal_date,
+              buyer: r.buyer,
+              target: r.target,
+              sector: r.sector,
+              country: r.country,
+              deal_type: r.deal_type,
+              value_raw: r.value_raw,
+              normalized_value_usd: r.normalized_value_usd,
+              stake_percent: r.stake_percent,
+              status: r.status,
+              notes: r.notes,
+              source_file: r.source_file,
+              confidence_score: r.confidence_score,
+              data_quality_score: r.data_quality_score,
+            }));
+            const retry = await supabase.from("deals").insert(legacyChunk).select("id");
+            inserted = retry.data as Array<{ id: string }> | null;
+            error = retry.error ? { message: retry.error.message } : null;
+          }
+          if (error) {
+            setToast({ type: "err", msg: error.message });
+            setImporting(false);
+            return;
+          }
+          (inserted ?? []).forEach((d) => insertedIds.push(d.id));
+          totalInserted += chunk.length;
         }
 
-        if (error && /column|schema cache|does not exist/i.test(error.message)) {
-          const legacyChunk = chunk.map((r) => ({
-            created_by: r.created_by,
-            source_upload_id: r.source_upload_id,
-            deal_date: r.deal_date,
-            buyer: r.buyer,
-            target: r.target,
-            sector: r.sector,
-            country: r.country,
-            deal_type: r.deal_type,
-            value_raw: r.value_raw,
-            normalized_value_usd: r.normalized_value_usd,
-            stake_percent: r.stake_percent,
-            status: r.status,
-            notes: r.notes,
-            source_file: r.source_file,
-            confidence_score: r.confidence_score,
-            data_quality_score: r.data_quality_score,
-          }));
-          const retry = await supabase.from("deals").insert(legacyChunk).select("id");
-          inserted = retry.data as Array<{ id: string }> | null;
-          error = retry.error ? { message: retry.error.message } : null;
-        }
-
-        if (error) {
-          setToast({ type: "err", msg: error.message });
-          setImporting(false);
-          return;
-        }
-
-        (inserted ?? []).forEach((d) => insertedIds.push(d.id));
-        totalInserted += chunk.length;
-      }
-
-      const exRows: Array<{
-        created_by: string;
-        deal_id: string;
-        field: string;
-        severity: string;
-        message: string;
-        raw_value: string | null;
-        suggested_value: string | null;
-      }> = [];
-
-      deduped.forEach((res, idx) => {
-        const dealId = insertedIds[idx];
-        if (!dealId) return;
-        res.exceptions.forEach((ex) => {
-          exRows.push({
-            created_by: u.user!.id,
-            deal_id: dealId,
-            field: ex.field,
-            severity: ex.severity,
-            message: ex.message,
-            raw_value: ex.rawValue ?? null,
-            suggested_value: ex.suggestedValue ?? null,
+        // Build exceptions with deal_id references
+        const exRows: Array<{
+          created_by: string;
+          deal_id: string;
+          field: string;
+          severity: string;
+          message: string;
+          raw_value: string | null;
+          suggested_value: string | null;
+        }> = [];
+        results.forEach((res, idx) => {
+          const dealId = insertedIds[idx];
+          if (!dealId) return;
+          res.exceptions.forEach((ex) => {
+            exRows.push({
+              created_by: u.user!.id,
+              deal_id: dealId,
+              field: ex.field,
+              severity: ex.severity,
+              message: ex.message,
+              raw_value: ex.rawValue ?? null,
+              suggested_value: ex.suggestedValue ?? null,
+            });
           });
         });
-      });
 
-      for (let i = 0; i < exRows.length; i += 500) {
-        const chunk = exRows.slice(i, i + 500);
-        const { error } = await supabase.from("exceptions").insert(chunk);
-        if (error) {
-          console.error("Exception insert failed:", error.message);
+        // Batch insert exceptions
+        for (let i = 0; i < exRows.length; i += 500) {
+          const chunk = exRows.slice(i, i + 500);
+          const { error } = await supabase.from("exceptions").insert(chunk);
+          if (error) {
+            // Non-fatal: log but continue
+            console.error("Exception insert failed:", error.message);
+          } else {
+            totalExceptions += chunk.length;
+          }
         }
       }
 
@@ -309,8 +328,6 @@ export default function MappingPage() {
         type: "ok",
         msg: `Imported ${totalInserted} deals · ${totalDupes} dupes · ${totalBlanks} blanks skipped · ${totalExceptions} exceptions flagged.`,
       });
-
-      setTimeout(() => setToast(null), 3500);
     } catch (e: any) {
       setToast({ type: "err", msg: e?.message ?? "Import failed." });
     } finally {
@@ -320,115 +337,136 @@ export default function MappingPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">File Mapping</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Upload CSV/XLSX, map columns once, clean + normalize data, and import into your deals database.
-        </p>
-      </div>
+      <h1 className="mb-2 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+        <GitMerge className="h-6 w-6 text-indigo-600" />
+        File Mapping
+      </h1>
+      <p className="mb-5 text-sm text-slate-500">
+        Map source columns from uploaded files, cleanse/standardize rows, and
+        import into your deals database.
+      </p>
 
       {toast && (
-        <div className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${statusClass(toast.type)}`}>
-          {toast.type === "ok" ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+        <div
+          className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
+            toast.type === "ok"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
           {toast.msg}
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-slate-800">1) Upload source file</h2>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        {/* Left: uploads */}
+        <div className="xl:col-span-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-slate-800">1) Select uploaded files</h2>
 
-          <label
-            className="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center hover:border-indigo-400 hover:bg-indigo-50/40"
-          >
-            <UploadCloud className="h-9 w-9 text-slate-400 group-hover:text-indigo-500" />
-            <p className="mt-3 text-sm font-medium text-slate-700">Drop a file here or click to choose</p>
-            <p className="mt-1 text-xs text-slate-500">Supports .csv, .xlsx</p>
-            <input
-              type="file"
-              accept=".csv,.xlsx"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onPickFile(f);
-              }}
-            />
-          </label>
-
-          {uploads.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent uploads</p>
-              {uploads.map((u) => (
-                <button
-                  key={u.uploadId}
-                  onClick={() => {
-                    setActive(u.uploadId);
-                    const auto = autoMap(Object.keys(u.rows[0] ?? {}));
-                    setMapping(auto);
-                  }}
-                  className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left ${
-                    active === u.uploadId
-                      ? "border-indigo-300 bg-indigo-50 text-indigo-700"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="flex items-center gap-2 truncate">
-                    <FileSpreadsheet className="h-4 w-4 shrink-0" />
-                    <span className="truncate text-sm">{u.fileName}</span>
-                  </span>
-                  <span className="text-xs">{u.rows.length} rows</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-slate-800">2) Map columns</h2>
-
-          {!current ? (
-            <p className="text-sm text-slate-500">Upload and select a file to start mapping.</p>
-          ) : (
-            <>
-              <div className="grid gap-3">
-                {FIELDS.map((f) => (
-                  <div key={f.key} className="grid items-center gap-2 sm:grid-cols-[150px_1fr]">
-                    <label className="text-sm text-slate-700">
-                      {f.label}
-                      {f.required && <span className="ml-1 text-red-500">*</span>}
-                    </label>
-                    <select
-                      value={mapping[f.key] ?? ""}
-                      onChange={(e) => setMapping((p) => ({ ...p, [f.key]: e.target.value || undefined }))}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="">— Not mapped —</option>
-                      {headers.map((h) => (
-                        <option key={h} value={h}>
-                          {h}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading uploads…
+              </div>
+            ) : uploads.length === 0 ? (
+              <p className="text-sm text-slate-500">No uploads found yet.</p>
+            ) : (
+              <div className="max-h-96 space-y-2 overflow-auto pr-1">
+                {uploads.map((u) => (
+                  <label
+                    key={u.id}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-2 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(u.id)}
+                      onChange={(e) => {
+                        const n = new Set(selected);
+                        if (e.target.checked) n.add(u.id);
+                        else n.delete(u.id);
+                        setSelected(n);
+                      }}
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-slate-800">{u.file_name}</div>
+                      <div className="text-xs text-slate-500">
+                        {u.row_count} rows · {u.status}
+                      </div>
+                    </div>
+                  </label>
                 ))}
               </div>
+            )}
 
-              <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                File rows: <strong>{totalRows}</strong>
+            <button
+              onClick={parseSelectedFiles}
+              disabled={selected.size === 0 || parsing}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Parse selected
+            </button>
+          </div>
+        </div>
+
+        {/* Right: mapping + import */}
+        <div className="xl:col-span-8 space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-slate-800">2) Column mapping</h2>
+
+            {!mapping ? (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <AlertCircle className="mt-0.5 h-4 w-4" />
+                Select files and click “Parse selected” to auto-map headers.
               </div>
+            ) : (
+              <>
+                <TemplateBar
+                  templates={templates}
+                  onApply={(tpl) => setMapping(tpl.mapping)}
+                  onSave={saveTemplate}
+                  saving={savingTpl}
+                />
+                <div className="mt-3">
+                  <MappingGrid mapping={mapping} onChange={setMapping} />
+                </div>
+              </>
+            )}
+          </div>
 
-              <button
-                onClick={runImport}
-                disabled={importing}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
-              >
-                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {importing ? "Importing…" : `Import ${totalRows} deals`}
-              </button>
-            </>
-          )}
-        </section>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-slate-800">3) Import</h2>
+
+            <div className="mb-3 grid grid-cols-2 gap-3 text-sm">
+              <Stat label="Selected files" value={String(selected.size)} />
+              <Stat label="Loaded rows" value={totalRows.toLocaleString()} />
+            </div>
+
+            <button
+              onClick={runImport}
+              disabled={!mapping || loaded.length === 0 || importing}
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {importing ? "Importing…" : "Run import"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-lg font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function orNull<T>(v: T | undefined | null): T | null {
+  return v === undefined ? null : v;
 }
