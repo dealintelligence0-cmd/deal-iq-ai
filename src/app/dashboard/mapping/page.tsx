@@ -129,35 +129,28 @@ export default function MappingPage() {
     if (!mapping) return;
     setSavingTpl(true);
     const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
-    const { error, data } = await supabase
+    if (!u.user) {
+      setSavingTpl(false);
+      return;
+    }
+    const { data, error } = await supabase
       .from("mapping_templates")
-      .insert({
-        created_by: u.user.id,
-        name,
-        mapping,
-      })
+      .insert({ created_by: u.user.id, name, mapping })
       .select("id,name,mapping")
       .single();
-
     if (!error && data) {
-      setTemplates((prev) => [
+      setTemplates((p) => [
         { id: data.id, name: data.name, mapping: data.mapping as FieldMapping },
-        ...prev,
+        ...p,
       ]);
-      setToast({ type: "ok", msg: `Saved template "${name}"` });
+      setToast({ type: "ok", msg: `Template "${name}" saved.` });
     } else {
-      setToast({ type: "err", msg: error?.message ?? "Failed to save template" });
+      setToast({ type: "err", msg: error?.message ?? "Save failed" });
     }
     setSavingTpl(false);
   }
 
-  async function applyTemplate(t: Template) {
-    setMapping(t.mapping);
-    setToast({ type: "ok", msg: `Applied template "${t.name}"` });
-  }
-
-  async function importAll() {
+ async function importAll() {
     if (!mapping || loaded.length === 0) return;
     const missing = missingRequired(mapping);
     if (missing.length > 0) {
@@ -235,7 +228,7 @@ export default function MappingPage() {
         targeting_recommendation: normalized.targeting_recommendation,
         confidence_level: normalized.confidence_level,
       }});
-      
+
       // Insert deals in chunks of 500, capture IDs back for exception linking
       const insertedIds: string[] = [];
       for (let i = 0; i < dealRows.length; i += 500) {
@@ -309,184 +302,227 @@ export default function MappingPage() {
         });
       });
 
-      // Insert exceptions in chunks
-      totalExceptions += exRows.length;
+      // Batch insert exceptions
       for (let i = 0; i < exRows.length; i += 500) {
         const chunk = exRows.slice(i, i + 500);
-        const { error } = await supabase.from("data_exceptions").insert(chunk);
+        const { error } = await supabase.from("exceptions").insert(chunk);
         if (error) {
-          setToast({ type: "err", msg: error.message });
-          setImporting(false);
-          return;
+          // Non-fatal: log but continue
+          console.error("Exception insert failed:", error.message);
+        } else {
+          totalExceptions += chunk.length;
         }
       }
 
-      // mark upload as imported
       await supabase
         .from("uploads")
         .update({ status: "imported" })
         .eq("id", f.uploadId);
     }
 
+    setImporting(false);
     setToast({
       type: "ok",
-      msg: `Imported ${totalInserted} deals (${totalDupes} duplicate rows skipped, ${totalBlanks} blank rows skipped, ${totalExceptions} exceptions logged)`,
+      msg: `Imported ${totalInserted} deals · ${totalDupes} dupes · ${totalBlanks} blanks skipped · ${totalExceptions} exceptions flagged.`,
     });
-    setImporting(false);
-
-    // refresh uploads list
+    setLoaded([]);
+    setMapping(null);
+    setSelected(new Set());
     const { data: up } = await supabase
       .from("uploads")
       .select("id,file_name,storage_path,row_count,status,metadata")
       .eq("status", "parsed")
       .order("created_at", { ascending: false });
     setUploads((up ?? []) as UploadRow[]);
-    setSelected(new Set());
-    setLoaded([]);
-    setMapping(null);
   }
+  const missing = mapping ? missingRequired(mapping) : [];
 
   return (
-    <main className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold flex items-center gap-2">
-          <GitMerge className="h-5 w-5 text-violet-400" />
-          Map &amp; Import
+    <div>
+      <div className="mb-8">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
+          <GitMerge className="h-6 w-6 text-indigo-600" />
+          Column Mapping & Merge
         </h1>
-        <p className="text-sm text-white/60 mt-1">
+        <p className="mt-1 text-sm text-slate-500">
           Select uploaded files, review auto-detected field mappings, and
-          import cleansed deals into your pipeline.
+          import into your deals database.
         </p>
-      </header>
+      </div>
 
-      {toast && (
-        <div
-          className={`rounded-xl border px-4 py-3 text-sm ${
-            toast.type === "ok"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-              : "border-rose-500/30 bg-rose-500/10 text-rose-200"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {toast.type === "ok" ? (
-              <CheckCircle2 className="h-4 w-4" />
-            ) : (
-              <AlertCircle className="h-4 w-4" />
-            )}
-            {toast.msg}
-          </div>
-        </div>
-      )}
-
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <h2 className="text-sm font-medium text-white/90 mb-3">Parsed Uploads</h2>
-
-        {loading ? (
-          <div className="text-sm text-white/60 flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading uploads…
-          </div>
-        ) : uploads.length === 0 ? (
-          <div className="text-sm text-white/60">
-            No parsed uploads yet. Go to the Uploads page first.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {uploads.map((u) => {
-              const checked = selected.has(u.id);
-              return (
-                <label
-                  key={u.id}
-                  className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2"
-                >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      className="accent-violet-500"
-                      checked={checked}
-                      onChange={(e) => {
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (e.target.checked) next.add(u.id);
-                          else next.delete(u.id);
-                          return next;
-                        });
-                      }}
-                    />
-                    <div>
-                      <div className="text-sm text-white/90">{u.file_name}</div>
-                      <div className="text-xs text-white/50">
-                        {u.row_count} rows • {u.metadata?.headers?.length ?? 0} columns
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs rounded-full px-2 py-0.5 border border-white/15 text-white/70">
-                    {u.status}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="mt-4 flex items-center gap-2">
+      {/* Step 1 — pick files */}
+      <section className="mb-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-700">
+            1. Select files to merge
+          </h2>
           <button
             onClick={loadSelected}
             disabled={selected.size === 0 || parsing}
-            className="rounded-lg px-3 py-2 text-sm font-medium border border-violet-400/30 bg-violet-500/10 text-violet-200 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            {parsing ? "Loading…" : "Load Selected"}
+            {parsing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <GitMerge className="h-4 w-4" />
+            )}
+            Load {selected.size} file{selected.size === 1 ? "" : "s"}
           </button>
-          <div className="text-xs text-white/50">
-            Selected: {selected.size}
-          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-slate-500">
+              Loading uploads…
+            </div>
+          ) : uploads.length === 0 ? (
+            <div className="p-6 text-center text-sm text-slate-500">
+              No parsed uploads yet. Go to the Uploads page first.
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {uploads.map((u) => {
+                const checked = selected.has(u.id);
+                return (
+                  <li
+                    key={u.id}
+                    className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-slate-50"
+                    onClick={() => {
+                      const n = new Set(selected);
+                      if (checked) n.delete(u.id);
+                      else n.add(u.id);
+                      setSelected(n);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      readOnly
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-slate-900">
+                        {u.file_name}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {u.row_count} rows ·{" "}
+                        {u.metadata?.headers?.length ?? 0} columns
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </section>
 
-      <TemplateBar
-        templates={templates}
-        onSave={saveTemplate}
-        onApply={applyTemplate}
-        disabled={!mapping}
-        saving={savingTpl}
-      />
+      {/* Step 2 — mapping */}
+      {mapping && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">
+            2. Review field mapping · {loaded.length} file
+            {loaded.length === 1 ? "" : "s"} · {totalRows} rows ·{" "}
+            {mergedHeaders.length} unique columns
+          </h2>
 
-      <MappingGrid
-        fieldDefs={FIELD_DEFS}
-        headers={mergedHeaders}
-        mapping={mapping}
-        onChange={setMapping}
-      />
+          <div className="mb-4">
+            <TemplateBar
+              templates={templates}
+              onLoad={(t) => setMapping(t.mapping)}
+              onSave={saveTemplate}
+              saving={savingTpl}
+            />
+          </div>
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <h2 className="text-sm font-medium text-white/90 mb-2">Import Preview</h2>
-        <div className="text-xs text-white/60">
-          Files loaded: {loaded.length} • Total rows: {totalRows}
-        </div>
+          <MappingGrid
+            headers={mergedHeaders}
+            mapping={mapping}
+            onChange={setMapping}
+          />
 
-        <div className="mt-4">
+          {missing.length > 0 && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>
+                Map these required fields before importing:{" "}
+                <strong>{missing.join(", ")}</strong>
+              </span>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Step 3 — import */}
+      {mapping && (
+        <section className="flex items-center justify-end gap-3 border-t border-slate-200 pt-6">
           <button
             onClick={importAll}
-            disabled={!mapping || loaded.length === 0 || importing}
-            className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 disabled:opacity-50"
+            disabled={importing || missing.length > 0}
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-400 hover:to-purple-500 disabled:opacity-50"
           >
             {importing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Importing…
-              </>
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <Sparkles className="h-4 w-4" /> Import into Deals
-              </>
+              <Sparkles className="h-4 w-4" />
             )}
+            {importing ? "Importing…" : `Import ${totalRows} deals`}
           </button>
+        </section>
+      )}
+
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm shadow-lg ${
+            toast.type === "ok"
+              ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          {toast.type === "ok" ? (
+            <CheckCircle2 className="h-4 w-4" />
+          ) : (
+            <AlertCircle className="h-4 w-4" />
+          )}
+          {toast.msg}
         </div>
-      </section>
-    </main>
+      )}
+    </div>
   );
 }
+function orNull(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
+// ---------- light-touch coercions (full cleansing comes in Phase 5) ----------
+function str(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
 
-function orNull<T>(v: T | null | undefined | ""): T | null {
-  if (v === undefined || v === null || v === "") return null;
-  return v;
+function toNum(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).replace(/[%,\s]/g, "");
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseDateSafe(v: unknown): string | null {
+  if (!v) return null;
+  const s = String(v).trim();
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return null;
+}
+
+function mapStatus(v: unknown): string {
+  const s = String(v ?? "").toLowerCase();
+  if (s.includes("close") || s.includes("complete")) return "closed";
+  if (s.includes("live") || s.includes("progress")) return "live";
+  if (s.includes("rumor")) return "rumor";
+  if (s.includes("drop") || s.includes("cancel")) return "dropped";
+  return "announced";
 }
