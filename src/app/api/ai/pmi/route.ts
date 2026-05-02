@@ -1,9 +1,12 @@
+
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
 import { buildIndustryContextBlock, getSynergyBenchmark, matchSector } from "@/lib/intelligence/industry";
+import { buildPmiDependencyMap } from "@/lib/intelligence/pmi-engine";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
 import { BIG4_PMI_KIT } from "@/lib/proposal/big4-pmi-templates";
@@ -178,9 +181,12 @@ ${BIG4_PMI_KIT}`;
     known_issues ? `Known issues: ${known_issues}` : "",
   ].filter(Boolean).join("\n");
 
+  const dependencyMap = buildPmiDependencyMap();
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
-    { role: "user", content: userPrompt },
+    { role: "user", content: `${userPrompt}
+
+System dependency map (must explicitly cover): ${JSON.stringify(dependencyMap)}` },
   ];
 
   try {
