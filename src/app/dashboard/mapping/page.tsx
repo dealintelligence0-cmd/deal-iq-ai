@@ -427,9 +427,9 @@ export default function MappingPage() {
                onSave={saveTemplate}
                saving={savingTpl}
                />
-                <div className="mt-3">
-                  <MappingGrid mapping={mapping} onChange={setMapping} />
-                </div>
+               <div className="mt-3">
+                <MappingGrid headers={mergedHeaders} mapping={mapping} onChange={setMapping} />
+               </div>
               </>
             )}
           </div>
