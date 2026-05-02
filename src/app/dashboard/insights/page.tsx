@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -264,90 +266,111 @@ export default function InsightsPage() {
         </div>
       )}
 
-      <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/30 dark:bg-blue-950/20">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
-        <p className="text-xs text-blue-700 dark:text-blue-300">
-          AI Insights uses your <strong>Fast Tier</strong> provider from Settings. Without a key, the free rule-based engine runs. Click any deal row to expand strategic opportunities.
-        </p>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
-        </div>
-      ) : (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 dark:border-white/5 dark:bg-white/5">
-                  <th className="w-10 px-4 py-3">
-                    <input type="checkbox" checked={displayed.length > 0 && selected.size === displayed.length} onChange={toggleAll} className="rounded border-slate-300" />
-                  </th>
-                  {["Buyer", "Target", "Sector", "Status", "Priority", "Advisory", "Risk", "AI Status"].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-white/5">
-                {displayed.length === 0 && (
-                  <tr><td colSpan={9} className="py-12 text-center text-slate-400">No deals to display.</td></tr>
-                )}
-                {displayed.map((d) => {
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-[1100px] w-full text-sm">
+            <thead className="bg-slate-50/70 text-slate-600 dark:bg-white/5 dark:text-slate-300">
+              <tr>
+                <th className="px-3 py-2 text-left">
+                  <input type="checkbox" checked={displayed.length > 0 && selected.size === displayed.length} onChange={toggleAll} />
+                </th>
+                <th className="px-3 py-2 text-left">Deal</th>
+                <th className="px-3 py-2 text-left">Type</th>
+                <th className="px-3 py-2 text-left">Priority</th>
+                <th className="px-3 py-2 text-left">Advisory</th>
+                <th className="px-3 py-2 text-left">Risk</th>
+                <th className="px-3 py-2 text-left">Status</th>
+                <th className="px-3 py-2 text-left">AI Summary</th>
+                <th className="px-3 py-2 text-left">Enriched</th>
+                <th className="px-3 py-2 text-left">Expand</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={10} className="px-4 py-6 text-center text-slate-500"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></td></tr>
+              ) : displayed.length === 0 ? (
+                <tr><td colSpan={10} className="px-4 py-6 text-center text-slate-500">No deals found</td></tr>
+              ) : (
+                displayed.map((d) => {
                   const opp = opportunityLabel(d.advisory_score);
-                  const isExpanded = expanded.has(d.id);
                   return (
                     <>
-                      <tr key={d.id} onClick={() => toggleExpand(d.id)} className={`cursor-pointer transition hover:bg-slate-50 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/60 dark:bg-indigo-500/10" : ""}`}>
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} className="rounded border-slate-300" />
+                      <tr key={d.id} className="border-t border-slate-100 dark:border-white/10 hover:bg-slate-50/50 dark:hover:bg-white/[0.03]">
+                        <td className="px-3 py-2">
+                          <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} />
                         </td>
-                        <td className="max-w-[160px] truncate px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{d.buyer ?? <span className="italic text-slate-400">Unknown</span>}</td>
-                        <td className="max-w-[160px] truncate px-4 py-3 text-slate-600 dark:text-slate-400">{d.target ?? <span className="italic text-slate-400">Unknown</span>}</td>
-                        <td className="px-4 py-3 text-slate-500">{d.sector ?? "—"}</td>
-                        <td className="px-4 py-3">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize text-slate-600 dark:bg-white/5 dark:text-slate-300">{d.status ?? "—"}</span>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-slate-900 dark:text-slate-100">{d.buyer ?? "—"} → {d.target ?? "—"}</div>
+                          <div className="text-xs text-slate-500">{d.sector ?? "—"} · {d.country ?? "—"}</div>
                         </td>
-                        <td className="px-4 py-3">{scorePill(d.priority_score)}</td>
-                        <td className="px-4 py-3">{scorePill(d.advisory_score)}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2">{d.deal_type ?? "—"}</td>
+                        <td className="px-3 py-2">{scorePill(d.priority_score)}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-0.5">
+                            {scorePill(d.advisory_score)}
+                            {opp && <span className={`text-[10px] ${opp.color}`}>{opp.icon} {opp.text}</span>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
                           {d.risk_flag ? (
-                            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${riskBadge[d.risk_flag] ?? ""}`}>{d.risk_flag}</span>
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs capitalize ${riskBadge[d.risk_flag] || "bg-slate-100 text-slate-700 border-slate-200"}`}>
+                              {d.risk_flag}
+                            </span>
                           ) : "—"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2">{d.status ?? "—"}</td>
+                        <td className="px-3 py-2 max-w-[320px]">
+                          {d.ai_summary ? <span className="line-clamp-2 text-slate-700 dark:text-slate-300">{d.ai_summary}</span> : <span className="text-slate-400">Not enriched</span>}
+                        </td>
+                        <td className="px-3 py-2">
                           {d.ai_enriched_at ? (
-                            <span className="flex items-center gap-1 text-xs text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> Done</span>
+                            <span className="inline-flex items-center gap-1 text-emerald-600">
+                              <CheckCircle2 className="h-4 w-4" /> Yes
+                            </span>
                           ) : (
-                            <span className="flex items-center gap-1 text-xs text-slate-400"><AlertTriangle className="h-3.5 w-3.5" /> Pending</span>
+                            <span className="inline-flex items-center gap-1 text-amber-600">
+                              <AlertTriangle className="h-4 w-4" /> No
+                            </span>
                           )}
                         </td>
+                        <td className="px-3 py-2">
+                          <button onClick={() => toggleExpand(d.id)} className="text-xs text-indigo-600 hover:underline">
+                            {expanded.has(d.id) ? "Hide" : "Show"}
+                          </button>
+                        </td>
                       </tr>
-                      {isExpanded && d.ai_enriched_at && (
-                        <tr className="bg-slate-50/50 dark:bg-white/5">
-                          <td colSpan={9} className="px-4 py-3">
-                            <div className="space-y-2 text-xs">
-                              {d.ai_summary && <p className="text-slate-700 dark:text-slate-300"><strong className="text-slate-900 dark:text-slate-100">Summary:</strong> {d.ai_summary}</p>}
-                              {opp && (
-                                <p className={`flex items-center gap-1.5 ${opp.color}`}>
-                                  <span>{opp.icon}</span>
-                                  <strong>Opportunities:</strong> {opp.text}
-                                </p>
-                              )}
+                      {expanded.has(d.id) && (
+                        <tr key={`${d.id}-expanded`} className="bg-slate-50/40 dark:bg-white/[0.02]">
+                          <td colSpan={10} className="px-4 py-3">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                              <div className="rounded border border-slate-200/70 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+                                <p className="text-xs font-semibold text-slate-500">Deal ID</p>
+                                <p className="mt-1 font-mono text-xs">{d.id}</p>
+                              </div>
+                              <div className="rounded border border-slate-200/70 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+                                <p className="text-xs font-semibold text-slate-500">Opportunity</p>
+                                <p className="mt-1 text-xs">{opportunityLabel(d.advisory_score)?.text ?? "—"}</p>
+                              </div>
+                              <div className="rounded border border-slate-200/70 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+                                <p className="text-xs font-semibold text-slate-500">Last Enriched</p>
+                                <p className="mt-1 text-xs">{d.ai_enriched_at ? new Date(d.ai_enriched_at).toLocaleString() : "Never"}</p>
+                              </div>
+                              <div className="rounded border border-slate-200/70 bg-white p-3 sm:col-span-2 lg:col-span-3 dark:border-white/10 dark:bg-[#15151f]">
+                                <div className="flex items-center gap-1 text-slate-500"><Info className="h-3.5 w-3.5" /><p className="text-xs font-semibold">AI Summary</p></div>
+                                <p className="mt-1.5 text-xs leading-5 text-slate-700 dark:text-slate-300">{d.ai_summary ?? "No AI summary available yet."}</p>
+                              </div>
                             </div>
                           </td>
                         </tr>
                       )}
                     </>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
