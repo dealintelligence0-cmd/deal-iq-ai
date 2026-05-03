@@ -226,8 +226,20 @@ export default function PipelinePage() {
             </button>
           )}
           <button onClick={() => downloadCsv(sorted, `deals-${new Date().toISOString().slice(0, 10)}.csv`)} disabled={sorted.length === 0} className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50">
-            <Download className="h-4 w-4" />Export CSV
-          </button>
+           <Download className="h-4 w-4" />
+              Export CSV
+            </button>
+
+            <button
+              onClick={async () => {
+                const r = await fetch("/api/deals/derive", { method: "POST" });
+                const j = await r.json();
+                alert(j.ok ? `Updated ${j.updated} of ${j.total} deals.` : `Error: ${j.error}`);
+                window.location.reload();
+              }}
+              className="ml-2 inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100">
+              ✨ Derive Fields
+            </button>
         </div>
       </div>
 
