@@ -12,26 +12,26 @@ const REGION_MAP: Record<string, string> = {
 };
 
 export type DerivedFields = {
-  buyer: string | null; target: string | null; sector: string | null; country: string | null;
-  geographies_involved: string; india_flow: string;
-  deal_value_inr_range: string; deal_value_usd_range: string;
-  deal_type: string; deal_summary: string;
-  stake_percent: number | null; stake_status: string;
-  priority_score: number; advisory_score: number; risk_score: number;
-  priority_reason: string; advisory_reason: string; risk_reason: string;
+  geographies_involved: string;
+  india_flow: string;
+  deal_value_inr_range: string;
+  deal_value_usd_range: string;
+  deal_summary: string;
+  stake_status: string;
+  priority_score: number;
+  advisory_score: number;
+  risk_score: number;
+  priority_reason: string;
+  advisory_reason: string;
+  risk_reason: string;
 };
 
-function pick(...vals: (string | null | undefined)[]): string | null {
-  for (const v of vals) if (v && String(v).trim()) return String(v).trim();
-  return null;
+function parseCountries(s: string | null): string[] {
+  if (!s) return [];
+  return s.split(/[,;|/&]/).map((x) => x.trim()).filter(Boolean);
 }
 
-function parseCountries(geography: string | null): string[] {
-  if (!geography) return [];
-  return geography.split(/[,;|/]/).map((s) => s.trim()).filter(Boolean);
-}
-
-function maxNumber(s: string | null): number {
+function maxNumberFromString(s: string | null): number {
   if (!s) return 0;
   const matches = String(s).match(/[\d,]+\.?\d*/g);
   if (!matches) return 0;
@@ -59,22 +59,13 @@ function usdRange(usdM: number): string {
   return ">$10B";
 }
 
-function dealTypeFrom(intelType: string | null, heading: string | null): string {
-  const blob = `${intelType ?? ""} ${heading ?? ""}`.toLowerCase();
-  if (/\bipo\b|listing/.test(blob)) return "IPO";
-  if (/joint venture|\bjv\b/.test(blob)) return "JV";
-  if (/merger|merge/.test(blob)) return "Merger";
-  if (/strategic|partner/.test(blob)) return "Strategic";
-  if (/minority|stake.*[1-4]\d%/.test(blob)) return "Minority";
-  if (/acquir|takeover|buyout/.test(blob)) return "Acquisition";
-  return "Acquisition";
-}
-
-function summarize(heading: string | null, opportunity: string | null): string {
-  const text = [heading, opportunity].filter(Boolean).join(" — ");
-  if (!text) return "—";
-  const words = text.split(/\s+/).slice(0, 20);
-  return words.join(" ") + (text.split(/\s+/).length > 20 ? "…" : "");
+function summarize(notes: string | null, buyer: string | null, target: string | null, dealType: string | null): string {
+  if (notes && notes.trim()) {
+    const words = notes.split(/\s+/).slice(0, 20);
+    return words.join(" ") + (notes.split(/\s+/).length > 20 ? "…" : "");
+  }
+  if (buyer && target) return `${buyer} ${dealType ? dealType.toLowerCase() : "acquires"} ${target}`;
+  return "—";
 }
 
 function stakeStatus(pct: number | null): string {
@@ -84,75 +75,80 @@ function stakeStatus(pct: number | null): string {
   return "minority";
 }
 
-function score(usdM: number, countries: string[], sector: string | null, dealType: string, stake: number | null) {
-  const crossBorder = countries.length >= 2;
+export function deriveFields(raw: Record<string, unknown>): DerivedFields {
+  const country = (raw.country as string | null) ?? null;
+  const buyer = (raw.buyer as string | null) ?? null;
+  const target = (raw.target as string | null) ?? null;
+  const sector = (raw.sector as string | null) ?? null;
+  const dealType = (raw.deal_type as string | null) ?? null;
+  const stakePct = (raw.stake_percent as number | null) ?? null;
+  const usdNorm = (raw.normalized_value_usd as number | null) ?? null;
+  const valueRaw = (raw.value_raw as string | null) ?? null;
+  const notes = (raw.notes as string | null) ?? null;
+
+  // Countries — extract from country field (could be "India" or "India, USA")
+  const allCountries = parseCountries(country);
+  const regions = Array.from(new Set(allCountries.map((c) => REGION_MAP[c] || "Other")));
+  const geographies_involved = regions.join(", ") || (country ?? "—");
+
+  // India flow logic
+  let india_flow = "other";
+  const hasIndia = allCountries.some((c) => /india/i.test(c));
+  if (hasIndia && allCountries.length === 1) india_flow = "domestic";
+  else if (hasIndia && country && /india/i.test(country.split(",")[0])) india_flow = "outbound";
+  else if (hasIndia) india_flow = "inbound";
+
+  // Deal value: prefer normalized USD, fallback to parse value_raw
+  let usdM = (usdNorm ?? 0) / 1_000_000;
+  if (usdM === 0 && valueRaw) {
+    const num = maxNumberFromString(valueRaw);
+    // value_raw might be "$2.5B" or "$500M" or "₹4500cr" — heuristic
+    if (/B|bn|billion/i.test(valueRaw)) usdM = num * 1000;
+    else if (/M|mn|million/i.test(valueRaw)) usdM = num;
+    else if (/cr|crore/i.test(valueRaw)) usdM = (num * 10) / FX_INR_USD;
+    else if (/inr|₹|rs/i.test(valueRaw)) usdM = num / FX_INR_USD;
+    else usdM = num;
+  }
+  const inrM = usdM * FX_INR_USD;
+
+  // Scoring
+  const crossBorder = allCountries.length >= 2;
+
   let prio = 0;
   if (usdM >= 5000) prio += 40; else if (usdM >= 1000) prio += 30; else if (usdM >= 250) prio += 20; else if (usdM >= 50) prio += 10;
   if (crossBorder) prio += 25;
-  if (sector && /tech|saas|life|pharma|financial|energy/i.test(sector)) prio += 20;
-  if (stake != null && stake >= 50) prio += 15;
+  if (sector && /tech|saas|life|pharma|financial|energy|healthcare/i.test(sector)) prio += 20;
+  if (stakePct != null && stakePct >= 50) prio += 15;
   prio = Math.min(100, prio);
 
   let adv = 0;
   if (usdM >= 1000) adv += 30; else if (usdM >= 250) adv += 20; else adv += 10;
   if (crossBorder) adv += 25;
-  if (dealType === "Merger" || dealType === "JV") adv += 25;
-  if (dealType === "IPO") adv += 20;
-  if (stake != null && stake > 0 && stake < 100) adv += 15;
+  if (dealType && /merger|jv|joint/i.test(dealType)) adv += 25;
+  if (dealType && /ipo/i.test(dealType)) adv += 20;
+  if (stakePct != null && stakePct > 0 && stakePct < 100) adv += 15;
   adv = Math.min(100, adv);
 
   let risk = 0;
   if (usdM >= 5000) risk += 30; else if (usdM >= 1000) risk += 20; else risk += 10;
   if (crossBorder) risk += 25;
   if (sector && /pharma|life|financial|energy|defence|telecom/i.test(sector)) risk += 25;
-  if (dealType === "Merger" || dealType === "JV") risk += 20;
-  if (stake != null && stake >= 50 && stake < 90) risk += 10;
+  if (dealType && /merger|jv/i.test(dealType)) risk += 20;
+  if (stakePct != null && stakePct >= 50 && stakePct < 90) risk += 10;
   risk = Math.min(100, risk);
 
   return {
-    priority_score: prio, advisory_score: adv, risk_score: risk,
-    priority_reason: `Size:${usdM>=1000?"large":usdM>=250?"mid":"small"} · ${crossBorder?"cross-border":"domestic"} · ${sector?"hot sector":"general"}`,
-    advisory_reason: `${dealType} · ${crossBorder?"multi-juris":"single-juris"} · stake-${stake ?? "n/a"}%`,
-    risk_reason: `${crossBorder?"cross-border":"single-juris"} · ${sector?"regulated":"general"} · ${dealType}-execution`,
-  };
-}
-
-export function deriveFields(raw: Record<string, unknown>): DerivedFields {
-  const buyer = pick(raw.bidders as string, raw.issuers as string, raw.buyer as string);
-  const target = pick(raw.targets as string, raw.vendors as string, raw.target as string);
-  const sector = pick(raw.dominant_sector as string, raw.sectors as string, raw.sector as string);
-
-  const geography = pick(raw.geography as string, raw.dominant_geography as string, raw.country as string);
-  const allCountries = parseCountries(geography);
-  const country = (raw.dominant_geography as string) || allCountries[0] || null;
-
-  const regions = Array.from(new Set(allCountries.map((c) => REGION_MAP[c] || "Other")));
-  const geographies_involved = regions.join(", ") || "—";
-
-  let india_flow = "other";
-  const hasIndia = allCountries.some((c) => /india/i.test(c));
-  if (hasIndia && allCountries.length === 1) india_flow = "domestic";
-  else if (hasIndia && country && /india/i.test(country)) india_flow = "outbound";
-  else if (hasIndia) india_flow = "inbound";
-
-  const inrM = Math.max(maxNumber(raw.intelligence_size as string), maxNumber(raw.value_inr_m as string));
-  const usdM = inrM / FX_INR_USD;
-
-  const deal_type = dealTypeFrom(raw.intelligence_type as string, raw.heading as string);
-  const deal_summary = summarize(raw.heading as string, raw.opportunity as string);
-
-  const stakeRaw = raw.stake_value || raw.stake_percent;
-  const stake_percent = stakeRaw ? maxNumber(String(stakeRaw)) : null;
-
-  const scores = score(usdM, allCountries, sector, deal_type, stake_percent);
-
-  return {
-    buyer, target, sector, country,
-    geographies_involved, india_flow,
+    geographies_involved,
+    india_flow,
     deal_value_inr_range: inrRange(inrM),
     deal_value_usd_range: usdRange(usdM),
-    deal_type, deal_summary,
-    stake_percent, stake_status: stakeStatus(stake_percent),
-    ...scores,
+    deal_summary: summarize(notes, buyer, target, dealType),
+    stake_status: stakeStatus(stakePct),
+    priority_score: prio,
+    advisory_score: adv,
+    risk_score: risk,
+    priority_reason: `Size:${usdM>=1000?"large":usdM>=250?"mid":"small"} · ${crossBorder?"cross-border":"domestic"} · ${sector ?? "no sector"}`,
+    advisory_reason: `${dealType ?? "acquisition"} · ${crossBorder?"multi-juris":"single-juris"} · stake ${stakePct ?? "n/a"}%`,
+    risk_reason: `${crossBorder?"cross-border":"single-juris"} · ${sector ?? "general"} · ${dealType ?? "deal"}-execution`,
   };
 }
