@@ -654,6 +654,11 @@ function PartnerDecisionBlock({ deal }: { deal: Record<string, unknown> }) {
 
 
 function ComparablePatternInsight({ comparables, deal }: {
+  comparables: Array<{ id: string; deal_date: string | null; buyer: string | null; target: string | null; country: string | null; normalized_value_usd: number | null }>;
+  deal: { sector: string | null; country: string | null; deal_type: string | null; normalized_value_usd: number | null };
+}) {
+  
+  ({ comparables, deal }: {
   comparables: Array<{ id: string; deal_date: string | null; buyer: string; target: string; country: string | null; normalized_value_usd: number | null }>;
   deal: { sector: string | null; country: string | null; deal_type: string | null; normalized_value_usd: number | null };
 }) {
