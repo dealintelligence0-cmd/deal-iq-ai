@@ -15,20 +15,15 @@ export async function POST() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let updated = 0;
+  let failed = 0;
   for (const r of rows ?? []) {
     const d = deriveFields(r as unknown as Record<string, unknown>);
     const { error: upErr } = await admin.from("deals").update({
-      buyer: d.buyer ?? r.buyer,
-      target: d.target ?? r.target,
-      sector: d.sector ?? r.sector,
-      country: d.country ?? r.country,
       geographies_involved: d.geographies_involved,
       india_flow: d.india_flow,
       deal_value_inr_range: d.deal_value_inr_range,
       deal_value_usd_range: d.deal_value_usd_range,
-      deal_type: d.deal_type ?? r.deal_type,
       deal_summary: d.deal_summary,
-      stake_percent: d.stake_percent ?? r.stake_percent,
       stake_status: d.stake_status,
       priority_score: d.priority_score,
       advisory_score: d.advisory_score,
@@ -37,8 +32,9 @@ export async function POST() {
       advisory_reason: d.advisory_reason,
       risk_reason: d.risk_reason,
     }).eq("id", r.id);
-    if (!upErr) updated++;
+    if (upErr) { failed++; console.error("Derive failed for id", r.id, upErr.message); }
+    else updated++;
   }
 
-  return NextResponse.json({ ok: true, updated, total: rows?.length ?? 0 });
+  return NextResponse.json({ ok: true, updated, failed, total: rows?.length ?? 0 });
 }
