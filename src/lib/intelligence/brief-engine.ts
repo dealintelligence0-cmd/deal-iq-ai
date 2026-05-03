@@ -22,7 +22,7 @@ export function deriveExpandedBrief(d: Deal): DealBrief {
   const stakeStatus = d.stake_status ?? "unknown";
   const value = d.deal_value_usd_range ?? d.deal_value_inr_range ?? "undisclosed value";
 
-  // ── Investment Thesis ──────────────────────────────────────────────────────
+  // Investment Thesis
   const investmentThesis: string[] = [];
   if (dealType === "Acquisition")
     investmentThesis.push(`${buyer} acquires ${target} to consolidate ${sector} market presence in ${country}.`);
@@ -44,7 +44,7 @@ export function deriveExpandedBrief(d: Deal): DealBrief {
   else if (flow === "domestic")
     investmentThesis.push(`Domestic consolidation within the Indian ${sector} market.`);
 
-  // ── Why Now ────────────────────────────────────────────────────────────────
+  // Why Now
   const status = d.status ?? "announced";
   let whyNow = "";
   if (status === "live")
@@ -61,7 +61,7 @@ export function deriveExpandedBrief(d: Deal): DealBrief {
   if (flow === "outbound" || flow === "inbound")
     whyNow += ` Cross-border regulatory windows and FDI approval timelines make immediate engagement critical.`;
 
-  // ── Value Drivers ──────────────────────────────────────────────────────────
+  // Value Drivers
   const valueDrivers: string[] = [];
   if (stakeStatus === "control" || stakeStatus === "majority")
     valueDrivers.push(`Full/majority control enables deep operational integration and synergy extraction.`);
@@ -82,7 +82,7 @@ export function deriveExpandedBrief(d: Deal): DealBrief {
     valueDrivers.push(`Access to ${target}'s customer base and operational capabilities.`);
   }
 
-  // ── Key Risks ──────────────────────────────────────────────────────────────
+  // Key Risks
   const keyRisks: string[] = [];
   if (d.risk_reason) {
     const sentences = d.risk_reason.split(/[.;]/).map((s) => s.trim()).filter((s) => s.length > 12);
@@ -101,7 +101,7 @@ export function deriveExpandedBrief(d: Deal): DealBrief {
       keyRisks.push(`Domestic concentration risk: limited geographic diversification post-deal.`);
   }
 
-  // ── Deal Tension ───────────────────────────────────────────────────────────
+  // Deal Tension
   const advisoryScore = d.advisory_score ?? 0;
   const riskScore = d.risk_score ?? 0;
   const dealTension: string[] = [];
@@ -120,7 +120,7 @@ export function deriveExpandedBrief(d: Deal): DealBrief {
   else
     dealTension.push(`Domestic deal offers execution certainty but limits cross-border advisory premium.`);
 
-  // ── Advisory Angle ─────────────────────────────────────────────────────────
+  // Advisory Angle
   let advisoryAngle = d.advisory_reason ?? "";
   if (!advisoryAngle || advisoryAngle.length < 20) {
     if (dealType === "Acquisition" || dealType === "Merger")
@@ -135,7 +135,7 @@ export function deriveExpandedBrief(d: Deal): DealBrief {
       advisoryAngle = `Strategic partnership advisory: deal structuring, commercial due diligence, and value creation roadmap.`;
   }
 
-  // ── Deal Takeaway ──────────────────────────────────────────────────────────
+  // Deal Takeaway
   const targeting = d.targeting_recommendation ?? (d.priority_score != null && d.priority_score >= 75 ? "HIGH" : d.priority_score != null && d.priority_score >= 50 ? "MEDIUM" : "LOW");
   const dealTakeaway =
     d.deal_takeaway && d.deal_takeaway.length > 20
