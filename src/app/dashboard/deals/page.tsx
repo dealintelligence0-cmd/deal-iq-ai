@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Briefcase, Loader2, Download, Trash2, ChevronUp, ChevronDown,
-  ChevronLeft, ChevronRight, Sparkles,
+  ChevronLeft, ChevronRight, Sparkles, Target, AlertTriangle, TrendingUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
@@ -43,6 +43,7 @@ export default function PipelinePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [deriving, setDeriving] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -230,7 +231,12 @@ export default function PipelinePage() {
               {pageRows.length === 0 ? (
                <tr><td colSpan={16} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
               ) : pageRows.map((d) => (
-                <tr key={d.id} className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""}`}>
+                <>
+                <tr key={d.id} className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} cursor-pointer`}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "A") return;
+                    setExpanded(expanded === d.id ? null : d.id);
+                  }}>
                   <td className="px-4 py-3">
                     <input type="checkbox"
                       checked={selected.has(d.id)}
@@ -281,13 +287,21 @@ export default function PipelinePage() {
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.risk_reason ?? ""}>
                     {d.risk_score != null ? <ScoreBadge score={d.risk_score} /> : "—"}
                   </td>
-                  <td className="px-4 py-3">
+                 <td className="px-4 py-3">
                     <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${statusStyle[d.status ?? ""] ?? "bg-slate-100 text-slate-700"}`}>
                       {d.status ?? "—"}
                     </span>
                   </td>
                 </tr>
-              ))}
+                {expanded === d.id && (
+                  <tr className="bg-slate-50/70 dark:bg-white/5">
+                    <td colSpan={16} className="px-6 py-4">
+                      <DealInsight deal={d} />
+                    </td>
+                  </tr>
+                )}
+                </>
+                ))}
             </tbody>
           </table>
         </div>
@@ -332,7 +346,100 @@ function ScoreBadge({ score }: { score: number }) {
 function SortHeader({ label, k, sortKey, sortDir, onSort, align = "left" }: {
   label: string; k: SortKey; sortKey: SortKey; sortDir: SortDir;
   onSort: (k: SortKey) => void; align?: "left" | "right";
-}) {
+})
+function DealInsight({ deal }: { deal: Deal }) {
+  type Insight = {
+    thesis?: string; why_now?: string; value_drivers?: string[];
+    risks?: string[]; tensions?: string; advisory_angle?: string;
+  };
+  const ins = ((deal as Deal & { insight_sections?: Insight }).insight_sections) ?? {};
+  const targeting = (deal as Deal & { targeting_recommendation?: string }).targeting_recommendation;
+  const targetingReason = (deal as Deal & { targeting_reason?: string }).targeting_reason;
+  const takeaway = (deal as Deal & { deal_takeaway?: string }).deal_takeaway;
+  const confidence = (deal as Deal & { confidence_level?: string }).confidence_level;
+
+  const targetingColor = targeting === "HIGH" ? "bg-emerald-100 text-emerald-800"
+    : targeting === "MEDIUM" ? "bg-amber-100 text-amber-800"
+    : targeting === "LOW" ? "bg-slate-100 text-slate-600" : "bg-slate-50 text-slate-400";
+
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {/* Top banner */}
+      <div className="md:col-span-3 flex items-center gap-3 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900/20 dark:bg-indigo-950/10">
+        <div className="flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Deal Takeaway</p>
+          <p className="mt-0.5 text-sm text-slate-800 dark:text-slate-200">{takeaway ?? "Run Derive Fields to generate."}</p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${targetingColor}`}>
+            <Target className="mr-1 inline h-3 w-3" />
+            Target: {targeting ?? "—"}
+          </span>
+          {confidence && <span className="text-[9px] text-slate-500">Confidence: {confidence}</span>}
+        </div>
+      </div>
+
+      {/* Investment Thesis */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Investment Thesis</p>
+        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.thesis ?? "—"}</p>
+      </div>
+
+      {/* Why Now */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+          <TrendingUp className="mr-1 inline h-3 w-3" /> Why Now
+        </p>
+        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.why_now ?? "—"}</p>
+      </div>
+
+      {/* Advisory Angle */}
+      <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-3 dark:border-purple-900/20 dark:bg-purple-950/10">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">Advisory Angle</p>
+        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.advisory_angle ?? "—"}</p>
+      </div>
+
+      {/* Value Drivers */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Value Drivers</p>
+        <ul className="mt-1 space-y-0.5">
+          {(ins.value_drivers ?? []).map((d: string, i: number) => (
+            <li key={i} className="text-xs text-slate-700 dark:text-slate-300">• {d}</li>
+          ))}
+          {(!ins.value_drivers || ins.value_drivers.length === 0) && <li className="text-xs text-slate-400">—</li>}
+        </ul>
+      </div>
+
+      {/* Key Risks */}
+      <div className="rounded-lg border border-amber-100 bg-amber-50/30 p-3 dark:border-amber-900/20 dark:bg-amber-950/10">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="mr-1 inline h-3 w-3" /> Key Risks
+        </p>
+        <ul className="mt-1 space-y-0.5">
+          {(ins.risks ?? []).map((r: string, i: number) => (
+            <li key={i} className="text-xs text-slate-700 dark:text-slate-300">• {r}</li>
+          ))}
+          {(!ins.risks || ins.risks.length === 0) && <li className="text-xs text-slate-400">—</li>}
+        </ul>
+      </div>
+
+      {/* Deal Tension */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Deal Tension</p>
+        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.tensions ?? "—"}</p>
+      </div>
+
+      {/* Targeting reason */}
+      {targetingReason && (
+        <div className="md:col-span-3 rounded-lg border-l-4 border-l-indigo-500 bg-slate-50 p-3 dark:bg-white/5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Targeting Recommendation</p>
+          <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{targetingReason}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+{
   const active = sortKey === k;
   return (
     <th className={`px-4 py-3 ${align === "right" ? "text-right" : ""}`}>
