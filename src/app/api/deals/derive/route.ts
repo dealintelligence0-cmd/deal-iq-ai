@@ -31,10 +31,14 @@ export async function POST() {
       priority_reason: d.priority_reason,
       advisory_reason: d.advisory_reason,
       risk_reason: d.risk_reason,
+      deal_takeaway: d.deal_takeaway,
+      targeting_recommendation: d.targeting_recommendation,
+      targeting_reason: d.targeting_reason,
+      confidence_level: d.confidence_level,
+      insight_sections: d.insight_sections,
     }).eq("id", r.id);
-    if (upErr) { failed++; console.error("Derive failed for id", r.id, upErr.message); }
+    if (upErr) { failed++; console.error("Derive failed", r.id, upErr.message); }
     else updated++;
   }
-
   return NextResponse.json({ ok: true, updated, failed, total: rows?.length ?? 0 });
 }
