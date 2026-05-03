@@ -138,9 +138,11 @@ export default function PipelinePage() {
       buyer: d.buyer ?? "",
       target: d.target ?? "",
       sector: d.sector ?? "",
-      country: d.country ?? "",
+     country: d.country ?? "",
+      geographies_involved: d.geographies_involved ?? "",
       india_flow: d.india_flow ?? "",
       deal_type: d.deal_type ?? "",
+      deal_summary: d.deal_summary ?? "",
       stake_percent: d.stake_percent ?? "",
       stake_status: d.stake_status ?? "",
       deal_value_inr_range: d.deal_value_inr_range ?? "",
@@ -151,8 +153,8 @@ export default function PipelinePage() {
       normalized_value_usd: d.normalized_value_usd ?? "",
       status: d.status ?? "",
     }));
-    downloadCsv(rows, `deals-export-${new Date().toISOString().slice(0, 10)}.csv`,
-      ["deal_date","buyer","target","sector","country","india_flow","deal_type","stake_percent","stake_status","deal_value_inr_range","deal_value_usd_range","priority_score","advisory_score","risk_score","normalized_value_usd","status"]);
+   downloadCsv(rows, `deals-export-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["deal_date","buyer","target","sector","country","geographies_involved","india_flow","deal_type","deal_summary","stake_percent","stake_status","deal_value_inr_range","deal_value_usd_range","priority_score","advisory_score","risk_score","normalized_value_usd","status"]);
   }
 
   if (loading) {
@@ -212,9 +214,12 @@ export default function PipelinePage() {
                 <SortHeader label="Target" k="target" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader label="Sector" k="sector" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader label="Country" k="country" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+               <th className="px-3 py-3">Geographies</th>
                 <th className="px-3 py-3">Flow</th>
                 <th className="px-3 py-3">USD Range</th>
                 <th className="px-3 py-3">INR Range</th>
+                <th className="px-3 py-3">Stake</th>
+                <th className="px-3 py-3 min-w-[200px]">Summary</th>
                 <th className="px-3 py-3 text-center">Priority</th>
                 <th className="px-3 py-3 text-center">Advisory</th>
                 <th className="px-3 py-3 text-center">Risk</th>
@@ -223,7 +228,7 @@ export default function PipelinePage() {
             </thead>
             <tbody>
               {pageRows.length === 0 ? (
-                <tr><td colSpan={13} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
+               <tr><td colSpan={16} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
               ) : pageRows.map((d) => (
                 <tr key={d.id} className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""}`}>
                   <td className="px-4 py-3">
@@ -244,7 +249,8 @@ export default function PipelinePage() {
                   </td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{d.target ?? "—"}</td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{d.sector ?? "—"}</td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{d.country ?? "—"}</td>
+                 <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{d.country ?? "—"}</td>
+                  <td className="px-3 py-3 text-[11px] text-slate-600 dark:text-slate-400">{d.geographies_involved ?? "—"}</td>
                   <td className="px-3 py-3">
                     {d.india_flow ? (
                       <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${flowStyle[d.india_flow] ?? "bg-slate-100 text-slate-600"}`}>
@@ -254,7 +260,19 @@ export default function PipelinePage() {
                   </td>
                   <td className="px-3 py-3 text-[11px] font-mono text-slate-700 dark:text-slate-300">{d.deal_value_usd_range ?? "—"}</td>
                   <td className="px-3 py-3 text-[11px] font-mono text-slate-700 dark:text-slate-300">{d.deal_value_inr_range ?? "—"}</td>
+                  <td className="px-3 py-3 text-[11px] text-slate-600 dark:text-slate-400">
+                    {d.stake_percent != null ? (
+                      <span>
+                        <span className="font-mono">{d.stake_percent}%</span>
+                        {d.stake_status && <span className="ml-1 text-[10px] text-slate-500">· {d.stake_status}</span>}
+                      </span>
+                    ) : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-[11px] text-slate-600 dark:text-slate-400 max-w-[260px]" title={d.deal_summary ?? ""}>
+                    <div className="truncate">{d.deal_summary ?? "—"}</div>
+                  </td>
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.priority_reason ?? ""}>
+                    
                     {d.priority_score != null ? <ScoreBadge score={d.priority_score} /> : "—"}
                   </td>
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.advisory_reason ?? ""}>
