@@ -651,78 +651,41 @@ function PartnerDecisionBlock({ deal }: { deal: Record<string, unknown> }) {
 }
 
 
-function ComparablePatternInsight({
-  comparables,
-  deal,
-}: {
-  comparables: Array<{
-    id: string;
-    deal_date: string | null;
-    buyer: string | null;
-    target: string | null;
-    country: string | null;
-    normalized_value_usd: number | null;
-  }>;
-  deal: {
-    sector: string | null;
-    country: string | null;
-    deal_type: string | null;
-    normalized_value_usd: number | null;
-  };
+
+
+function ComparablePatternInsight({ comparables, deal }: {
+  comparables: Array<{ id: string; deal_date: string | null; buyer: string | null; target: string | null; country: string | null; normalized_value_usd: number | null }>;
+  deal: { sector: string | null; country: string | null; deal_type: string | null; normalized_value_usd: number | null };
+}) {
+  
+  ({ comparables, deal }: {
+  comparables: Array<{ id: string; deal_date: string | null; buyer: string; target: string; country: string | null; normalized_value_usd: number | null }>;
+  deal: { sector: string | null; country: string | null; deal_type: string | null; normalized_value_usd: number | null };
 }) {
   if (!comparables || comparables.length === 0) return null;
 
-  const totalValue = comparables.reduce(
-    (sum, c) => sum + (c.normalized_value_usd ?? 0),
-    0
-  );
-
+  const totalValue = comparables.reduce((sum, c) => sum + (c.normalized_value_usd ?? 0), 0);
   const avg = totalValue / comparables.length / 1_000_000;
   const dealUsdM = (deal.normalized_value_usd ?? 0) / 1_000_000;
-
-  const sameCountry = comparables.filter(
-    (c) => c.country === deal.country
-  ).length;
-
-  const allSameRegion =
-    comparables.length > 0 && sameCountry / comparables.length >= 0.7;
+  const sameCountry = comparables.filter((c) => c.country === deal.country).length;
+  const allSameRegion = sameCountry / comparables.length >= 0.7;
 
   let pattern = "";
-
   if (avg > 0 && dealUsdM > 0) {
     const ratio = dealUsdM / avg;
-
-    if (ratio > 1.5) {
-      pattern = `This deal sits ${ratio.toFixed(
-        1
-      )}× above comparable average — premium pricing suggests strategic urgency or scarce asset dynamics.`;
-    } else if (ratio < 0.5) {
-      pattern = `Deal value is ${(1 / ratio).toFixed(
-        1
-      )}× below comparable average — likely sub-scale or distressed pricing; validate fundamentals.`;
-    } else {
-      pattern = `Deal value aligns with comparables (${ratio.toFixed(
-        1
-      )}×) — value creation depends on execution, not entry multiple.`;
-    }
+    if (ratio > 1.5) pattern = `This deal sits ${ratio.toFixed(1)}× the comparable average — premium pricing signals strategic urgency or scarcity. Expect competitive bidder dynamics and aggressive synergy assumptions.`;
+    else if (ratio < 0.5) pattern = `Deal value is ${(1/ratio).toFixed(1)}× below comparable average — likely reflects sub-scale target or distressed pricing. Verify EBITDA quality.`;
+    else pattern = `Deal value tracks comparable averages closely (${ratio.toFixed(1)}×). Pricing logic appears benchmarked; differentiation must come from synergy execution.`;
   } else {
-    pattern =
-      "Comparable set varies widely in size — sector pattern more relevant than valuation benchmarking.";
+    pattern = `Comparable set ranges across multiple deal sizes; sector pattern more relevant than size benchmark.`;
   }
 
-  if (allSameRegion) {
-    pattern += ` ${sameCountry}/${comparables.length} deals in ${deal.country} — confirms regional consolidation trend.`;
-  }
+  if (allSameRegion) pattern += ` ${sameCountry}/${comparables.length} comparables in ${deal.country} — geographic concentration confirms regional consolidation thesis.`;
 
   return (
     <div className="mb-4 rounded-lg border-l-4 border-l-indigo-500 bg-indigo-50/50 p-3 dark:bg-indigo-950/20">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
-        Insight from Comparables
-      </p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-800 dark:text-slate-200">
-        {pattern}
-      </p>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Insight from Comparables</p>
+      <p className="mt-1 text-xs leading-relaxed text-slate-800 dark:text-slate-200">{pattern}</p>
     </div>
   );
 }
-
