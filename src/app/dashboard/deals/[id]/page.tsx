@@ -159,11 +159,17 @@ export default function DealDetailPage() {
         </div>
       </div>
 
+     {/* DEAL TAKEAWAY — top decision banner */}
+      <DealTakeawayBanner deal={deal} />
+
       {/* Buyer / Target profiles */}
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <ProfileCard icon={Building2} tone="indigo" title="Buyer Context" profile={intel.buyerProfile} role="buyer" deal={deal} />
         <ProfileCard icon={Target} tone="purple" title="Target Context" profile={intel.targetProfile} role="target" deal={deal} />
       </div>
+
+      {/* PARTNER DECISION BLOCK — Investment Thesis · Why Now · Deal Tension · Advisory Angle */}
+      <PartnerDecisionBlock deal={deal} />
 
       {/* Strategic rationale */}
       <Section icon={Lightbulb} title="Strategic Rationale">
@@ -534,6 +540,170 @@ function SynergyList({ items }: { items: { area: string; description: string; im
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+function DealTakeawayBanner({ deal }: { deal: Record<string, unknown> }) {
+  const takeaway = deal.deal_takeaway as string | null;
+  const targeting = deal.targeting_recommendation as string | null;
+  const targetingReason = deal.targeting_reason as string | null;
+  const confidence = deal.confidence_level as string | null;
+  const advScore = deal.advisory_score as number | null;
+  const prioScore = deal.priority_score as number | null;
+  const riskScore = deal.risk_score as number | null;
+
+  if (!takeaway && !targeting) {
+    return (
+      <div className="mb-6 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">⚠ Run &quot;Derive Fields&quot; on Pipeline page to generate intelligence for this deal.</p>
+      </div>
+    );
+  }
+
+  const targetingColor = targeting === "HIGH" ? "from-emerald-600 to-emerald-700"
+    : targeting === "MEDIUM" ? "from-amber-500 to-amber-600"
+    : "from-slate-500 to-slate-600";
+
+  const advAttractiveness = (advScore ?? 0) >= 70 ? "HIGH" : (advScore ?? 0) >= 40 ? "MEDIUM" : "LOW";
+  const advColor = advAttractiveness === "HIGH" ? "bg-emerald-100 text-emerald-800"
+    : advAttractiveness === "MEDIUM" ? "bg-amber-100 text-amber-800"
+    : "bg-slate-100 text-slate-700";
+
+  return (
+    <div className="mb-6 overflow-hidden rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-purple-50 shadow-sm dark:border-indigo-900/30 dark:from-indigo-950/20 dark:via-[#15151f] dark:to-purple-950/20">
+      <div className={`bg-gradient-to-r ${targetingColor} px-5 py-3 text-white`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Decision</span>
+            <span className="text-2xl font-bold">{targeting ?? "—"}</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="rounded-full bg-white/20 px-2.5 py-1 font-semibold">Priority {prioScore ?? "—"}</span>
+            <span className="rounded-full bg-white/20 px-2.5 py-1 font-semibold">Advisory {advScore ?? "—"}</span>
+            <span className="rounded-full bg-white/20 px-2.5 py-1 font-semibold">Risk {riskScore ?? "—"}</span>
+          </div>
+        </div>
+      </div>
+      <div className="px-5 py-4">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Deal Takeaway</p>
+        <p className="mt-1 text-sm leading-relaxed text-slate-800 dark:text-slate-200">{takeaway ?? "—"}</p>
+        {targetingReason && (
+          <>
+            <p className="mt-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Targeting Justification</p>
+            <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{targetingReason}</p>
+          </>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-indigo-100 pt-3 dark:border-indigo-900/20">
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${advColor}`}>
+            Advisory Attractiveness: {advAttractiveness}
+          </span>
+          {confidence && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-700 dark:bg-white/10 dark:text-slate-300">
+              Confidence: {confidence}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PartnerDecisionBlock({ deal }: { deal: Record<string, unknown> }) {
+  type Insight = {
+    thesis?: string; why_now?: string; value_drivers?: string[];
+    risks?: string[]; tensions?: string; advisory_angle?: string;
+  };
+  const ins = (deal.insight_sections as Insight | null) ?? {};
+  const priorityReason = deal.priority_reason as string | null;
+  const advisoryReason = deal.advisory_reason as string | null;
+  const riskReason = deal.risk_reason as string | null;
+
+  if (!ins.thesis && !ins.why_now) return null;
+
+  return (
+    <div className="mb-6">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+        <span className="inline-block h-1 w-6 rounded-full bg-indigo-500" />
+        Partner Decision Brief
+      </h2>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Investment Thesis */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Investment Thesis</p>
+          <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">{ins.thesis ?? "—"}</p>
+        </div>
+
+        {/* Why Now */}
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm dark:border-emerald-900/30 dark:bg-emerald-950/10">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Why Now</p>
+          <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">{ins.why_now ?? "—"}</p>
+        </div>
+
+        {/* Deal Tension */}
+        <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 shadow-sm dark:border-rose-900/30 dark:bg-rose-950/10">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Deal Tension</p>
+          <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">{ins.tensions ?? "—"}</p>
+        </div>
+
+        {/* Value Drivers */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Value Drivers</p>
+          <ul className="mt-2 space-y-1.5">
+            {(ins.value_drivers ?? []).map((d, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <span className="mt-1 h-1 w-1 flex-shrink-0 rounded-full bg-indigo-500" />
+                <span>{d}</span>
+              </li>
+            ))}
+            {(!ins.value_drivers || ins.value_drivers.length === 0) && <li className="text-xs text-slate-400">—</li>}
+          </ul>
+        </div>
+
+        {/* Key Risks */}
+        <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-4 shadow-sm dark:border-amber-900/30 dark:bg-amber-950/10">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Key Risks</p>
+          <ul className="mt-2 space-y-1.5">
+            {(ins.risks ?? []).map((r, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <span className="mt-1 h-1 w-1 flex-shrink-0 rounded-full bg-amber-500" />
+                <span>{r}</span>
+              </li>
+            ))}
+            {(!ins.risks || ins.risks.length === 0) && <li className="text-xs text-slate-400">—</li>}
+          </ul>
+        </div>
+
+        {/* Advisory Angle */}
+        <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-4 shadow-sm dark:border-purple-900/30 dark:bg-purple-950/10">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">Advisory Angle</p>
+          <p className="mt-2 text-sm text-slate-800 dark:text-slate-200">{ins.advisory_angle ?? "—"}</p>
+        </div>
+      </div>
+
+      {/* Score Drivers */}
+      {(priorityReason || advisoryReason || riskReason) && (
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {priorityReason && (
+            <div className="rounded-lg border-l-4 border-l-indigo-500 bg-slate-50 p-3 dark:bg-white/5">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Priority Drivers</p>
+              <p className="mt-1 text-[11px] font-mono text-slate-700 dark:text-slate-300">{priorityReason}</p>
+            </div>
+          )}
+          {advisoryReason && (
+            <div className="rounded-lg border-l-4 border-l-purple-500 bg-slate-50 p-3 dark:bg-white/5">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">Advisory Drivers</p>
+              <p className="mt-1 text-[11px] font-mono text-slate-700 dark:text-slate-300">{advisoryReason}</p>
+            </div>
+          )}
+          {riskReason && (
+            <div className="rounded-lg border-l-4 border-l-amber-500 bg-slate-50 p-3 dark:bg-white/5">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Risk Drivers</p>
+              <p className="mt-1 text-[11px] font-mono text-slate-700 dark:text-slate-300">{riskReason}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
