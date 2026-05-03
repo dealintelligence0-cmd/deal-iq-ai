@@ -346,7 +346,7 @@ function ScoreBadge({ score }: { score: number }) {
 function SortHeader({ label, k, sortKey, sortDir, onSort, align = "left" }: {
   label: string; k: SortKey; sortKey: SortKey; sortDir: SortDir;
   onSort: (k: SortKey) => void; align?: "left" | "right";
-})
+}): React.ReactElement
 function DealInsight({ deal }: { deal: Deal }) {
   type Insight = {
     thesis?: string; why_now?: string; value_drivers?: string[];
