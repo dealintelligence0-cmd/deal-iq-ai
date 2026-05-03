@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 let dealsCache: { data: Deal[]; expires: number } | null = null;
-const CACHE_MS = 60_000; // 60s
+const CACHE_MS = 60_000;
 
 export type Deal = {
   id: string;
@@ -28,6 +28,8 @@ export type Deal = {
   score_breakdown?: string | null;
   deal_takeaway?: string | null;
   targeting_reason?: string | null;
+  targeting_recommendation?: "HIGH" | "MEDIUM" | "LOW" | null;
+  confidence_level?: "high" | "medium" | "low" | null;
   status: string | null;
   normalized_value_usd: number | null;
   stake_percent: number | null;
@@ -68,7 +70,6 @@ export async function fetchDeals(force = false): Promise<Deal[]> {
   }
 }
 
-
 export function computeKpis(deals: Deal[]): Kpis {
   const totalValueUsd = deals.reduce(
     (s, d) => s + (d.normalized_value_usd ?? 0),
@@ -77,7 +78,6 @@ export function computeKpis(deals: Deal[]): Kpis {
   const liveDeals = deals.filter(
     (d) => d.status === "live" || d.status === "announced"
   ).length;
-  // Advisory wallet = 1% of total deal value (industry-standard estimate)
   const advisoryWalletUsd = totalValueUsd * 0.01;
   return {
     totalDeals: deals.length,
@@ -95,7 +95,7 @@ export function monthlyTrend(deals: Deal[]): Array<{
   const buckets = new Map<string, { count: number; value: number }>();
   for (const d of deals) {
     if (!d.deal_date) continue;
-    const key = d.deal_date.slice(0, 7); // YYYY-MM
+    const key = d.deal_date.slice(0, 7);
     const b = buckets.get(key) ?? { count: 0, value: 0 };
     b.count += 1;
     b.value += d.normalized_value_usd ?? 0;
@@ -110,7 +110,7 @@ export function monthlyTrend(deals: Deal[]): Array<{
         year: "2-digit",
       }),
       count: v.count,
-      value: Math.round(v.value / 1e6), // value in $M
+      value: Math.round(v.value / 1e6),
     }));
 }
 
