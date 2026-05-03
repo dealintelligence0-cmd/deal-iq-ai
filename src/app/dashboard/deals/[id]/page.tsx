@@ -148,7 +148,7 @@ export default function DealDetailPage() {
             </div>
           );
         })()}
-          <ScoreBadge score={intel.advisoryScore.score} grade={intel.advisoryScore.grade} />
+          {/* Score moved into bottom DealTakeawayBanner */}
         </div>
 
         <div className="mt-6 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-4">
@@ -171,57 +171,27 @@ export default function DealDetailPage() {
       {/* PARTNER DECISION BLOCK — Investment Thesis · Why Now · Deal Tension · Advisory Angle */}
       <PartnerDecisionBlock deal={deal} />
 
-      {/* Strategic rationale */}
-      <Section icon={Lightbulb} title="Strategic Rationale">
-        <ul className="space-y-2">
-          {intel.rationale.map((r, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-              <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-indigo-500" />
-              <span>{r}</span>
-            </li>
-          ))}
-        </ul>
-      </Section>
+{/* AI-Researched Deal Context — replaces generic Strategic Rationale + generic Synergies + numeric Integration Complexity */}
+      <AIResearchPanel deal={deal} />
 
-      {/* Synergies */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Section icon={TrendingUp} title="Revenue Synergies" tone="emerald">
-          <SynergyList items={intel.revenueSynergies} />
-        </Section>
-        <Section icon={Scissors} title="Cost Synergies" tone="amber">
-          <SynergyList items={intel.costSynergies} />
-        </Section>
-      </div>
-
-      {/* Integration complexity */}
+      {/* Integration Complexity (label only — no /10 score) */}
       <Section icon={Network} title="Integration Complexity">
-        <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
-          <div className="text-4xl font-bold text-slate-900">
-            {intel.integrationComplexity.score}
-            <span className="text-xl text-slate-400">/10</span>
-          </div>
-          <div>
-            <div
-              className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${
-                intel.integrationComplexity.level === "Low"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : intel.integrationComplexity.level === "Medium"
-                  ? "bg-indigo-50 text-indigo-700"
-                  : intel.integrationComplexity.level === "High"
-                  ? "bg-amber-50 text-amber-700"
-                  : "bg-red-50 text-red-700"
-              }`}
-            >
-              {intel.integrationComplexity.level}
-            </div>
-            <div className="mt-1 text-xs text-slate-500">
-              Based on size, geography, sector, and deal structure
-            </div>
-          </div>
+        <div className="flex items-start gap-4">
+          <span
+            className={`rounded-md px-3 py-1 text-sm font-bold ${
+              intel.integrationComplexity.level === "Low" ? "bg-emerald-100 text-emerald-800"
+              : intel.integrationComplexity.level === "Medium" ? "bg-indigo-100 text-indigo-800"
+              : intel.integrationComplexity.level === "High" ? "bg-amber-100 text-amber-800"
+              : "bg-red-100 text-red-800"
+            }`}
+          >
+            {intel.integrationComplexity.level}
+          </span>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Based on size, geography, sector, and deal structure</p>
         </div>
-        <ul className="mt-4 space-y-2">
+        <ul className="mt-3 space-y-1.5">
           {intel.integrationComplexity.drivers.map((d, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+            <li key={i} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
               <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
               {d}
             </li>
@@ -260,8 +230,9 @@ export default function DealDetailPage() {
         </ul>
       </Section>
 
-      {/* Comparables */}
+     {/* Comparables */}
       <Section icon={GitCompare} title="Comparable Deals">
+        <ComparablePatternInsight comparables={intel.comparables} deal={deal} />
         {intel.comparables.length === 0 ? (
           <p className="text-sm text-slate-500">
             No comparable transactions in your dataset yet.
@@ -307,46 +278,7 @@ export default function DealDetailPage() {
       </Section>
 
       {/* Advisory score breakdown */}
-      <Section icon={Trophy} title="Advisory Attractiveness Score">
-        <div className="flex items-center gap-6 border-b border-slate-100 pb-4">
-          <div>
-            <div className={`text-5xl font-bold ${gradeColor[intel.advisoryScore.grade]}`}>
-              {intel.advisoryScore.grade}
-            </div>
-            <div className="mt-1 text-xs text-slate-500">
-              {intel.advisoryScore.score} / 100
-            </div>
           </div>
-          <div className="flex-1">
-            <div className="mb-2 text-xs text-slate-500">
-              Composite score across four weighted factors
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
-                style={{ width: `${intel.advisoryScore.score}%` }}
-              />
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 space-y-2">
-          {intel.advisoryScore.factors.map((f, i) => (
-            <div key={i} className="flex items-center gap-3 text-sm">
-              <span className="w-40 text-slate-600">{f.label}</span>
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full bg-indigo-500"
-                  style={{ width: `${(f.contribution / f.weight) * 100}%` }}
-                />
-              </div>
-              <span className="w-24 text-right font-mono text-xs text-slate-500">
-                {f.contribution.toFixed(1)} / {f.weight}
-              </span>
-            </div>
-          ))}
-        </div>
-      </Section>
-    </div>
   );
 }
 
@@ -706,4 +638,48 @@ function PartnerDecisionBlock({ deal }: { deal: Record<string, unknown> }) {
       )}
     </div>
   );
+}
+
+
+
+
+function ComparablePatternInsight({ comparables, deal }: {
+  comparables: Array<{ id: string; deal_date: string | null; buyer: string; target: string; country: string | null; normalized_value_usd: number | null }>;
+  deal: { sector: string | null; country: string | null; deal_type: string | null; normalized_value_usd: number | null };
+}) {
+  if (!comparables || comparables.length === 0) return null;
+
+  const totalValue = comparables.reduce((sum, c) => sum + (c.normalized_value_usd ?? 0), 0);
+  const avg = totalValue / comparables.length / 1_000_000;
+  const dealUsdM = (deal.normalized_value_usd ?? 0) / 1_000_000;
+  const sameCountry = comparables.filter((c) => c.country === deal.country).length;
+  const allSameRegion = sameCountry / comparables.length >= 0.7;
+
+  let pattern = "";
+  if (avg > 0 && dealUsdM > 0) {
+    const ratio = dealUsdM / avg;
+    if (ratio > 1.5) pattern = `This deal sits ${ratio.toFixed(1)}× the comparable average — premium pricing signals strategic urgency or scarcity. Expect competitive bidder dynamics and aggressive synergy assumptions.`;
+    else if (ratio < 0.5) pattern = `Deal value is ${(1/ratio).toFixed(1)}× below comparable average — likely reflects sub-scale target or distressed pricing. Verify EBITDA quality.`;
+    else pattern = `Deal value tracks comparable averages closely (${ratio.toFixed(1)}×). Pricing logic appears benchmarked; differentiation must come from synergy execution.`;
+  } else {
+    pattern = `Comparable set ranges across multiple deal sizes; sector pattern more relevant than size benchmark.`;
+  }
+
+  if (allSameRegion) pattern += ` ${sameCountry}/${comparables.length} comparables in ${deal.country} — geographic concentration confirms regional consolidation thesis.`;
+
+  return (
+    <div className="mb-4 rounded-lg border-l-4 border-l-indigo-500 bg-indigo-50/50 p-3 dark:bg-indigo-950/20">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Insight from Comparables</p>
+      <p className="mt-1 text-xs leading-relaxed text-slate-800 dark:text-slate-200">{pattern}</p>
+    </div>
+  );
+}
+
+function AIResearchPanel({ deal }: { deal: Record<string, unknown> }) {
+  "use client";
+  // Note: this is a Server Component context. We'll inline a simple client wrapper.
+  return <AIResearchClient dealId={deal.id as string} buyer={deal.buyer as string} target={deal.target as string}
+    sector={deal.sector as string | null} country={deal.country as string | null}
+    dealType={deal.deal_type as string | null} stakePercent={deal.stake_percent as number | null}
+    cached={deal.ai_enrichment as Record<string, unknown> | null} />;
 }
