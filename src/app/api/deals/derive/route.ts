@@ -11,7 +11,7 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data: rows, error } = await admin.from("deals").select("*").eq("user_id", user.id).limit(500);
+  const { data: rows, error } = await admin.from("deals").select("*").limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let updated = 0;
