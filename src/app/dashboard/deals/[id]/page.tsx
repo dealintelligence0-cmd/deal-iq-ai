@@ -22,6 +22,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import { buildIntelligence, type Intelligence } from "@/lib/intelligence";
+import AIResearchClient from "@/components/AIResearchClient";
 
 const sevColor: Record<string, string> = {
   Low: "bg-slate-100 text-slate-700",
@@ -172,7 +173,16 @@ export default function DealDetailPage() {
       <PartnerDecisionBlock deal={deal} />
 
 {/* AI-Researched Deal Context — replaces generic Strategic Rationale + generic Synergies + numeric Integration Complexity */}
-      <AIResearchPanel deal={deal} />
+     <AIResearchClient
+        dealId={deal.id}
+        buyer={deal.buyer}
+        target={deal.target}
+        sector={deal.sector}
+        country={deal.country}
+        dealType={deal.deal_type}
+        stakePercent={deal.stake_percent}
+        cached={(deal as { ai_enrichment?: Record<string, unknown> }).ai_enrichment ?? null}
+      />
 
       {/* Integration Complexity (label only — no /10 score) */}
       <Section icon={Network} title="Integration Complexity">
@@ -675,11 +685,3 @@ function ComparablePatternInsight({ comparables, deal }: {
   );
 }
 
-function AIResearchPanel({ deal }: { deal: Record<string, unknown> }) {
-  "use client";
-  // Note: this is a Server Component context. We'll inline a simple client wrapper.
-  return <AIResearchClient dealId={deal.id as string} buyer={deal.buyer as string} target={deal.target as string}
-    sector={deal.sector as string | null} country={deal.country as string | null}
-    dealType={deal.deal_type as string | null} stakePercent={deal.stake_percent as number | null}
-    cached={deal.ai_enrichment as Record<string, unknown> | null} />;
-}
