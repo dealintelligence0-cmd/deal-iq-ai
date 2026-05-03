@@ -439,7 +439,11 @@ function DealInsight({ deal }: { deal: Deal }) {
     </div>
   );
 }
-{
+
+function SortHeader({ label, k, sortKey, sortDir, onSort, align = "left" }: {
+  label: string; k: SortKey; sortKey: SortKey; sortDir: SortDir;
+  onSort: (k: SortKey) => void; align?: "left" | "right";
+}) {
   const active = sortKey === k;
   return (
     <th className={`px-4 py-3 ${align === "right" ? "text-right" : ""}`}>
