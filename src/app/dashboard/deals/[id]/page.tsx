@@ -161,8 +161,8 @@ export default function DealDetailPage() {
 
       {/* Buyer / Target profiles */}
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <ProfileCard icon={Building2} tone="indigo" title="Buyer Overview" profile={intel.buyerProfile} />
-        <ProfileCard icon={Target} tone="purple" title="Target Overview" profile={intel.targetProfile} />
+        <ProfileCard icon={Building2} tone="indigo" title="Buyer Context" profile={intel.buyerProfile} role="buyer" deal={deal} />
+        <ProfileCard icon={Target} tone="purple" title="Target Context" profile={intel.targetProfile} role="target" deal={deal} />
       </div>
 
       {/* Strategic rationale */}
@@ -395,65 +395,131 @@ function Section({
 }
 
 function ProfileCard({
-  icon: Icon,
-  tone,
-  title,
-  profile,
+  icon: Icon, tone, title, profile, role, deal,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   tone: "indigo" | "purple";
   title: string;
   profile: { name: string; dealsInvolved: number; totalValueUsd: number; sectors: string[]; countries: string[]; avgDealSize: number };
+  role: "buyer" | "target";
+  deal: { sector: string | null; country: string | null; deal_type: string | null; stake_percent: number | null; normalized_value_usd: number | null; insight_sections?: { thesis?: string; why_now?: string; value_drivers?: string[]; risks?: string[]; advisory_angle?: string } | null };
 }) {
   const tones = {
-    indigo: "bg-indigo-50 text-indigo-600",
-    purple: "bg-purple-50 text-purple-600",
+    indigo: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400",
+    purple: "bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400",
   };
+
+  const usdM = (deal.normalized_value_usd ?? 0) / 1_000_000;
+  const sizeLabel = usdM >= 1000 ? "large" : usdM >= 250 ? "mid-market" : "small-cap";
+  const crossBorder = (deal.country ?? "").includes(",");
+  const isHotSector = /tech|saas|software|fintech|life|pharma|healthcare|biotech|renewable|infrastructure|data center|ev|semiconductor|defence/i.test(deal.sector ?? "");
+  const isRegulated = /pharma|life|healthcare|financial|banking|bfsi|insurance|energy|defence|telecom|utilities/i.test(deal.sector ?? "");
+  const isComplexDeal = /merger|jv|carve|spin|ipo/i.test(deal.deal_type ?? "");
+  const stake = deal.stake_percent;
+  const ins = deal.insight_sections ?? {};
+
+  // BUYER bullets
+  const buyerBullets: string[] = [];
+  if (role === "buyer") {
+    // 1) Strategic Intent
+    if (isHotSector) buyerBullets.push(`Strategic intent: positioning in ${deal.sector} during sector consolidation window`);
+    else if (crossBorder) buyerBullets.push(`Strategic intent: ${deal.country?.split(",")[0]} → ${deal.country?.split(",").slice(1).join(",")} expansion via M&A vs greenfield`);
+    else buyerBullets.push(`Strategic intent: ${deal.sector ?? "sector"} consolidation; bolt-on to existing platform`);
+
+    // 2) Recent deal pattern (using profile.dealsInvolved)
+    if (profile.dealsInvolved >= 5) buyerBullets.push(`Active acquirer: ${profile.dealsInvolved} prior deals tracked, suggests serial M&A playbook`);
+    else if (profile.dealsInvolved >= 2) buyerBullets.push(`Selective acquirer: ${profile.dealsInvolved} prior deals — measured M&A approach`);
+    else buyerBullets.push(`First-time / opportunistic acquirer in this dataset — likely engaging external advisors`);
+
+    // 3) Capability gap
+    if (deal.deal_type && /carve|spin/i.test(deal.deal_type)) buyerBullets.push(`Capability gap: targeted asset purchase signals specific portfolio need vs broad consolidation`);
+    else buyerBullets.push(`Fills capability gap in ${deal.sector ?? "sector"}; ${stake && stake >= 90 ? "full-control acquisition" : stake && stake >= 50 ? "majority stake" : "minority partnership"}`);
+
+    // 4) Operating model
+    if (stake != null && stake >= 90) buyerBullets.push(`Full-absorption likely: 100% control suggests integration-heavy operating model`);
+    else if (stake != null && stake >= 50) buyerBullets.push(`Controlled-autonomy likely: majority + retained minority partner suggests phased integration`);
+    else buyerBullets.push(`Light-touch likely: minority position, governance-only intervention model`);
+
+    // 5) Advisory signal
+    if (isComplexDeal || crossBorder || isRegulated) buyerBullets.push(`HIGH advisory signal: ${isComplexDeal ? deal.deal_type : ""}${isComplexDeal && crossBorder ? " + " : ""}${crossBorder ? "cross-border" : ""}${(isComplexDeal || crossBorder) && isRegulated ? " + " : ""}${isRegulated ? "regulated sector" : ""} requires external counsel + advisors`);
+    else buyerBullets.push(`MEDIUM advisory signal: ${sizeLabel} deal, standard execution; advisor for DD + valuation`);
+  }
+
+  // TARGET bullets
+  const targetBullets: string[] = [];
+  if (role === "target") {
+    // 1) Core strength (use thesis if available)
+    if (ins.thesis) targetBullets.push(`Core asset: ${ins.thesis.slice(0, 130)}${ins.thesis.length > 130 ? "…" : ""}`);
+    else targetBullets.push(`Core asset: ${profile.name} — ${deal.sector ?? "sector"} player in ${deal.country ?? "geography"}`);
+
+    // 2) Strategic asset value
+    if (isHotSector) targetBullets.push(`Strategic value: scarce asset in active ${deal.sector} category — multiple bidders likely`);
+    else if (isRegulated) targetBullets.push(`Strategic value: licensed/regulated entity, high barriers to organic build`);
+    else targetBullets.push(`Strategic value: established ${deal.sector ?? "sector"} position with operating history`);
+
+    // 3) Fit with buyer
+    if (deal.deal_type && /merger/i.test(deal.deal_type)) targetBullets.push(`Fit: largely overlapping — merger of equals dynamics, branding decisions critical`);
+    else if (crossBorder) targetBullets.push(`Fit: complementary geographic footprint, limited operational overlap`);
+    else targetBullets.push(`Fit: complementary capability/customer base; integration overlay required`);
+
+    // 4) Scalability
+    if (usdM >= 1000) targetBullets.push(`Scalability: large platform — buyer can scale via cross-sell + adjacent M&A around target`);
+    else if (usdM >= 250) targetBullets.push(`Scalability: mid-market — capacity expansion + GTM acceleration as primary levers`);
+    else targetBullets.push(`Scalability: tactical asset — capability acquisition over scale play`);
+
+    // 5) Risk flags
+    const riskFlag = ins.risks && ins.risks.length > 0 ? ins.risks[0] : (
+      isRegulated ? "Regulatory transition + license carryover" :
+      crossBorder ? "Cross-border cultural + operating model alignment" :
+      "Talent retention + customer continuity through transition"
+    );
+    targetBullets.push(`Risk flag: ${riskFlag}`);
+  }
+
+  const bullets = role === "buyer" ? buyerBullets : targetBullets;
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
       <div className="mb-4 flex items-center gap-2">
         <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${tones[tone]}`}>
           <Icon className="h-4 w-4" />
         </div>
-        <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h2>
       </div>
-      <div className="text-xl font-semibold text-slate-900">{profile.name}</div>
-      <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-4">
+      <div className="text-xl font-semibold text-slate-900 dark:text-white">{profile.name}</div>
+
+      {/* Deal-relevant intelligence bullets */}
+      <ul className="mt-4 space-y-2 border-t border-slate-100 pt-4 dark:border-white/5">
+        {bullets.map((b, i) => (
+          <li key={i} className="flex items-start gap-2 text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+            <span className={`mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full ${tone === "indigo" ? "bg-indigo-500" : "bg-purple-500"}`} />
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+
+      {/* Quick stats footer */}
+      <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 dark:border-white/5">
         <Kpi label="Deals" value={profile.dealsInvolved.toLocaleString()} />
         <Kpi label="Total Value" value={formatUsdShort(profile.totalValueUsd)} />
-        <Kpi
-          label="Avg Size"
-          value={profile.avgDealSize > 0 ? formatUsdShort(profile.avgDealSize) : "—"}
-        />
+        <Kpi label="Avg Size" value={profile.avgDealSize > 0 ? formatUsdShort(profile.avgDealSize) : "—"} />
       </div>
+
       {profile.sectors.length > 0 && (
-        <div className="mt-4">
-          <div className="text-xs text-slate-500">Active sectors</div>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {profile.sectors.map((s) => (
-              <span key={s} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-                {s}
-              </span>
-            ))}
-          </div>
+        <div className="mt-3 text-[10px]">
+          <span className="text-slate-500">Sectors: </span>
+          <span className="text-slate-700 dark:text-slate-300">{profile.sectors.slice(0, 4).join(" · ")}</span>
         </div>
       )}
       {profile.countries.length > 0 && (
-        <div className="mt-3">
-          <div className="text-xs text-slate-500">Geographies</div>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {profile.countries.map((c) => (
-              <span key={c} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-                {c}
-              </span>
-            ))}
-          </div>
+        <div className="text-[10px]">
+          <span className="text-slate-500">Geos: </span>
+          <span className="text-slate-700 dark:text-slate-300">{profile.countries.slice(0, 4).join(" · ")}</span>
         </div>
       )}
     </div>
   );
 }
-
 function SynergyList({ items }: { items: { area: string; description: string; impact: "Low" | "Medium" | "High" }[] }) {
   return (
     <div className="space-y-3">
