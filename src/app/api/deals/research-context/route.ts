@@ -125,11 +125,35 @@ Return JSON per schema.`;
       return NextResponse.json({ error: `AI failed: ${result.lastError ?? "unknown"}` }, { status: 500 });
     }
 
-    // Parse JSON
+   // Parse JSON with fallback extraction
     const text = result.text.replace(/```json|```/g, "").trim();
-    let parsed: Record<string, unknown>;
-    try { parsed = JSON.parse(text); }
-    catch { return NextResponse.json({ error: "AI returned non-JSON. Try again." }, { status: 500 }); }
+    let parsed: Record<string, unknown> = {};
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // Fallback: extract first {...} block
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[0]); }
+        catch { /* still failed */ }
+      }
+      // Last-resort: regex-extract sections from raw text
+      if (Object.keys(parsed).length === 0) {
+        const extractList = (label: string): string[] => {
+          const re = new RegExp(`${label}[":\\s\\[]*([^\\[\\]]+)`, "i");
+          const m = text.match(re);
+          if (!m) return [];
+          return m[1].split(/[",\n]/).map((s) => s.trim().replace(/^[-•*]\s*/, "")).filter((s) => s.length > 8).slice(0, 5);
+        };
+        parsed = {
+          buyer_context: extractList("buyer_context"),
+          target_context: extractList("target_context"),
+          comparable_pattern: (text.match(/comparable[_\s]?pattern[":\s]*"([^"]+)"/i)?.[1]) || "Pattern unavailable — AI output malformed.",
+          advisory_attractiveness_why: (text.match(/advisory_attractiveness_why[":\s]*"([^"]+)"/i)?.[1]) || "—",
+          advisory_attractiveness_so_what: (text.match(/advisory_attractiveness_so_what[":\s]*"([^"]+)"/i)?.[1]) || "—",
+        };
+      }
+    }
 
     // Save to ai_enrichment
     await admin.from("deals").update({
