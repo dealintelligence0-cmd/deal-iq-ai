@@ -39,8 +39,7 @@ export type Deal = {
   time_sensitivity: string | null;
   why_not: string | null;
   action_verb: string | null;
-  targeting_recommendation: string | null;
-  deal_takeaway: string | null;
+ 
 };
 
 export type Kpis = {
