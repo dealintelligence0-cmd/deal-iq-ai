@@ -77,6 +77,20 @@ export default function PipelinePage() {
       if (filters.status && d.status !== filters.status) return false;
       if (filters.dateFrom && (!d.deal_date || d.deal_date < filters.dateFrom)) return false;
       if (filters.dateTo && (!d.deal_date || d.deal_date > filters.dateTo)) return false;
+      // New decision filters
+      type DealExt = Deal & { targeting_recommendation?: string | null; priority_score?: number | null; advisory_score?: number | null; time_sensitivity?: string | null };
+      const dExt = d as DealExt;
+      if (filters.targeting && dExt.targeting_recommendation !== filters.targeting) return false;
+      if (filters.minPriority && (dExt.priority_score ?? 0) < parseInt(filters.minPriority)) return false;
+      if (filters.minAdvisory && (dExt.advisory_score ?? 0) < parseInt(filters.minAdvisory)) return false;
+      if (filters.timeSensitivity) {
+        const ts = dExt.time_sensitivity ?? "";
+        if (filters.timeSensitivity === "Early" && !/Early/i.test(ts)) return false;
+        if (filters.timeSensitivity === "Mid" && !/Mid/i.test(ts)) return false;
+        if (filters.timeSensitivity === "Late" && !/Late|Stale/i.test(ts)) return false;
+      }
+
+      
       if (minV !== null && (d.normalized_value_usd ?? 0) < minV) return false;
       if (maxV !== null && (d.normalized_value_usd ?? 0) > maxV) return false;
       return true;
@@ -393,23 +407,40 @@ function DealInsight({ deal }: { deal: Deal }) {
     : targeting === "MEDIUM" ? "bg-amber-100 text-amber-800"
     : targeting === "LOW" ? "bg-slate-100 text-slate-600" : "bg-slate-50 text-slate-400";
 
+  const actionVerb = (deal as Deal & { action_verb?: string }).action_verb;
+  const advisorSignal = (deal as Deal & { advisor_signal?: string }).advisor_signal;
+  const timeSens = (deal as Deal & { time_sensitivity?: string }).time_sensitivity;
+  const whyNot = (deal as Deal & { why_not?: string }).why_not;
+
+  const verbColor = actionVerb === "Aggressive Pursuit" ? "bg-emerald-600 text-white"
+    : actionVerb === "Selective Outreach" ? "bg-amber-500 text-white"
+    : actionVerb === "Monitor" ? "bg-blue-500 text-white"
+    : "bg-slate-400 text-white";
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      {/* Top banner */}
-      <div className="md:col-span-3 flex items-center gap-3 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900/20 dark:bg-indigo-950/10">
-        <div className="flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Deal Takeaway</p>
-          <p className="mt-0.5 text-sm text-slate-800 dark:text-slate-200">{takeaway ?? "Run Derive Fields to generate."}</p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${targetingColor}`}>
-            <Target className="mr-1 inline h-3 w-3" />
-            Target: {targeting ?? "—"}
+      {/* Top banner with ACTION VERB */}
+      <div className="md:col-span-3 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900/20 dark:bg-indigo-950/10">
+        <div className="flex items-start gap-3">
+          <span className={`rounded-md px-3 py-1.5 text-xs font-bold ${verbColor}`}>
+            {actionVerb ?? "Run Derive"}
           </span>
-          {confidence && <span className="text-[9px] text-slate-500">Confidence: {confidence}</span>}
+          <div className="flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Deal Takeaway</p>
+            <p className="mt-0.5 text-sm text-slate-800 dark:text-slate-200">{takeaway ?? "Run Derive Fields to generate."}</p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1 text-[10px]">
+            {confidence && <span className="text-slate-500">Confidence: {confidence}</span>}
+            {timeSens && <span className="text-slate-500">Stage: {timeSens}</span>}
+            {advisorSignal && <span className="rounded bg-purple-100 px-1.5 py-0.5 font-medium text-purple-700">{advisorSignal}</span>}
+          </div>
         </div>
+        {whyNot && whyNot !== "—" && (
+          <div className="mt-2 border-t border-indigo-100 pt-2 dark:border-indigo-900/20">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Why Not: </span>
+            <span className="text-[11px] text-slate-700 dark:text-slate-300">{whyNot}</span>
+          </div>
+        )}
       </div>
-
       {/* Investment Thesis */}
       <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Investment Thesis</p>
@@ -484,5 +515,38 @@ function SortHeader({ label, k, sortKey, sortDir, onSort, align = "left" }: {
                 : <ChevronDown className="h-3 w-3 opacity-30" />}
       </button>
     </th>
+  );
+}
+
+function Top5DealsStrip({ deals }: { deals: Deal[] }) {
+  type DealExt = Deal & { priority_score?: number | null; advisory_score?: number | null; targeting_recommendation?: string | null; action_verb?: string | null; deal_takeaway?: string | null };
+  const sorted = (deals as DealExt[])
+    .filter((d) => d.targeting_recommendation === "HIGH" || (d.priority_score ?? 0) >= 70)
+    .sort((a, b) => ((b.priority_score ?? 0) + (b.advisory_score ?? 0)) - ((a.priority_score ?? 0) + (a.advisory_score ?? 0)))
+    .slice(0, 5);
+
+  if (sorted.length === 0) return null;
+
+  return (
+    <div className="mb-4 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 dark:border-emerald-900/30 dark:from-emerald-950/20 dark:to-[#15151f]">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">⭐ Top 5 Priority Deals — Aggressive Pursuit</span>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-5">
+        {sorted.map((d) => (
+          <Link key={d.id} href={`/dashboard/deals/${d.id}`}
+            className="rounded-lg border border-emerald-200 bg-white p-2.5 transition hover:border-emerald-400 hover:shadow-sm dark:border-emerald-900/40 dark:bg-[#15151f]">
+            <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+              P{d.priority_score ?? "—"} · A{d.advisory_score ?? "—"}
+            </div>
+            <p className="mt-1 truncate text-xs font-semibold text-slate-900 dark:text-white">
+              {d.buyer ?? "—"} → {d.target ?? "—"}
+            </p>
+            <p className="text-[10px] text-slate-500">{d.sector} · {d.country}</p>
+            <p className="mt-1 text-[10px] text-slate-700 dark:text-slate-300 line-clamp-2">{d.deal_takeaway ?? "—"}</p>
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
