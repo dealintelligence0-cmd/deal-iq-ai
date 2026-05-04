@@ -93,19 +93,55 @@ function summarize(notes: string | null, buyer: string | null, target: string | 
 }
 
 function extractStakeFromText(notes: string | null, valueRaw: string | null, dealType: string | null): number | null {
-  const text = [notes, valueRaw, dealType].filter(Boolean).join(" ");
+  // Combine all candidate text sources
+  const text = [notes, valueRaw, dealType].filter(Boolean).join(" ").toLowerCase();
   if (!text) return null;
-  // Prefer % near keywords
-  const ctx = text.match(/(\d{1,3}(?:\.\d+)?)\s*%[^a-z]*(?:stake|acquired|ownership|holding|shares|equity|interest)/i);
+
+  // Format 1: "100.00", "45.00" — pure numeric (when stake_value column was a number)
+  if (/^\s*-?\d+(?:\.\d+)?\s*$/.test(text)) {
+    const n = parseFloat(text);
+    if (n > 0 && n <= 100) return n;
+  }
+
+  // Format 2: "Between 10% and 29% inclusive" → take midpoint or upper
+  const between = text.match(/between\s+(\d{1,3}(?:\.\d+)?)\s*%?\s*(?:and|to|-)\s*(\d{1,3}(?:\.\d+)?)\s*%/);
+  if (between) {
+    const lo = parseFloat(between[1]);
+    const hi = parseFloat(between[2]);
+    if (lo > 0 && hi > 0 && hi <= 100) return Math.round((lo + hi) / 2);
+  }
+
+  // Format 3: "more than 30% inclusive" → return that boundary value
+  const more = text.match(/(?:more than|greater than|over|above|>)\s*(\d{1,3}(?:\.\d+)?)\s*%/);
+  if (more) {
+    const n = parseFloat(more[1]);
+    if (n > 0 && n <= 100) return n;
+  }
+
+  // Format 4: "less than X%" / "below X%"
+  const less = text.match(/(?:less than|below|under|<)\s*(\d{1,3}(?:\.\d+)?)\s*%/);
+  if (less) {
+    const n = parseFloat(less[1]);
+    if (n > 1 && n <= 100) return n - 1; // approximate
+  }
+
+  // Format 5: explicit "% near keywords"
+  const ctx = text.match(/(\d{1,3}(?:\.\d+)?)\s*%[^a-z]*(?:stake|acquired|ownership|holding|shares|equity|interest)/);
   if (ctx) return parseFloat(ctx[1]);
-  const reverseCtx = text.match(/(?:stake|acquired|ownership|holding|shares|equity|interest)[^%]*?(\d{1,3}(?:\.\d+)?)\s*%/i);
+
+  const reverseCtx = text.match(/(?:stake|acquired|ownership|holding|shares|equity|interest)[^%]*?(\d{1,3}(?:\.\d+)?)\s*%/);
   if (reverseCtx) return parseFloat(reverseCtx[1]);
-  // Any standalone %
+
+  // Format 6: "N/A" / "n/a" / "not disclosed" / blank → null
+  if (/n\/?a|not\s+disclosed|undisclosed|tbd/.test(text)) return null;
+
+  // Format 7: fallback — any % in text
   const any = text.match(/(\d{1,3}(?:\.\d+)?)\s*%/);
   if (any) {
     const n = parseFloat(any[1]);
     if (n > 0 && n <= 100) return n;
   }
+
   return null;
 }
 
@@ -302,10 +338,12 @@ const valueRaw = (raw.value_raw as string | null) ?? null;
 const notes = (raw.notes as string | null) ?? null;
 
 let stakePct = (raw.stake_percent as number | null) ?? null;
-
-if (stakePct == null || stakePct === 0) {
-  stakePct = extractStakeFromText(notes, valueRaw, dealType);
-}
+  if (stakePct == null || stakePct === 0) {
+    // Try stake_value (raw CSV column) first, then notes/value_raw
+    const stakeRaw = (raw.stake_value as string | null) ?? null;
+    stakePct = extractStakeFromText(stakeRaw, notes, valueRaw)
+            ?? extractStakeFromText(notes, valueRaw, dealType);
+  }
 
 const usdNorm = (raw.normalized_value_usd as number | null) ?? null;
   
