@@ -509,9 +509,20 @@ function DealTakeawayBanner({ deal }: { deal: Record<string, unknown> }) {
     );
   }
 
-  const targetingColor = targeting === "HIGH" ? "from-emerald-600 to-emerald-700"
-    : targeting === "MEDIUM" ? "from-amber-500 to-amber-600"
-    : "from-slate-500 to-slate-600";
+  // Translate HIGH/MEDIUM/LOW to actionable verdict
+  const verdict = targeting === "HIGH" ? "PURSUE" : targeting === "MEDIUM" ? "WATCH" : targeting === "LOW" ? "DECLINE" : "REVIEW";
+  const verdictColor = verdict === "PURSUE" ? "from-emerald-600 to-emerald-700"
+    : verdict === "WATCH" ? "from-amber-500 to-amber-600"
+    : verdict === "DECLINE" ? "from-slate-500 to-slate-600"
+    : "from-indigo-500 to-purple-600";
+
+  const nextAction = verdict === "PURSUE"
+    ? "Engage decision-maker within 7 days with deal-specific POV memo"
+    : verdict === "WATCH"
+    ? "Add to weekly watchlist; revisit if buyer signals renewed activity"
+    : verdict === "DECLINE"
+    ? "Pass — sub-economic vs current pipeline; revisit only on relationship trigger"
+    : "Run Derive Fields on Pipeline page to generate verdict";
 
   const advAttractiveness = (advScore ?? 0) >= 70 ? "HIGH" : (advScore ?? 0) >= 40 ? "MEDIUM" : "LOW";
   const advColor = advAttractiveness === "HIGH" ? "bg-emerald-100 text-emerald-800"
@@ -520,18 +531,19 @@ function DealTakeawayBanner({ deal }: { deal: Record<string, unknown> }) {
 
   return (
     <div className="mb-6 overflow-hidden rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-purple-50 shadow-sm dark:border-indigo-900/30 dark:from-indigo-950/20 dark:via-[#15151f] dark:to-purple-950/20">
-      <div className={`bg-gradient-to-r ${targetingColor} px-5 py-3 text-white`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Decision</span>
-            <span className="text-2xl font-bold">{targeting ?? "—"}</span>
+      <div className={`bg-gradient-to-r ${verdictColor} px-5 py-4 text-white`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-baseline gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Verdict</span>
+            <span className="text-3xl font-extrabold tracking-tight">{verdict}</span>
           </div>
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-2 text-xs">
             <span className="rounded-full bg-white/20 px-2.5 py-1 font-semibold">Priority {prioScore ?? "—"}</span>
             <span className="rounded-full bg-white/20 px-2.5 py-1 font-semibold">Advisory {advScore ?? "—"}</span>
             <span className="rounded-full bg-white/20 px-2.5 py-1 font-semibold">Risk {riskScore ?? "—"}</span>
           </div>
         </div>
+        <p className="mt-2 border-t border-white/20 pt-2 text-xs font-medium opacity-95">▶ Next: {nextAction}</p>
       </div>
       <div className="px-5 py-4">
         <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Deal Takeaway</p>
