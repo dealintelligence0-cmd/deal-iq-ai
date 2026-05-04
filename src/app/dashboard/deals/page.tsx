@@ -73,6 +73,9 @@ export default function PipelinePage() {
       }
       if (filters.sector && d.sector !== filters.sector) return false;
       if (filters.country && d.country !== filters.country) return false;
+
+      if (filters.indiaFlow && (d as Deal & { india_flow?: string | null }).india_flow !== filters.indiaFlow) return false;
+      if (filters.stakeStatus && (d as Deal & { stake_status?: string | null }).stake_status !== filters.stakeStatus) return false;
       if (filters.dealType && d.deal_type !== filters.dealType) return false;
       if (filters.status && d.status !== filters.status) return false;
       if (filters.dateFrom && (!d.deal_date || d.deal_date < filters.dateFrom)) return false;
