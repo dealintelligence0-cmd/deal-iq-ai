@@ -171,7 +171,12 @@ export default function DealDetailPage() {
       </div>
 
       {/* PARTNER DECISION BLOCK — Investment Thesis · Why Now · Deal Tension · Advisory Angle */}
+      {/* PARTNER DECISION BLOCK — Investment Thesis · Why Now · Deal Tension · Advisory Angle */}
       <PartnerDecisionBlock deal={deal} />
+
+      {/* ADVISORY OPPORTUNITY + HOW TO WIN */}
+      <AdvisoryOpportunityBlock deal={deal} />
+      <HowToWinBlock deal={deal} />
 
 {/* AI-Researched Deal Context — replaces generic Strategic Rationale + generic Synergies + numeric Integration Complexity */}
      <AIResearchClient
@@ -726,3 +731,154 @@ function ComparablePatternInsight({
     </div>
   );
 }
+
+function AdvisoryOpportunityBlock({ deal }: { deal: Record<string, unknown> }) {
+  const usdM = ((deal.normalized_value_usd as number | null) ?? 0) / 1_000_000;
+  const dealType = (deal.deal_type as string | null) ?? "";
+  const sector = (deal.sector as string | null) ?? "";
+  const country = (deal.country as string | null) ?? "";
+  const stake = (deal.stake_percent as number | null);
+  const advScore = (deal.advisory_score as number | null) ?? 0;
+  const crossBorder = country.includes(",");
+
+  // Likely advisory phase
+  let phase = "Diligence + Valuation";
+  if (/carve|spin/i.test(dealType)) phase = "Carve-out + Separation Design";
+  else if (/merger/i.test(dealType)) phase = "Integration + Synergy Design";
+  else if (/jv/i.test(dealType)) phase = "JV Structure + Governance";
+  else if (/ipo/i.test(dealType)) phase = "Listing Readiness + Equity Story";
+  else if (stake != null && stake >= 90) phase = "Full Integration + 100-Day Plan";
+  else if (stake != null && stake >= 50) phase = "Controlled Integration + IMO Setup";
+  else if (stake != null && stake < 50) phase = "Strategy + Governance Advisory";
+
+  // Fee range heuristic
+  let feeRange = "$0.5-1.5M";
+  if (usdM >= 10000) feeRange = "$15-40M";
+  else if (usdM >= 5000) feeRange = "$8-20M";
+  else if (usdM >= 1000) feeRange = "$3-10M";
+  else if (usdM >= 250) feeRange = "$1-3M";
+
+  // Engagement timing
+  let timing = "Pre-signing (DD)";
+  if (/pmi|integration/i.test(dealType)) timing = "Post-close (Day 1 + 100-day)";
+  else if (/carve/i.test(dealType)) timing = "Pre-signing through Day 1 (separation critical path)";
+  else if (/ipo/i.test(dealType)) timing = "Pre-filing (12-18 months ahead)";
+
+  // Buyer behavior
+  const buyer = (deal.buyer as string | null) ?? "";
+  const buyerBehavior = buyer.length > 0
+    ? (advScore >= 60 ? "Likely structured M&A function — expect formal advisor selection process; lead with sector + integration credentials"
+       : "Less established M&A function — opportunity to embed early as advisor of choice")
+    : "Buyer unknown — cannot assess M&A maturity";
+
+  // Advisory angle from existing data
+  const ins = (deal.insight_sections as { advisory_angle?: string } | null) ?? {};
+  const angle = ins.advisory_angle ?? "Lead with sector specialism + cross-border execution playbook";
+
+  return (
+    <div className="mb-6">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+        <span className="inline-block h-1 w-6 rounded-full bg-emerald-500" />
+        Advisory Opportunity
+      </h2>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <Card label="Likely Phase" value={phase} accent="emerald" />
+        <Card label="Estimated Fee Range" value={feeRange} accent="indigo" />
+        <Card label="Engagement Timing" value={timing} accent="purple" />
+        <Card label="Buyer M&A Behavior" value={buyerBehavior} accent="amber" />
+      </div>
+      <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/30 dark:bg-emerald-950/10">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Advisory Angle</p>
+        <p className="mt-1 text-sm text-slate-800 dark:text-slate-200">{angle}</p>
+      </div>
+    </div>
+  );
+}
+
+function HowToWinBlock({ deal }: { deal: Record<string, unknown> }) {
+  const dealType = (deal.deal_type as string | null) ?? "";
+  const sector = (deal.sector as string | null) ?? "";
+  const country = (deal.country as string | null) ?? "";
+  const stake = (deal.stake_percent as number | null);
+  const usdM = ((deal.normalized_value_usd as number | null) ?? 0) / 1_000_000;
+  const crossBorder = country.includes(",");
+  const isRegulated = /pharma|life|healthcare|financial|banking|bfsi|insurance|energy|defence|telecom/i.test(sector);
+
+  // Entry strategy
+  let entry = "Outreach via existing buyer relationship + sector-led credentials pitch";
+  if (/carve|spin/i.test(dealType)) entry = "Lead with carve-out playbook + TSA design framework; bring named separation lead";
+  else if (/ipo/i.test(dealType)) entry = "Lead with listing readiness assessment + equity story workshop";
+  else if (crossBorder) entry = "Cross-border M&A credentials pitch; co-lead with India + counterpart-country partner";
+  else if (isRegulated) entry = "Regulatory + sector specialist pitch; demonstrate prior comparable approvals";
+  else if (usdM >= 1000) entry = "C-suite outreach via partner network; bring pre-prepared deal-specific POV";
+
+  // Target stakeholders
+  let stakeholders = "CFO · Head of Strategy · Head of M&A";
+  if (/carve|spin/i.test(dealType)) stakeholders = "CFO · Head of Carve-out PMO · CHRO · Head of IT (TSA)";
+  else if (/ipo/i.test(dealType)) stakeholders = "CFO · CFO Office (Equity Story) · Head of IR · Audit Committee Chair";
+  else if (/integration|pmi/i.test(dealType)) stakeholders = "Head of Integration · CFO · CHRO · COO · Sponsor Partner (if PE)";
+  else if (stake != null && stake < 50) stakeholders = "Head of Strategy · Investment Committee · Board observer";
+
+  // Strategic hook
+  let hook = `${sector || "Sector"} M&A activity is elevated — buyer needs sharp integration discipline to capture synergies before peer consolidation`;
+  if (/carve|spin/i.test(dealType)) hook = "Carve-outs leak 30-40% of value through TSA mismanagement; we bring proven separation governance";
+  else if (crossBorder) hook = "Cross-border integrations fail 50% of the time on cultural + operating model misalignment — our local + global capability bridges that gap";
+  else if (isRegulated) hook = `${sector} regulatory burden compresses execution windows; we bring prior-deal comparable timeline navigation`;
+  else if (usdM >= 1000) hook = "Large-deal value creation is concentrated in first 100 days; specialised IMO governance is the differentiator";
+
+  // Differentiation
+  let diff = "Senior-led delivery + sector specialists + proven synergy capture rigor";
+  if (/carve|spin/i.test(dealType)) diff = "Carve-out specialists with TSA + stranded cost frameworks; named partner involvement";
+  else if (crossBorder) diff = "On-the-ground partners both jurisdictions; pre-built regulatory pre-clearance pathway";
+  else if (isRegulated) diff = `${sector}-dedicated practice; prior comparable deal credentials + regulator dialogue capability`;
+  else if (/ipo/i.test(dealType)) diff = "ECM-grade equity story + prior listing comparables + SEBI/SEC interface capability";
+
+  return (
+    <div className="mb-6">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+        <span className="inline-block h-1 w-6 rounded-full bg-indigo-500" />
+        How to Win This Deal
+      </h2>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-indigo-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Entry Strategy</p>
+          <p className="mt-2 text-xs text-slate-800 dark:text-slate-200">{entry}</p>
+        </div>
+        <div className="rounded-xl border border-purple-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">Target Stakeholders</p>
+          <p className="mt-2 text-xs text-slate-800 dark:text-slate-200">{stakeholders}</p>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Strategic Hook</p>
+          <p className="mt-2 text-xs text-slate-800 dark:text-slate-200">{hook}</p>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Differentiation</p>
+          <p className="mt-2 text-xs text-slate-800 dark:text-slate-200">{diff}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Card({ label, value, accent }: { label: string; value: string; accent: "emerald" | "indigo" | "purple" | "amber" }) {
+  const colors = {
+    emerald: "border-emerald-200 dark:border-emerald-900/30",
+    indigo: "border-indigo-200 dark:border-indigo-900/30",
+    purple: "border-purple-200 dark:border-purple-900/30",
+    amber: "border-amber-200 dark:border-amber-900/30",
+  };
+  const labelColors = {
+    emerald: "text-emerald-700 dark:text-emerald-400",
+    indigo: "text-indigo-700 dark:text-indigo-400",
+    purple: "text-purple-700 dark:text-purple-400",
+    amber: "text-amber-700 dark:text-amber-400",
+  };
+  return (
+    <div className={`rounded-xl border ${colors[accent]} bg-white p-4 shadow-sm dark:bg-[#15151f]`}>
+      <p className={`text-[10px] font-bold uppercase tracking-wider ${labelColors[accent]}`}>{label}</p>
+      <p className="mt-1 text-xs font-semibold text-slate-800 dark:text-slate-200">{value}</p>
+    </div>
+  );
+}
+
