@@ -308,8 +308,7 @@ if (stakePct == null || stakePct === 0) {
 }
 
 const usdNorm = (raw.normalized_value_usd as number | null) ?? null;
-  const valueRaw = (raw.value_raw as string | null) ?? null;
-  const notes = (raw.notes as string | null) ?? null;
+  
   const dealDate = (raw.deal_date as string | null) ?? null;
   const status = (raw.status as string | null) ?? null;
 
