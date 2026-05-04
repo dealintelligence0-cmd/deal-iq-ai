@@ -195,8 +195,42 @@ export default function PipelinePage() {
         </div>
       </div>
 
+      {/* TOP 5 PRIORITY DEALS STRIP */}
+      <Top5DealsStrip deals={all} />
+
       <div className="mb-4">
         <FilterBar filters={filters} onChange={setFilters} options={options} />
+      </div>
+
+      {/* Score-based filters */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Decision Filters:</span>
+        <select value={filters.targeting ?? ""} onChange={(e) => setFilters({ ...filters, targeting: e.target.value || null })}
+          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+          <option value="">All Targeting</option>
+          <option value="HIGH">HIGH (Aggressive)</option>
+          <option value="MEDIUM">MEDIUM (Selective)</option>
+          <option value="LOW">LOW (Monitor)</option>
+        </select>
+        <select value={filters.minPriority ?? ""} onChange={(e) => setFilters({ ...filters, minPriority: e.target.value || null })}
+          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+          <option value="">Priority: Any</option>
+          <option value="70">Priority ≥ 70</option>
+          <option value="40">Priority ≥ 40</option>
+        </select>
+        <select value={filters.minAdvisory ?? ""} onChange={(e) => setFilters({ ...filters, minAdvisory: e.target.value || null })}
+          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+          <option value="">Advisory: Any</option>
+          <option value="70">Advisory ≥ 70</option>
+          <option value="40">Advisory ≥ 40</option>
+        </select>
+        <select value={filters.timeSensitivity ?? ""} onChange={(e) => setFilters({ ...filters, timeSensitivity: e.target.value || null })}
+          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+          <option value="">Stage: Any</option>
+          <option value="Early">Early (&lt;30d)</option>
+          <option value="Mid">Mid (30-90d)</option>
+          <option value="Late">Late (90+d)</option>
+        </select>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#15151f]">
