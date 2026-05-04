@@ -35,6 +35,12 @@ export type Deal = {
   stake_percent: number | null;
   value_raw: string | null;
   created_at: string;
+  advisor_signal: string | null;
+  time_sensitivity: string | null;
+  why_not: string | null;
+  action_verb: string | null;
+  targeting_recommendation: string | null;
+  deal_takeaway: string | null;
 };
 
 export type Kpis = {
