@@ -36,6 +36,10 @@ export async function POST() {
       targeting_reason: d.targeting_reason,
       confidence_level: d.confidence_level,
       insight_sections: d.insight_sections,
+      advisor_signal: d.advisor_signal,
+      time_sensitivity: d.time_sensitivity,
+      why_not: d.why_not,
+      action_verb: d.action_verb,
     }).eq("id", r.id);
     if (upErr) { failed++; console.error("Derive failed", r.id, upErr.message); }
     else updated++;
