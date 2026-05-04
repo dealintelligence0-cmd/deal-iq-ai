@@ -296,11 +296,18 @@ export function deriveFields(raw: Record<string, unknown>): DerivedFields {
   const target = (raw.target as string | null) ?? null;
   const sector = (raw.sector as string | null) ?? null;
   const dealType = (raw.deal_type as string | null) ?? null;
-  let stakePct = (raw.stake_percent as number | null) ?? null;
-  if (stakePct == null || stakePct === 0) {
-    stakePct = extractStakeFromText(notes, valueRaw, dealType);
-  }
-  const usdNorm = (raw.normalized_value_usd as number | null) ?? null;
+
+// ✅ moved here (ONLY CHANGE)
+const valueRaw = (raw.value_raw as string | null) ?? null;
+const notes = (raw.notes as string | null) ?? null;
+
+let stakePct = (raw.stake_percent as number | null) ?? null;
+
+if (stakePct == null || stakePct === 0) {
+  stakePct = extractStakeFromText(notes, valueRaw, dealType);
+}
+
+const usdNorm = (raw.normalized_value_usd as number | null) ?? null;
   const valueRaw = (raw.value_raw as string | null) ?? null;
   const notes = (raw.notes as string | null) ?? null;
   const dealDate = (raw.deal_date as string | null) ?? null;
