@@ -81,17 +81,31 @@ function usdRange(usdM: number): string {
   return ">$10B";
 }
 
+function formatMultiParty(s: string | null): { display: string; isMulti: boolean; count: number } {
+  if (!s) return { display: "—", isMulti: false, count: 0 };
+  const parts = s.split(/[,;|&]| and /i).map((x) => x.trim()).filter((x) => x.length > 1);
+  if (parts.length <= 1) return { display: s, isMulti: false, count: 1 };
+  if (parts.length === 2) return { display: parts.join(" + "), isMulti: true, count: 2 };
+  return { display: `${parts[0]} + ${parts.length - 1} others`, isMulti: true, count: parts.length };
+}
+
 function summarize(notes: string | null, buyer: string | null, target: string | null, dealType: string | null, sector: string | null): string {
   if (notes && notes.trim() && notes.trim().length > 20) {
     const w = notes.split(/\s+/).slice(0, 20);
     return w.join(" ") + (notes.split(/\s+/).length > 20 ? "…" : "");
   }
-  if (!buyer && !target) return "—";
-  const action = dealType && /ipo/i.test(dealType) ? "IPO of" : dealType && /merger/i.test(dealType) ? "merger between" : dealType && /jv/i.test(dealType) ? "JV between" : "acquires";
-  if (action.startsWith("IPO")) return `${target ?? buyer ?? "Company"} ${action} ${sector ? "in " + sector : ""}`.trim();
-  return `${buyer ?? "—"} ${action} ${target ?? "—"}${sector ? " in " + sector : ""}`.trim();
-}
+  const buyerInfo = formatMultiParty(buyer);
+  const targetInfo = formatMultiParty(target);
 
+  if (!buyer && !target) return "—";
+  const action = dealType && /ipo/i.test(dealType) ? "IPO of"
+    : dealType && /merger/i.test(dealType) ? "merger between"
+    : dealType && /jv/i.test(dealType) ? "JV between"
+    : buyerInfo.isMulti ? "consortium acquires"
+    : "acquires";
+  if (action.startsWith("IPO")) return `${targetInfo.display} ${action} ${sector ? "in " + sector : ""}`.trim();
+  return `${buyerInfo.display} ${action} ${targetInfo.display}${sector ? " in " + sector : ""}${buyerInfo.isMulti ? ` [consortium of ${buyerInfo.count}]` : ""}`.trim();
+}
 function extractStakeFromText(notes: string | null, valueRaw: string | null, dealType: string | null): number | null {
   // Combine all candidate text sources
   const text = [notes, valueRaw, dealType].filter(Boolean).join(" ").toLowerCase();
