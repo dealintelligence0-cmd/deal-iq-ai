@@ -24,10 +24,10 @@ export type Filters = {
   maxAdvisory: string;
   minRisk: string;
   maxRisk: string;
-  targeting?: string | null;
-  minPriority?: string | null;
-  minAdvisory?: string | null;
-  timeSensitivity?: string | null;
+  targeting?: string;
+  minPriority?: string;
+  minAdvisory?: string;
+  timeSensitivity?: string;
 
   
 };
