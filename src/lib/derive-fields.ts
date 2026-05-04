@@ -92,8 +92,25 @@ function summarize(notes: string | null, buyer: string | null, target: string | 
   return `${buyer ?? "—"} ${action} ${target ?? "—"}${sector ? " in " + sector : ""}`.trim();
 }
 
+function extractStakeFromText(notes: string | null, valueRaw: string | null, dealType: string | null): number | null {
+  const text = [notes, valueRaw, dealType].filter(Boolean).join(" ");
+  if (!text) return null;
+  // Prefer % near keywords
+  const ctx = text.match(/(\d{1,3}(?:\.\d+)?)\s*%[^a-z]*(?:stake|acquired|ownership|holding|shares|equity|interest)/i);
+  if (ctx) return parseFloat(ctx[1]);
+  const reverseCtx = text.match(/(?:stake|acquired|ownership|holding|shares|equity|interest)[^%]*?(\d{1,3}(?:\.\d+)?)\s*%/i);
+  if (reverseCtx) return parseFloat(reverseCtx[1]);
+  // Any standalone %
+  const any = text.match(/(\d{1,3}(?:\.\d+)?)\s*%/);
+  if (any) {
+    const n = parseFloat(any[1]);
+    if (n > 0 && n <= 100) return n;
+  }
+  return null;
+}
+
 function stakeStatus(pct: number | null): string {
-  if (pct == null) return "—";
+  if (pct == null) return "Not disclosed";
   if (pct >= 90) return "control";
   if (pct >= 50) return "majority";
   return "minority";
@@ -279,7 +296,10 @@ export function deriveFields(raw: Record<string, unknown>): DerivedFields {
   const target = (raw.target as string | null) ?? null;
   const sector = (raw.sector as string | null) ?? null;
   const dealType = (raw.deal_type as string | null) ?? null;
-  const stakePct = (raw.stake_percent as number | null) ?? null;
+  let stakePct = (raw.stake_percent as number | null) ?? null;
+  if (stakePct == null || stakePct === 0) {
+    stakePct = extractStakeFromText(notes, valueRaw, dealType);
+  }
   const usdNorm = (raw.normalized_value_usd as number | null) ?? null;
   const valueRaw = (raw.value_raw as string | null) ?? null;
   const notes = (raw.notes as string | null) ?? null;
