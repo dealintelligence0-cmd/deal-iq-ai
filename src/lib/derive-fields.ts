@@ -11,10 +11,11 @@ const REGION_MAP: Record<string, string> = {
   Brazil: "LatAm", Mexico: "LatAm", Canada: "North America",
 };
 
-// Sectors with sustained M&A momentum (2024-26 deal volume signal)
-const HOT_SECTORS = /tech|saas|software|fintech|life|pharma|healthcare|biotech|renewable|infrastructure|data center|ev|electric vehicle|semiconductor|defence|cybersec/i;
-// Regulated sectors that increase advisory + risk weight
+const HOT_SECTORS = /tech|saas|software|fintech|life|pharma|healthcare|biotech|renewable|infrastructure|data center|ev|semiconductor|defence|cybersec/i;
 const REGULATED_SECTORS = /pharma|life|healthcare|financial|banking|bfsi|insurance|energy|defence|telecom|aviation|utilities/i;
+
+// Big4-known buyers (heuristic — extend with your firm's CRM later)
+const BIG4_KNOWN_BUYERS = /tata|infosys|wipro|hdfc|reliance|adani|kkr|blackstone|carlyle|tpg|warburg|sequoia|bain|temasek|gic|softbank|alibaba|tencent|microsoft|google|amazon|sun pharma|cipla|dr reddy|aditya birla|bharti|jio/i;
 
 export type DerivedFields = {
   geographies_involved: string;
@@ -41,6 +42,10 @@ export type DerivedFields = {
     tensions: string;
     advisory_angle: string;
   };
+  advisor_signal: string;
+  time_sensitivity: string;
+  why_not: string;
+  action_verb: string;
 };
 
 function parseCountries(s: string | null): string[] {
@@ -109,7 +114,6 @@ function buildScores(usdM: number, countries: string[], sector: string | null, d
   const isComplex = dealType ? /merger|jv|carve|spin|ipo/i.test(dealType) : false;
   const sb = sizeBucket(usdM);
 
-  // PRIORITY: should I CARE?
   const prioParts: string[] = [];
   let prio = sb.points;
   prioParts.push(`Size:${sb.label} (+${sb.points})`);
@@ -119,7 +123,6 @@ function buildScores(usdM: number, countries: string[], sector: string | null, d
   if (dealType && /ipo/i.test(dealType)) { prio += 15; prioParts.push("IPO timing (+15)"); }
   prio = Math.min(100, prio);
 
-  // ADVISORY: should I PURSUE? complexity + advisory potential
   const advParts: string[] = [];
   let adv = sb.points;
   advParts.push(`Size:${sb.label} (+${sb.points})`);
@@ -129,14 +132,13 @@ function buildScores(usdM: number, countries: string[], sector: string | null, d
   if (stake != null && stake > 0 && stake < 100) { adv += 10; advParts.push(`${stake}% stake mechanics (+10)`); }
   adv = Math.min(100, adv);
 
-  // RISK: execution + regulatory + integration
   const riskParts: string[] = [];
   let risk = 0;
-  if (usdM >= 5000) { risk += 25; riskParts.push("Mega deal exec risk (+25)"); }
-  else if (usdM >= 1000) { risk += 18; riskParts.push("Large deal exec risk (+18)"); }
-  else if (usdM >= 250) { risk += 10; riskParts.push("Mid deal exec risk (+10)"); }
-  if (crossBorder) { risk += 22; riskParts.push("Multi-jurisdiction antitrust (+22)"); }
-  if (isRegulated) { risk += 22; riskParts.push("Sector regulatory burden (+22)"); }
+  if (usdM >= 5000) { risk += 25; riskParts.push("Mega deal exec (+25)"); }
+  else if (usdM >= 1000) { risk += 18; riskParts.push("Large deal exec (+18)"); }
+  else if (usdM >= 250) { risk += 10; riskParts.push("Mid deal exec (+10)"); }
+  if (crossBorder) { risk += 22; riskParts.push("Multi-juris antitrust (+22)"); }
+  if (isRegulated) { risk += 22; riskParts.push("Regulatory burden (+22)"); }
   if (dealType && /merger|jv/i.test(dealType)) { risk += 15; riskParts.push(`${dealType} integration (+15)`); }
   if (dealType && /carve|spin/i.test(dealType)) { risk += 18; riskParts.push("Separation complexity (+18)"); }
   if (stake != null && stake >= 50 && stake < 90) { risk += 8; riskParts.push("Minority overhang (+8)"); }
@@ -158,14 +160,12 @@ function buildIntelligence(opts: {
   const { buyer, target, sector, country, dealType, usdM, stake, crossBorder, isHotSector, isRegulated, advScore, prioScore } = opts;
   const sizeLabel = usdM >= 1000 ? "large" : usdM >= 250 ? "mid-market" : "small-cap";
 
-  // THESIS — buyer-led narrative
   const thesis = dealType && /ipo/i.test(dealType)
     ? `${target ?? "Company"} listing capitalises on ${isHotSector ? "sector momentum" : "current capital availability"}; ${sizeLabel} float in ${sector ?? "this sector"}.`
     : dealType && /merger/i.test(dealType)
     ? `${buyer ?? "Acquirer"}-${target ?? "Target"} merger creates scale player in ${sector ?? "sector"}, addressing ${crossBorder ? "multi-region presence" : "domestic consolidation"}.`
     : `${buyer ?? "Acquirer"} acquires ${target ?? "target"} to ${isHotSector ? "accelerate position in growing " : "consolidate share in mature "}${sector ?? "sector"}${crossBorder ? "; cross-border footprint expansion" : ""}.`;
 
-  // WHY NOW — timing trigger
   const why_now = isHotSector
     ? `${sector} M&A activity elevated; window for strategic positioning before further multiple expansion.`
     : crossBorder
@@ -174,29 +174,29 @@ function buildIntelligence(opts: {
     ? "Deal size signals platform-creation moment for the acquirer."
     : "Tactical bolt-on; speed of execution > timing precision.";
 
-  // VALUE DRIVERS — top 3 specific
-  const drivers: string[] = [];
-  if (usdM >= 1000) drivers.push("Scale economics from combined revenue base");
-  if (crossBorder) drivers.push("Geographic diversification + new market access");
-  if (isHotSector) drivers.push(`${sector} platform consolidation tailwind`);
-  if (stake != null && stake >= 50) drivers.push("Control rights enable full integration playbook");
-  if (dealType && /carve/i.test(dealType)) drivers.push("Carve-out unlocks focused operating model");
-  if (isRegulated) drivers.push("Regulatory scale advantage post-combination");
-  while (drivers.length < 3) drivers.push("Synergy capture via operating leverage");
-  const value_drivers = drivers.slice(0, 3);
+  // Value drivers — uniqueness enforced
+  const driverPool: string[] = [];
+  if (usdM >= 1000) driverPool.push("Scale economics from combined revenue base");
+  if (crossBorder) driverPool.push("Geographic diversification + new market access");
+  if (isHotSector) driverPool.push(`${sector} platform consolidation tailwind`);
+  if (stake != null && stake >= 50) driverPool.push("Control rights enable full integration playbook");
+  if (dealType && /carve/i.test(dealType)) driverPool.push("Carve-out unlocks focused operating model");
+  if (isRegulated) driverPool.push("Regulatory scale advantage post-combination");
+  if (dealType && /merger/i.test(dealType)) driverPool.push("Combined entity moves up vendor priority lists");
+  if (usdM < 250) driverPool.push("Capability tuck-in below buyer radar");
+  if (driverPool.length < 3) driverPool.push("Cost-base optimisation through shared services", "Cross-portfolio talent mobility", "Brand + balance sheet leverage");
+  const value_drivers = Array.from(new Set(driverPool)).slice(0, 3);
 
-  // RISKS — top 3 specific
-  const risks: string[] = [];
-  if (crossBorder) risks.push("Antitrust review across multiple jurisdictions");
-  if (isRegulated) risks.push(`${sector} regulatory clearance + license transfer`);
-  if (dealType && /merger|jv/i.test(dealType)) risks.push("Integration execution + cultural alignment");
-  if (dealType && /carve/i.test(dealType)) risks.push("TSA dependency + stranded cost management");
-  if (usdM >= 5000) risks.push("Synergy realisation under public-market scrutiny");
-  if (stake != null && stake < 50) risks.push("Minority position limits operational influence");
-  while (risks.length < 3) risks.push("Customer/talent attrition during transition");
-  const risk_arr = risks.slice(0, 3);
+  const risksPool: string[] = [];
+  if (crossBorder) risksPool.push("Antitrust review across multiple jurisdictions");
+  if (isRegulated) risksPool.push(`${sector} regulatory clearance + license transfer`);
+  if (dealType && /merger|jv/i.test(dealType)) risksPool.push("Integration execution + cultural alignment");
+  if (dealType && /carve/i.test(dealType)) risksPool.push("TSA dependency + stranded cost management");
+  if (usdM >= 5000) risksPool.push("Synergy realisation under public-market scrutiny");
+  if (stake != null && stake < 50) risksPool.push("Minority position limits operational influence");
+  if (risksPool.length < 3) risksPool.push("Customer attrition during transition", "Top-100 talent retention", "FX + working-capital shock at close");
+  const risk_arr = Array.from(new Set(risksPool)).slice(0, 3);
 
-  // TENSIONS — what's contested
   const tensions = isHotSector && usdM >= 1000
     ? `Strategic logic strong but multiple paid likely premium given sector heat — value creation depends on synergy execution discipline.`
     : crossBorder
@@ -205,21 +205,18 @@ function buildIntelligence(opts: {
     ? "Regulatory pathway can compress or expand timeline by 6-12 months — a key sensitivity."
     : "Bolt-on logic clear; risk concentrated in retention of target leadership and customers.";
 
-  // ADVISORY ANGLE — what to pitch
   const advisory_angle = advScore >= 70
     ? `Lead with integration playbook + ${crossBorder ? "multi-jurisdiction regulatory navigation" : "synergy capture rigour"}. Position senior partner involvement.`
     : advScore >= 40
     ? `Pitch ${dealType && /carve/i.test(dealType) ? "carve-out and TSA design" : "synergy modelling and IMO setup"}. Mid-tier partner with sector specialist.`
     : "Focused workstream pitch (DD, valuation, or specific function). Lean team. Compete on sector knowledge.";
 
-  // TAKEAWAY — so what
   const deal_takeaway = prioScore >= 70
-    ? `High-priority deal: ${sizeLabel}, ${crossBorder ? "cross-border" : "domestic"}, ${isHotSector ? "hot sector" : "stable sector"}. Pursue actively.`
+    ? `High-priority: ${sizeLabel}, ${crossBorder ? "cross-border" : "domestic"}, ${isHotSector ? "hot sector" : "stable sector"}. Pursue actively.`
     : prioScore >= 40
     ? `Medium-priority: worth tracking. Engage if existing buyer/target relationship.`
     : `Low-priority: standard mid-market. Monitor for follow-on opportunities.`;
 
-  // TARGETING REC
   const targetScore = (advScore * 0.5) + (prioScore * 0.5);
   const targeting_recommendation = targetScore >= 65 ? "HIGH" : targetScore >= 40 ? "MEDIUM" : "LOW";
   const targeting_reason = targeting_recommendation === "HIGH"
@@ -243,6 +240,39 @@ function confidenceLevel(buyer: string | null, target: string | null, sector: st
   return "LOW";
 }
 
+function advisorSignal(buyer: string | null, usdM: number, dealType: string | null): string {
+  if (buyer && BIG4_KNOWN_BUYERS.test(buyer)) return "Big4 known relationship";
+  if (usdM >= 1000) return "Big4 likely engaged — outreach required";
+  if (dealType && /carve|spin|merger|ipo/i.test(dealType)) return "Specialist advisor likely needed";
+  if (!buyer || buyer === "—") return "Unknown advisor — opportunity";
+  return "Internal team or unknown";
+}
+
+function timeSensitivity(dealDate: string | null, status: string | null): string {
+  if (!dealDate) return "Unknown";
+  const days = Math.floor((Date.now() - new Date(dealDate).getTime()) / (1000 * 60 * 60 * 24));
+  if (status && /closed/i.test(status)) return "Late-stage (closed)";
+  if (days < 30) return "Early-stage (<30 days)";
+  if (days < 90) return "Mid-process (30-90 days)";
+  if (days < 180) return "Late-stage (90-180 days)";
+  return "Stale (>180 days)";
+}
+
+function whyNot(stake: number | null, usdM: number, dealType: string | null, advScore: number): string {
+  if (stake != null && stake < 30) return "Minority stake (<30%) — limited advisory scope, governance-only role";
+  if (usdM > 0 && usdM < 50) return "Sub-economic deal size — fee economics challenging";
+  if (dealType && /ipo/i.test(dealType) && advScore < 50) return "IPO advisory typically captured by ECM bookrunners";
+  if (advScore < 35) return "Standard deal — limited differentiation opportunity";
+  return "—";
+}
+
+function actionVerb(targeting: string, advScore: number): string {
+  if (targeting === "HIGH") return "Aggressive Pursuit";
+  if (targeting === "MEDIUM" && advScore >= 50) return "Selective Outreach";
+  if (targeting === "MEDIUM") return "Monitor";
+  return "Do Not Pursue";
+}
+
 export function deriveFields(raw: Record<string, unknown>): DerivedFields {
   const country = (raw.country as string | null) ?? null;
   const buyer = (raw.buyer as string | null) ?? null;
@@ -253,6 +283,8 @@ export function deriveFields(raw: Record<string, unknown>): DerivedFields {
   const usdNorm = (raw.normalized_value_usd as number | null) ?? null;
   const valueRaw = (raw.value_raw as string | null) ?? null;
   const notes = (raw.notes as string | null) ?? null;
+  const dealDate = (raw.deal_date as string | null) ?? null;
+  const status = (raw.status as string | null) ?? null;
 
   const allCountries = parseCountries(country);
   const regions = Array.from(new Set(allCountries.map((c) => REGION_MAP[c] || "Other")));
@@ -306,5 +338,9 @@ export function deriveFields(raw: Record<string, unknown>): DerivedFields {
       tensions: intel.tensions,
       advisory_angle: intel.advisory_angle,
     },
+    advisor_signal: advisorSignal(buyer, usdM, dealType),
+    time_sensitivity: timeSensitivity(dealDate, status),
+    why_not: whyNot(stakePct, usdM, dealType, scores.advisory_score),
+    action_verb: actionVerb(intel.targeting_recommendation, scores.advisory_score),
   };
 }
