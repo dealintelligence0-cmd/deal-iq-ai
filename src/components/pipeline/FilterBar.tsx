@@ -24,6 +24,12 @@ export type Filters = {
   maxAdvisory: string;
   minRisk: string;
   maxRisk: string;
+  targeting?: string | null;
+  minPriority?: string | null;
+  minAdvisory?: string | null;
+  timeSensitivity?: string | null;
+
+  
 };
 
 export const EMPTY_FILTERS: Filters = {
@@ -32,6 +38,12 @@ export const EMPTY_FILTERS: Filters = {
   dateFrom: "", dateTo: "", minValueM: "", maxValueM: "",
   minPriority: "", maxPriority: "", minAdvisory: "", maxAdvisory: "",
   minRisk: "", maxRisk: "",
+  targeting: null,
+  minPriority: null,
+  minAdvisory: null,
+  timeSensitivity: null,
+
+  
 };
 
 type Props = {
