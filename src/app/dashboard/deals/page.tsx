@@ -76,6 +76,14 @@ export default function PipelinePage() {
 
       if (filters.indiaFlow && (d as Deal & { india_flow?: string | null }).india_flow !== filters.indiaFlow) return false;
       if (filters.stakeStatus && (d as Deal & { stake_status?: string | null }).stake_status !== filters.stakeStatus) return false;
+      const dExt2 = d as Deal & { priority_score?: number | null; advisory_score?: number | null; risk_score?: number | null; targeting_recommendation?: string | null };
+      if (filters.targeting && dExt2.targeting_recommendation !== filters.targeting) return false;
+      if (filters.minPriority && (dExt2.priority_score ?? 0) < parseInt(filters.minPriority)) return false;
+      if (filters.maxPriority && (dExt2.priority_score ?? 0) > parseInt(filters.maxPriority)) return false;
+      if (filters.minAdvisory && (dExt2.advisory_score ?? 0) < parseInt(filters.minAdvisory)) return false;
+      if (filters.maxAdvisory && (dExt2.advisory_score ?? 0) > parseInt(filters.maxAdvisory)) return false;
+      if (filters.minRisk && (dExt2.risk_score ?? 0) < parseInt(filters.minRisk)) return false;
+      if (filters.maxRisk && (dExt2.risk_score ?? 0) > parseInt(filters.maxRisk)) return false;
       if (filters.dealType && d.deal_type !== filters.dealType) return false;
       if (filters.status && d.status !== filters.status) return false;
       if (filters.dateFrom && (!d.deal_date || d.deal_date < filters.dateFrom)) return false;
