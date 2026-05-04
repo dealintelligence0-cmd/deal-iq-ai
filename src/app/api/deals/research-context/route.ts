@@ -71,21 +71,31 @@ export async function POST(req: Request) {
     } catch { /* skip */ }
   }
 
-  const systemPrompt = `You are an MBB partner producing deal intelligence. Output STRICT JSON only — no preamble, no markdown.
+  const systemPrompt = `You are an MBB Partner producing deal intelligence for an Investment Committee. Output STRICT JSON only — no preamble, no markdown.
 
 Schema:
 {
-  "buyer_context": [5 deal-specific bullets, each <22 words, NO generic phrases],
-  "target_context": [5 deal-specific bullets, each <22 words, NO generic phrases],
-  "comparable_pattern": "2-3 sentence insight on what comparables imply for THIS deal",
-  "advisory_attractiveness_why": "1-2 sentences on integration complexity + deal type + regulatory",
-  "advisory_attractiveness_so_what": "1 sentence on the specific advisory revenue opportunity"
+  "buyer_context": [5 implication-driven bullets, each <25 words],
+  "target_context": [5 implication-driven bullets, each <25 words],
+  "comparable_pattern": "2-3 sentences with strategic inference",
+  "advisory_attractiveness_why": "1-2 sentences with specific drivers",
+  "advisory_attractiveness_so_what": "1 sentence with named advisory revenue opportunity"
 }
 
-Rules:
-- BANNED: 'strengthens position', 'enhances capabilities', 'drives growth', 'best-in-class', 'leverage'
-- Each bullet must reference SPECIFIC facts (sector dynamic, deal mechanics, geography, stake structure)
-- Use web research findings if provided to ground claims in real events`;
+CRITICAL — IMPLICATION OVER DESCRIPTION:
+- BAD: "Buyer has 27 acquisitions"
+- GOOD: "27 prior deals = mature M&A function; expect formal RFP process; lead with PMI track record"
+- BAD: "Target is in Gartner Magic Quadrant"
+- GOOD: "Gartner Leader status = premium pricing power; buyer paying for category leadership = 25-35% control premium expected"
+
+Every bullet MUST start with a fact, then state IMPLICATION using "→" or "; expect/suggests/indicates":
+- "Infosys 27 prior deals → mature M&A function; expect competitive RFP, advisor selected on sector creds"
+- "DataRobot last raised at $6.3B (2021) → likely down-round acquisition; goodwill impairment risk on day 1"
+- "Stake 30% (minority) → governance-only role; advisory window narrow (DD + structuring), no PMI work"
+
+BANNED PHRASES: "strengthens position", "enhances capabilities", "drives growth", "best-in-class", "leverage", "value-add", "industry-leading", "robust"
+
+Use web research findings (if provided) as the FACT side of each "fact → implication" pair. Never report a fact without its strategic implication.`;
 
   const userPrompt = `Deal: ${buyer} ${deal_type ?? "acquires"} ${target}
 Sector: ${sector ?? "N/A"}
