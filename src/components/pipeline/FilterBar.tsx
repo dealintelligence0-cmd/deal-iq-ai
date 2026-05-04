@@ -24,12 +24,7 @@ export type Filters = {
   maxAdvisory: string;
   minRisk: string;
   maxRisk: string;
-  targeting?: string;
-  minPriority?: string;
-  minAdvisory?: string;
-  timeSensitivity?: string;
-
-  
+  timeSensitivity: string;
 };
 
 export const EMPTY_FILTERS: Filters = {
@@ -37,13 +32,7 @@ export const EMPTY_FILTERS: Filters = {
   indiaFlow: "", stakeStatus: "", targeting: "",
   dateFrom: "", dateTo: "", minValueM: "", maxValueM: "",
   minPriority: "", maxPriority: "", minAdvisory: "", maxAdvisory: "",
-  minRisk: "", maxRisk: "",
-  targeting: null,
-  minPriority: null,
-  minAdvisory: null,
-  timeSensitivity: null,
-
-  
+  minRisk: "", maxRisk: "", timeSensitivity: "",
 };
 
 type Props = {
