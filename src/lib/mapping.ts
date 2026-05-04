@@ -29,13 +29,14 @@ export const FIELD_DEFS: FieldDef[] = [
       "close date", "closing date", "effective date", "signing date", "dt",
     ],
   },
-  {
+ {
     key: "buyer",
     label: "Buyer / Acquirer",
     required: true,
     aliases: [
-      "buyer", "acquirer", "acquiror", "purchaser", "bidder", "investor",
-      "acquiring company", "buyer name", "acquirer name", "parent",
+      "buyer", "acquirer", "acquiror", "purchaser", "bidder", "bidders", "investor",
+      "investors", "acquiring company", "buyer name", "acquirer name", "parent",
+      "acquirers", "purchasers",
     ],
   },
   {
@@ -43,8 +44,9 @@ export const FIELD_DEFS: FieldDef[] = [
     label: "Target / Seller",
     required: true,
     aliases: [
-      "target", "seller", "seller target", "company", "target company",
-      "target name", "acquired", "acquired company", "asset", "deal target",
+      "target", "targets", "seller", "sellers", "seller target", "company", "target company",
+      "target name", "acquired", "acquired company", "asset", "assets", "deal target",
+      "vendor", "vendors", "issuer", "issuers",
     ],
   },
   {
@@ -52,17 +54,18 @@ export const FIELD_DEFS: FieldDef[] = [
     label: "Sector / Industry",
     required: false,
     aliases: [
-      "sector", "industry", "vertical", "gics sector", "industry group",
-      "sub sector", "segment", "business",
+      "sector", "primary sector", "dominant sector", "industry", "vertical",
+      "gics sector", "industry group", "sub sector", "sectors", "segment", "business",
     ],
   },
   {
     key: "country",
     label: "Country / Geography",
     required: false,
-    aliases: [
-      "country", "geography", "region", "nation", "location",
-      "target country", "country of target", "hq", "headquarters",
+   aliases: [
+      "country", "geography", "geographies", "dominant geography", "region",
+      "regions", "nation", "location", "target country", "country of target",
+      "hq", "headquarters",
     ],
   },
   {
@@ -71,7 +74,7 @@ export const FIELD_DEFS: FieldDef[] = [
     required: false,
     aliases: [
       "deal type", "transaction type", "type", "structure", "deal structure",
-      "category", "deal category",
+      "category", "deal category", "intelligence type",
     ],
   },
   {
@@ -82,15 +85,17 @@ export const FIELD_DEFS: FieldDef[] = [
       "value", "deal value", "transaction value", "ev", "enterprise value",
       "consideration", "price", "amount", "deal size", "size",
       "value (usd m)", "value usd", "value_usd", "value inr",
+      "value display", "value mid", "intelligence size", "value description",
     ],
   },
   {
     key: "stake_percent",
     label: "Stake %",
     required: false,
-    aliases: [
+  aliases: [
       "stake", "stake %", "stake percent", "% stake", "acquired stake",
       "ownership", "ownership %", "% acquired", "holding",
+      "stake numeric", "stake display", "stake value",
     ],
   },
   {
