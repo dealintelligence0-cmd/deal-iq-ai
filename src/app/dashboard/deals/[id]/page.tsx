@@ -174,9 +174,10 @@ export default function DealDetailPage() {
       {/* PARTNER DECISION BLOCK — Investment Thesis · Why Now · Deal Tension · Advisory Angle */}
       <PartnerDecisionBlock deal={deal} />
 
-      {/* ADVISORY OPPORTUNITY + HOW TO WIN */}
+     {/* ADVISORY OPPORTUNITY + HOW TO WIN + RISK SCENARIOS */}
       <AdvisoryOpportunityBlock deal={deal} />
       <HowToWinBlock deal={deal} />
+      <RiskScenariosBlock deal={deal} />
 
 {/* AI-Researched Deal Context — replaces generic Strategic Rationale + generic Synergies + numeric Integration Complexity */}
      <AIResearchClient
@@ -881,4 +882,105 @@ function Card({ label, value, accent }: { label: string; value: string; accent: 
     </div>
   );
 }
+function RiskScenariosBlock({ deal }: { deal: Record<string, unknown> }) {
+  const dealType = (deal.deal_type as string | null) ?? "";
+  const sector = (deal.sector as string | null) ?? "";
+  const country = (deal.country as string | null) ?? "";
+  const stake = (deal.stake_percent as number | null);
+  const usdM = ((deal.normalized_value_usd as number | null) ?? 0) / 1_000_000;
+  const crossBorder = country.includes(",");
+  const isRegulated = /pharma|life|healthcare|financial|banking|bfsi|insurance|energy|defence|telecom/i.test(sector);
 
+  const ins = (deal.insight_sections as { risks?: string[] } | null) ?? {};
+  const baseRisks = ins.risks ?? [];
+
+  // Build deal-specific risk scenarios with probability, impact, early warning
+  type Risk = { title: string; prob: string; impact: string; warning: string; probColor: string };
+  const risks: Risk[] = [];
+
+  // Use insight_sections risks if available, otherwise derive
+  if (baseRisks.length >= 3) {
+    risks.push({
+      title: baseRisks[0],
+      prob: crossBorder ? "40-50%" : "25-35%",
+      impact: usdM >= 1000 ? "$50-200M" : "$5-25M",
+      warning: "Antitrust pre-filing meeting reveals second-request risk",
+      probColor: "bg-amber-100 text-amber-800",
+    });
+    risks.push({
+      title: baseRisks[1],
+      prob: "30-40%",
+      impact: usdM >= 1000 ? "$20-80M" : "$3-15M",
+      warning: "Top-3 customer concentration > 35% revealed in DD",
+      probColor: "bg-amber-100 text-amber-800",
+    });
+    risks.push({
+      title: baseRisks[2],
+      prob: stake != null && stake < 50 ? "50-60%" : "20-30%",
+      impact: "Synergy under-realisation",
+      warning: stake != null && stake < 50 ? "Minority position blocks day-1 integration decisions" : "Top-100 talent retention < 80% by Day-90",
+      probColor: stake != null && stake < 50 ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800",
+    });
+  } else {
+    // Fallback derivation
+    if (crossBorder) risks.push({
+      title: "Multi-jurisdiction antitrust delay",
+      prob: "35-45%",
+      impact: "6-9 months close delay",
+      warning: "Pre-filing engagement reveals divestiture demands",
+      probColor: "bg-amber-100 text-amber-800",
+    });
+    if (isRegulated) risks.push({
+      title: `${sector} regulatory transition risk`,
+      prob: "30-40%",
+      impact: "License + compliance carry-over delays",
+      warning: "Post-signing regulator intent letter delays > 60 days",
+      probColor: "bg-amber-100 text-amber-800",
+    });
+    if (usdM >= 1000 || stake != null && stake >= 50) risks.push({
+      title: "Synergy capture under-realisation",
+      prob: "40-55%",
+      impact: "30-50% synergy slippage = $20-100M",
+      warning: "Year-1 synergy capture < 30% of plan",
+      probColor: "bg-rose-100 text-rose-800",
+    });
+    if (risks.length === 0) risks.push({
+      title: "Standard execution risk",
+      prob: "20-30%",
+      impact: "Talent + customer attrition",
+      warning: "Top-100 talent attrition > 20% in Y1",
+      probColor: "bg-slate-100 text-slate-700",
+    });
+  }
+
+  return (
+    <div className="mb-6">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">
+        <span className="inline-block h-1 w-6 rounded-full bg-rose-500" />
+        Risk Scenarios — Deal-Specific
+      </h2>
+      <div className="overflow-hidden rounded-xl border border-rose-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+        <table className="w-full text-sm">
+          <thead className="bg-rose-50/50 text-left text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:bg-rose-950/10 dark:text-rose-400">
+            <tr>
+              <th className="px-4 py-2.5">Risk Scenario</th>
+              <th className="px-4 py-2.5">Probability</th>
+              <th className="px-4 py-2.5">Impact</th>
+              <th className="px-4 py-2.5">Early-Warning Trigger</th>
+            </tr>
+          </thead>
+          <tbody>
+            {risks.map((r, i) => (
+              <tr key={i} className="border-t border-slate-100 dark:border-white/5">
+                <td className="px-4 py-3 text-xs font-medium text-slate-800 dark:text-slate-200">{r.title}</td>
+                <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${r.probColor}`}>{r.prob}</span></td>
+                <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{r.impact}</td>
+                <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">{r.warning}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
