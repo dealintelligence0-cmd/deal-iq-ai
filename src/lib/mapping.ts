@@ -83,7 +83,7 @@ export const FIELD_DEFS: FieldDef[] = [
     required: false,
     aliases: [
       "value", "deal value", "transaction value", "ev", "enterprise value",
-      "consideration", "price", "amount", "deal size", "size", "intelligence size"
+      "consideration", "price", "amount", "deal size", "size",
       "value (usd m)", "value usd", "value_usd", "value inr",
       "value display", "value mid", "intelligence size",
     ],
