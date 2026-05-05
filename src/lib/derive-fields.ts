@@ -81,12 +81,27 @@ function usdRange(usdM: number): string {
   return ">$10B";
 }
 
-function formatMultiParty(s: string | null): { display: string; isMulti: boolean; count: number } {
-  if (!s) return { display: "—", isMulti: false, count: 0 };
-  const parts = s.split(/[,;|&]| and /i).map((x) => x.trim()).filter((x) => x.length > 1);
-  if (parts.length <= 1) return { display: s, isMulti: false, count: 1 };
-  if (parts.length === 2) return { display: parts.join(" + "), isMulti: true, count: 2 };
-  return { display: `${parts[0]} + ${parts.length - 1} others`, isMulti: true, count: parts.length };
+function dedupeEntities(parts: string[]): string[] {
+  // Normalise: lowercase + strip legal suffixes for comparison only
+  const norm = (s: string) => s.toLowerCase()
+    .replace(/\b(ltd|ltdp|pty|inc|llc|sa|plc|pvt|corp|co|limited|private|public)\b\.?/g, "")
+    .replace(/\s+/g, " ").trim();
+  const seen = new Set<string>();
+  return parts.filter((p) => {
+    const key = norm(p);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function formatMultiParty(s: string | null): { display: string; isMulti: boolean; count: number; all: string[] } {
+  if (!s) return { display: "—", isMulti: false, count: 0, all: [] };
+  const raw = s.split(/[,;|]/).map((x) => x.trim()).filter((x) => x.length > 1);
+  const parts = dedupeEntities(raw);
+  if (parts.length <= 1) return { display: parts[0] ?? s, isMulti: false, count: 1, all: parts };
+  if (parts.length === 2) return { display: parts.join(" + "), isMulti: true, count: 2, all: parts };
+  return { display: `${parts[0]} + ${parts.length - 1} others`, isMulti: true, count: parts.length, all: parts };
 }
 
 function summarize(notes: string | null, buyer: string | null, target: string | null, dealType: string | null, sector: string | null): string {
