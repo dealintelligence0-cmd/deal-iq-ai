@@ -17,6 +17,8 @@ export type RawDeal = {
   status?: string | null;
   notes?: string | null;
   source_file?: string | null;
+  heading?: string | null;
+  
 };
 
 export type Exception = {
