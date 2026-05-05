@@ -118,18 +118,37 @@ export function cleanseRow(row: RawDeal): CleansedDeal {
     }
   }
 
-  // Stake
-  if (row.stake_percent !== null && row.stake_percent !== undefined) {
-    let stake = Number(row.stake_percent);
-    if (stake > 0 && stake <= 1) stake = stake * 100;
-    if (stake < 0 || stake > 100) {
-      exc.push({ field: "stake_percent", severity: "warn", message: "Stake outside 0–100", rawValue: String(row.stake_percent) });
-      cleaned.stake_percent = null;
-    } else {
-      cleaned.stake_percent = Math.round(stake * 100) / 100;
-    }
+// Stake — handles numeric, text ranges, and display formats
+  function parseStakeText(val: unknown): number | null {
+    if (val === null || val === undefined || val === "") return null;
+    const s = String(val).toLowerCase().trim();
+    if (/n\/a|not\s*disclosed|undisclosed|tbd/.test(s)) return null;
+    // "100.00", "45.00" — pure numeric
+    const num = Number(val);
+    if (!isNaN(num) && num > 0 && num <= 100) return Math.round(num * 100) / 100;
+    if (!isNaN(num) && num > 0 && num <= 1) return Math.round(num * 100 * 100) / 100;
+    // "between 10% and 29% inclusive" → midpoint
+    const between = s.match(/between\s+(\d+(?:\.\d+)?)\s*%?\s*(?:and|to|-)\s*(\d+(?:\.\d+)?)\s*%/);
+    if (between) return Math.round((parseFloat(between[1]) + parseFloat(between[2])) / 2);
+    // ">30%" / "more than 30%"
+    const more = s.match(/(?:>|more than|greater than|over|above)\s*(\d+(?:\.\d+)?)\s*%/);
+    if (more) return parseFloat(more[1]);
+    // "<30%" / "less than 30%"
+    const less = s.match(/(?:<|less than|below|under)\s*(\d+(?:\.\d+)?)\s*%/);
+    if (less) return Math.max(1, parseFloat(less[1]) - 1);
+    // any bare "X%" pattern
+    const bare = s.match(/(\d+(?:\.\d+)?)\s*%/);
+    if (bare) { const n = parseFloat(bare[1]); if (n > 0 && n <= 100) return n; }
+    return null;
   }
 
+  const stakeVal = parseStakeText(row.stake_percent);
+  if (stakeVal !== null) {
+    cleaned.stake_percent = stakeVal;
+  } else if (row.stake_percent !== null && row.stake_percent !== undefined && row.stake_percent !== "") {
+    exc.push({ field: "stake_percent", severity: "warn", message: "Could not parse stake", rawValue: String(row.stake_percent) });
+    cleaned.stake_percent = null;
+  }
   // Status — force into allowed set
   cleaned.status = normalizeStatus(row.status);
 
