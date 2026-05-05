@@ -104,7 +104,7 @@ export const FIELD_DEFS: FieldDef[] = [
     required: false,
     aliases: [
       "status", "deal status", "stage", "completion status",
-      "transaction status", "state",
+      "transaction status", "state", "intelligence grade",
     ],
   },
   {
@@ -113,7 +113,7 @@ export const FIELD_DEFS: FieldDef[] = [
     required: false,
     aliases: [
       "notes", "description", "summary", "comments", "remarks",
-      "deal rationale", "rationale", "headline",
+      "deal rationale", "rationale", "headline", "heading", "opportunity",
     ],
   },
 ];
