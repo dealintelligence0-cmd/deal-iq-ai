@@ -40,7 +40,19 @@ export async function POST(req: Request) {
   }
   if (!apiKey) return NextResponse.json({ error: "No Smart-tier provider in Settings." }, { status: 400 });
 
-  const buyer = (deal.buyer as string | null) ?? "Unknown buyer";
+  // Deduplicate and normalise buyer (may be comma-separated consortium)
+  function dedupeEntities(s: string): string[] {
+    const norm = (x: string) => x.toLowerCase()
+      .replace(/\b(ltd|ltdp|pty|inc|llc|sa|plc|pvt|corp|co|limited|private|public)\b\.?/g, "")
+      .replace(/\s+/g, " ").trim();
+    const parts = s.split(/[,;|]/).map((x) => x.trim()).filter((x) => x.length > 1);
+    const seen = new Set<string>();
+    return parts.filter((p) => { const k = norm(p); if (seen.has(k)) return false; seen.add(k); return true; });
+  }
+  const rawBuyer = (deal.buyer as string | null) ?? "Unknown buyer";
+  const buyerParts = dedupeEntities(rawBuyer);
+  const buyer = buyerParts.length > 1 ? buyerParts.join(", ") : rawBuyer;
+  const isConsortium = buyerParts.length > 1;
   const target = (deal.target as string | null) ?? "Unknown target";
   const sector = (deal.sector as string | null) ?? "";
   const country = (deal.country as string | null) ?? "";
@@ -75,10 +87,12 @@ CRITICAL RULES:
 - Each risk and value_driver must be unique and deal-specific
 - If stake < 50%: thesis must mention governance-only / limited integration
 - If sector is regulated (pharma/finance/energy): risks must include regulatory clearance
-- thesis must NOT be generic — it must answer WHY ${buyer} SPECIFICALLY is buying ${target}`;
+- thesis must NOT be generic — it must answer WHY ${isConsortium ? `these ${buyerParts.length} bidders are competing for` : `${buyer} is buying`} ${target}
+- If multi-bidder: state the auction dynamic and what each bidder's strategic angle likely is`;
 
   const userPrompt = `Deal facts:
-Buyer: ${buyer}
+Buyer: ${isConsortium ? `Consortium of ${buyerParts.length}: ${buyer}` : buyer}
+${isConsortium ? `Note: This is a MULTI-BIDDER auction. Thesis must reflect competitive bidding dynamic, not a single acquirer narrative.` : ""}
 Target: ${target}  
 Sector: ${sector}
 Country: ${country}
