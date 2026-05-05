@@ -238,16 +238,35 @@ function buildIntelligence(opts: {
   buyer: string | null; target: string | null; sector: string | null; country: string | null;
   dealType: string | null; usdM: number; stake: number | null; crossBorder: boolean;
   isHotSector: boolean; isRegulated: boolean; advScore: number; prioScore: number; riskScore: number;
+  notes?: string | null; buyerParts?: string[];
 }) {
-  const { buyer, target, sector, country, dealType, usdM, stake, crossBorder, isHotSector, isRegulated, advScore, prioScore } = opts;
+  const { buyer, target, sector, country, dealType, usdM, stake, crossBorder, isHotSector, isRegulated, advScore, prioScore, notes, buyerParts } = opts;
+  const isConsortium = buyerParts && buyerParts.length > 1;
+  const buyerDisplay = isConsortium
+    ? `consortium of ${buyerParts!.length} bidders (${buyerParts!.slice(0, 2).join(" + ")}${buyerParts!.length > 2 ? " + others" : ""})`
+    : (buyer ?? "Acquirer");
   const sizeLabel = usdM >= 1000 ? "large" : usdM >= 250 ? "mid-market" : "small-cap";
 
-  const thesis = dealType && /ipo/i.test(dealType)
-    ? `${target ?? "Company"} listing capitalises on ${isHotSector ? "sector momentum" : "current capital availability"}; ${sizeLabel} float in ${sector ?? "this sector"}.`
-    : dealType && /merger/i.test(dealType)
-    ? `${buyer ?? "Acquirer"}-${target ?? "Target"} merger creates scale player in ${sector ?? "sector"}, addressing ${crossBorder ? "multi-region presence" : "domestic consolidation"}.`
-    : `${buyer ?? "Acquirer"} acquires ${target ?? "target"} to ${isHotSector ? "accelerate position in growing " : "consolidate share in mature "}${sector ?? "sector"}${crossBorder ? "; cross-border footprint expansion" : ""}.`;
-
+ // Use notes (Opportunity column) to derive a grounded thesis
+  let thesis = "";
+  if (notes && notes.trim().length > 30) {
+    // Synthesise from Opportunity text — take first 2 sentences, make them deal-specific
+    const sentences = notes.split(/[.!?]/).map((s) => s.trim()).filter((s) => s.length > 15);
+    const core = sentences.slice(0, 2).join(". ").trim();
+    if (isConsortium) {
+      thesis = `Competitive auction: ${buyerDisplay} are each pursuing ${target ?? "target"} — ${core.slice(0, 200)}${core.length > 200 ? "…" : ""}`;
+    } else {
+      thesis = `${buyerDisplay} acquires ${target ?? "target"}: ${core.slice(0, 200)}${core.length > 200 ? "…" : ""}`;
+    }
+  } else if (isConsortium) {
+    thesis = `Competitive auction for ${target ?? "target"} in ${sector ?? "sector"}: ${buyerDisplay} are competing — strategic rationale likely spans ${isHotSector ? "sector positioning" : "consolidation"}${crossBorder ? " and cross-border expansion" : ""}.`;
+  } else if (dealType && /ipo/i.test(dealType)) {
+    thesis = `${target ?? "Company"} listing capitalises on ${isHotSector ? "sector momentum" : "current capital availability"}; ${sizeLabel} float in ${sector ?? "this sector"}.`;
+  } else if (dealType && /merger/i.test(dealType)) {
+    thesis = `${buyerDisplay}-${target ?? "Target"} merger creates scale player in ${sector ?? "sector"}, addressing ${crossBorder ? "multi-region presence" : "domestic consolidation"}.`;
+  } else {
+    thesis = `${buyerDisplay} acquires ${target ?? "target"} to ${isHotSector ? "accelerate position in growing " : "consolidate share in mature "}${sector ?? "sector"}${crossBorder ? "; cross-border footprint expansion" : ""}.`;
+  }
   const why_now = isHotSector
     ? `${sector} M&A activity elevated; window for strategic positioning before further multiple expansion.`
     : crossBorder
@@ -367,6 +386,7 @@ export function deriveFields(raw: Record<string, unknown>): DerivedFields {
 // ✅ moved here (ONLY CHANGE)
 const valueRaw = (raw.value_raw as string | null) ?? null;
 const notes = (raw.notes as string | null) ?? null;
+  const heading = (raw.heading as string | null) ?? null;
 
 let stakePct = (raw.stake_percent as number | null) ?? null;
   if (stakePct == null || stakePct === 0) {
@@ -407,10 +427,12 @@ const usdNorm = (raw.normalized_value_usd as number | null) ?? null;
   const isRegulated = sector ? REGULATED_SECTORS.test(sector) : false;
 
   const scores = buildScores(usdM, allCountries, sector, dealType, stakePct);
-  const intel = buildIntelligence({
+ const intel = buildIntelligence({
     buyer, target, sector, country, dealType, usdM, stake: stakePct,
     crossBorder, isHotSector, isRegulated,
     advScore: scores.advisory_score, prioScore: scores.priority_score, riskScore: scores.risk_score,
+    notes,
+    buyerParts: buyerInfo.all.length > 1 ? buyerInfo.all : undefined,
   });
 
   return {
