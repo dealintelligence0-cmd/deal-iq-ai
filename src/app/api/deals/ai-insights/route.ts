@@ -18,7 +18,6 @@ export async function POST(req: Request) {
   const { data: deal } = await admin.from("deals").select("*").eq("id", body.deal_id).maybeSingle();
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
-  // Cache check — skip if insight_sections already populated and not forced
   const existing = deal.insight_sections as Record<string, unknown> | null;
   if (!body.force && existing?.thesis && String(existing.thesis).length > 30) {
     return NextResponse.json({ ok: true, cached: true, insight_sections: existing,
@@ -26,7 +25,6 @@ export async function POST(req: Request) {
       targeting_reason: deal.targeting_reason, confidence_level: deal.confidence_level });
   }
 
-  // Get smart-tier AI
   const { data: settings } = await admin.from("ai_settings")
     .select("premium_provider, premium_model, premium_key_encrypted")
     .eq("user_id", user.id).maybeSingle();
@@ -40,15 +38,15 @@ export async function POST(req: Request) {
   }
   if (!apiKey) return NextResponse.json({ error: "No Smart-tier provider in Settings." }, { status: 400 });
 
-  // Deduplicate and normalise buyer (may be comma-separated consortium)
-  function dedupeEntities(s: string): string[] {
+  function dedupeEntities(input: string): string[] {
     const norm = (x: string) => x.toLowerCase()
       .replace(/\b(ltd|ltdp|pty|inc|llc|sa|plc|pvt|corp|co|limited|private|public)\b\.?/g, "")
       .replace(/\s+/g, " ").trim();
-    const parts = s.split(/[,;|]/).map((x) => x.trim()).filter((x) => x.length > 1);
+    const parts = input.split(/[,;|]/).map((x) => x.trim()).filter((x) => x.length > 1);
     const seen = new Set<string>();
     return parts.filter((p) => { const k = norm(p); if (seen.has(k)) return false; seen.add(k); return true; });
   }
+
   const rawBuyer = (deal.buyer as string | null) ?? "Unknown buyer";
   const buyerParts = dedupeEntities(rawBuyer);
   const buyer = buyerParts.length > 1 ? buyerParts.join(", ") : rawBuyer;
@@ -59,9 +57,10 @@ export async function POST(req: Request) {
   const dealType = (deal.deal_type as string | null) ?? "Acquisition";
   const stake = (deal.stake_percent as number | null);
   const usdM = ((deal.normalized_value_usd as number | null) ?? 0) / 1_000_000;
-  const notes = (deal.notes as string | null) ?? "";
   const valueRaw = (deal.value_raw as string | null) ?? "";
   const dealDate = (deal.deal_date as string | null) ?? "";
+  const rawNotes = (deal.notes as string | null) ?? "";
+  const heading = (deal.heading as string | null) ?? "";
 
   const systemPrompt = `You are an MBB Partner producing proprietary deal intelligence.
 
@@ -69,58 +68,38 @@ CRITICAL: Your ENTIRE response must be a single valid JSON object. Start with { 
 
 Schema (all fields required):
 {
-  "thesis": "<1 sentence — specific investment thesis for THIS deal, names buyer+target, states real strategic logic>",
+  "thesis": "<1 sentence — specific investment thesis for THIS deal>",
   "why_now": "<1 sentence — specific timing trigger for THIS deal>",
-  "value_drivers": ["<driver 1 specific to this deal>", "<driver 2>", "<driver 3>"],
-  "risks": ["<risk 1 specific to this deal>", "<risk 2>", "<risk 3>"],
-  "tensions": "<1 sentence — the core contradiction or trade-off in this deal>",
-  "advisory_angle": "<1 sentence — specific advisory pitch for this deal type, sector, and structure>",
+  "value_drivers": ["<driver 1>", "<driver 2>", "<driver 3>"],
+  "risks": ["<risk 1>", "<risk 2>", "<risk 3>"],
+  "tensions": "<1 sentence — core contradiction or trade-off>",
+  "advisory_angle": "<1 sentence — specific advisory pitch>",
   "deal_takeaway": "<2-3 lines — why this deal matters, whether to pursue, what to do>",
-  "targeting_recommendation": "HIGH" | "MEDIUM" | "LOW",
-  "targeting_reason": "<1 sentence justification for recommendation>",
-  "confidence_level": "HIGH" | "MEDIUM" | "LOW"
+  "targeting_recommendation": "HIGH",
+  "targeting_reason": "<1 sentence justification>",
+  "confidence_level": "HIGH"
 }
 
-CRITICAL RULES:
-- Every sentence must name SPECIFIC parties (${buyer}, ${target}) or deal facts
+RULES:
+- Name SPECIFIC parties in every sentence
 - BANNED: "strengthens position", "enhances capabilities", "drives growth", "best-in-class", "leverage", "value-add"
-- Each risk and value_driver must be unique and deal-specific
-- If stake < 50%: thesis must mention governance-only / limited integration
-- If sector is regulated (pharma/finance/energy): risks must include regulatory clearance
-- thesis must NOT be generic — it must answer WHY ${isConsortium ? `these ${buyerParts.length} bidders are competing for` : `${buyer} is buying`} ${target}
-- If multi-bidder: state the auction dynamic and what each bidder's strategic angle likely is`;
-
-  const rawNotes = (deal.notes as string | null) ?? "";
-  const heading = (deal.heading as string | null) ?? "";
-
-  const rawNotes = (deal.notes as string | null) ?? "";
-  const heading = (deal.heading as string | null) ?? "";
+- thesis must answer WHY ${isConsortium ? `these ${buyerParts.length} bidders compete for` : `${buyer} is buying`} ${target}
+- If multi-bidder: state auction dynamic and each bidder's likely angle`;
 
   const userPrompt = `Deal facts:
-Buyer: ${isConsortium ? `Auction — ${buyerParts.length} competing bidders: ${buyerParts.join(", ")}` : buyer}
+Buyer: ${isConsortium ? `Competitive auction — ${buyerParts.length} bidders: ${buyerParts.join(", ")}` : buyer}
 Target: ${target}
-Sector: ${sector ?? "N/A"}
-Country: ${country ?? "N/A"}
-Deal Type: ${dealType ?? "Acquisition"}
-Stake: ${stake != null ? stake + "%" : "Not disclosed"}
-Deal Value: ${valueRaw || (usdM > 0 ? "$" + usdM.toFixed(0) + "M" : "Unknown")}
-Deal Date: ${dealDate}
-${heading ? `Deal Title: ${heading}` : ""}
-Opportunity Context: ${rawNotes.slice(0, 600)}
-${isConsortium ? `
-IMPORTANT: This is a COMPETITIVE AUCTION with ${buyerParts.length} bidders. Your thesis MUST state each bidder's likely strategic rationale and NOT assume a single winner.` : ""}
-
-Generate specific, non-generic JSON per schema.`;
-Target: ${target}  
-Sector: ${sector}
-Country: ${country}
+Sector: ${sector || "N/A"}
+Country: ${country || "N/A"}
 Deal Type: ${dealType}
 Stake: ${stake != null ? stake + "%" : "Not disclosed"}
 Deal Value: ${valueRaw || (usdM > 0 ? "$" + usdM.toFixed(0) + "M" : "Unknown")}
 Deal Date: ${dealDate}
-Context: ${notes.slice(0, 500)}
+${heading ? "Deal Title: " + heading : ""}
+Opportunity Context: ${rawNotes.slice(0, 600)}
+${isConsortium ? "IMPORTANT: COMPETITIVE AUCTION with " + buyerParts.length + " bidders. Thesis MUST cover each bidder's angle. Do NOT assume single winner." : ""}
 
-Generate specific, non-generic JSON per schema.`;
+Return ONLY valid JSON per schema above.`;
 
   const cfg: RouteConfig = {
     tier: "smart",
@@ -137,60 +116,51 @@ Generate specific, non-generic JSON per schema.`;
 
   try {
     let result = await routedCall(cfg, messages, 1200);
-    // If first attempt returns non-JSON, retry once with explicit reminder
-    const looksLikeJson = result.text.trim().startsWith("{");
-    if (!looksLikeJson) {
+    if (!result.text.trim().startsWith("{")) {
       const retryMessages: ChatMessage[] = [
         ...messages,
         { role: "assistant", content: result.text },
-        { role: "user", content: "Your response was not valid JSON. Return ONLY the JSON object, nothing else. Start with { immediately." },
+        { role: "user", content: "Return ONLY the JSON object. Start with { immediately. No explanation." },
       ];
       result = await routedCall(cfg, retryMessages, 1200);
     }
 
-    // Parse JSON
-   let parsed: Record<string, unknown> = {};
+    let parsed: Record<string, unknown> = {};
     const raw = result.text.replace(/```json|```/g, "").trim();
     const firstBrace = raw.indexOf("{");
     const lastBrace = raw.lastIndexOf("}");
-    const clean = firstBrace !== -1 && lastBrace !== -1
-      ? raw.slice(firstBrace, lastBrace + 1)
-      : raw;
+    const clean = firstBrace !== -1 && lastBrace !== -1 ? raw.slice(firstBrace, lastBrace + 1) : raw;
     try { parsed = JSON.parse(clean); }
     catch {
-      // Try extracting largest {...} block
       const allBlocks = [...clean.matchAll(/\{[\s\S]*?\}/g)].map((m) => m[0]);
       for (const block of allBlocks.sort((a, b) => b.length - a.length)) {
-        try { parsed = JSON.parse(block); if (parsed.thesis) break; } catch { /* try next */ }
+        try { parsed = JSON.parse(block); if (parsed.thesis) break; } catch { /* next */ }
       }
     }
 
     if (!parsed.thesis) {
-      // Build fallback from raw text so UI never shows error
       const extract = (key: string) => {
         const m = result.text.match(new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`, "i"));
         return m ? m[1] : null;
       };
       parsed = {
-        thesis: extract("thesis") ?? `${buyer} acquires ${target} in ${sector} — specific thesis pending AI retry`,
-        why_now: extract("why_now") ?? "Timing context unavailable — retry to generate",
+        thesis: extract("thesis") ?? `${buyer} — ${target}: specific thesis pending retry`,
+        why_now: extract("why_now") ?? "Timing context unavailable — retry",
         value_drivers: ["Deal-specific drivers pending — click Force refresh"],
         risks: ["Deal-specific risks pending — click Force refresh"],
         tensions: extract("tensions") ?? "—",
-        advisory_angle: extract("advisory_angle") ?? "Advisory angle pending — click Force refresh",
-        deal_takeaway: extract("deal_takeaway") ?? "Takeaway pending — click Force refresh",
+        advisory_angle: extract("advisory_angle") ?? "Advisory angle pending — retry",
+        deal_takeaway: extract("deal_takeaway") ?? "Takeaway pending — retry",
         targeting_recommendation: "MEDIUM",
-        targeting_reason: "Confidence low — insufficient AI response. Retry recommended.",
+        targeting_reason: "Low confidence — AI response incomplete. Retry recommended.",
         confidence_level: "LOW",
       };
     }
+
     const ins = {
-      thesis: parsed.thesis,
-      why_now: parsed.why_now,
-      value_drivers: parsed.value_drivers,
-      risks: parsed.risks,
-      tensions: parsed.tensions,
-      advisory_angle: parsed.advisory_angle,
+      thesis: parsed.thesis, why_now: parsed.why_now,
+      value_drivers: parsed.value_drivers, risks: parsed.risks,
+      tensions: parsed.tensions, advisory_angle: parsed.advisory_angle,
     };
 
     await admin.from("deals").update({
