@@ -118,11 +118,12 @@ Generate specific, non-generic JSON per schema.`;
 
     // Parse JSON
    let parsed: Record<string, unknown> = {};
-    const clean = result.text
-      .replace(/```json|```/g, "")
-      .replace(/^[^{]*/s, "")   // strip anything before first {
-      .replace(/}[^}]*$/s, "}") // strip anything after last }
-      .trim();
+    const raw = result.text.replace(/```json|```/g, "").trim();
+    const firstBrace = raw.indexOf("{");
+    const lastBrace = raw.lastIndexOf("}");
+    const clean = firstBrace !== -1 && lastBrace !== -1
+      ? raw.slice(firstBrace, lastBrace + 1)
+      : raw;
     try { parsed = JSON.parse(clean); }
     catch {
       // Try extracting largest {...} block
