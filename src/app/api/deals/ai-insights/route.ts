@@ -51,7 +51,9 @@ export async function POST(req: Request) {
   const valueRaw = (deal.value_raw as string | null) ?? "";
   const dealDate = (deal.deal_date as string | null) ?? "";
 
-  const systemPrompt = `You are an MBB Partner producing proprietary deal intelligence. Output STRICT JSON only — no preamble, no markdown fences.
+  const systemPrompt = `You are an MBB Partner producing proprietary deal intelligence.
+
+CRITICAL: Your ENTIRE response must be a single valid JSON object. Start with { and end with }. No text before or after. No markdown. No backticks. No explanation.
 
 Schema (all fields required):
 {
@@ -102,19 +104,53 @@ Generate specific, non-generic JSON per schema.`;
   ];
 
   try {
-    const result = await routedCall(cfg, messages, 1200);
-
-    // Parse JSON
-    let parsed: Record<string, unknown> = {};
-    const clean = result.text.replace(/```json|```/g, "").trim();
-    try { parsed = JSON.parse(clean); }
-    catch {
-      const m = clean.match(/\{[\s\S]*\}/);
-      if (m) try { parsed = JSON.parse(m[0]); } catch { /* ignore */ }
+    let result = await routedCall(cfg, messages, 1200);
+    // If first attempt returns non-JSON, retry once with explicit reminder
+    const looksLikeJson = result.text.trim().startsWith("{");
+    if (!looksLikeJson) {
+      const retryMessages: ChatMessage[] = [
+        ...messages,
+        { role: "assistant", content: result.text },
+        { role: "user", content: "Your response was not valid JSON. Return ONLY the JSON object, nothing else. Start with { immediately." },
+      ];
+      result = await routedCall(cfg, retryMessages, 1200);
     }
 
-    if (!parsed.thesis) return NextResponse.json({ error: "AI returned invalid JSON. Try again." }, { status: 500 });
+    // Parse JSON
+   let parsed: Record<string, unknown> = {};
+    const clean = result.text
+      .replace(/```json|```/g, "")
+      .replace(/^[^{]*/s, "")   // strip anything before first {
+      .replace(/}[^}]*$/s, "}") // strip anything after last }
+      .trim();
+    try { parsed = JSON.parse(clean); }
+    catch {
+      // Try extracting largest {...} block
+      const allBlocks = [...clean.matchAll(/\{[\s\S]*?\}/g)].map((m) => m[0]);
+      for (const block of allBlocks.sort((a, b) => b.length - a.length)) {
+        try { parsed = JSON.parse(block); if (parsed.thesis) break; } catch { /* try next */ }
+      }
+    }
 
+    if (!parsed.thesis) {
+      // Build fallback from raw text so UI never shows error
+      const extract = (key: string) => {
+        const m = result.text.match(new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`, "i"));
+        return m ? m[1] : null;
+      };
+      parsed = {
+        thesis: extract("thesis") ?? `${buyer} acquires ${target} in ${sector} — specific thesis pending AI retry`,
+        why_now: extract("why_now") ?? "Timing context unavailable — retry to generate",
+        value_drivers: ["Deal-specific drivers pending — click Force refresh"],
+        risks: ["Deal-specific risks pending — click Force refresh"],
+        tensions: extract("tensions") ?? "—",
+        advisory_angle: extract("advisory_angle") ?? "Advisory angle pending — click Force refresh",
+        deal_takeaway: extract("deal_takeaway") ?? "Takeaway pending — click Force refresh",
+        targeting_recommendation: "MEDIUM",
+        targeting_reason: "Confidence low — insufficient AI response. Retry recommended.",
+        confidence_level: "LOW",
+      };
+    }
     const ins = {
       thesis: parsed.thesis,
       why_now: parsed.why_now,
