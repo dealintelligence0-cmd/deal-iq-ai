@@ -3,6 +3,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
+import React from "react";
 import Link from "next/link";
 import {
   Briefcase, Loader2, Download, Trash2, ChevronUp, ChevronDown,
@@ -404,12 +406,173 @@ function ScoreBadge({ score }: { score: number }) {
 
 
 function DealInsight({ deal }: { deal: Deal }) {
+  const [loading, setLoading] = React.useState(false);
+  const [localDeal, setLocalDeal] = React.useState(deal);
+  const [err, setErr] = React.useState<string | null>(null);
+
   type Insight = {
     thesis?: string; why_now?: string; value_drivers?: string[];
     risks?: string[]; tensions?: string; advisory_angle?: string;
   };
-  const ins = ((deal as Deal & { insight_sections?: Insight }).insight_sections) ?? {};
-  const targeting = (deal as Deal & { targeting_recommendation?: string }).targeting_recommendation;
+
+  async function generateAI(force = false) {
+    setLoading(true); setErr(null);
+    try {
+      const r = await fetch("/api/deals/ai-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deal_id: deal.id, force }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) { setErr(j.error); }
+      else {
+        setLocalDeal((d) => ({
+          ...d,
+          insight_sections: j.insight_sections,
+          deal_takeaway: j.deal_takeaway,
+          targeting_recommendation: j.targeting_recommendation,
+          targeting_reason: j.targeting_reason,
+          confidence_level: j.confidence_level,
+        } as typeof d));
+      }
+    } catch (e) { setErr(String(e)); }
+    setLoading(false);
+  }
+
+  const d = localDeal as Deal & {
+    insight_sections?: Insight | null;
+    deal_takeaway?: string | null;
+    targeting_recommendation?: string | null;
+    targeting_reason?: string | null;
+    confidence_level?: string | null;
+    action_verb?: string | null;
+    advisor_signal?: string | null;
+    time_sensitivity?: string | null;
+    why_not?: string | null;
+  };
+
+  const ins = d.insight_sections ?? {};
+  const targeting = d.targeting_recommendation;
+  const targetingReason = d.targeting_reason;
+  const takeaway = d.deal_takeaway;
+  const confidence = d.confidence_level;
+  const actionVerb = d.action_verb;
+  const advisorSignal = d.advisor_signal;
+  const timeSens = d.time_sensitivity;
+  const whyNot = d.why_not;
+
+  const targetingColor = targeting === "HIGH" ? "bg-emerald-100 text-emerald-800"
+    : targeting === "MEDIUM" ? "bg-amber-100 text-amber-800"
+    : targeting === "LOW" ? "bg-slate-100 text-slate-600" : "bg-slate-50 text-slate-400";
+
+  const verbColor = actionVerb === "Aggressive Pursuit" ? "bg-emerald-600 text-white"
+    : actionVerb === "Selective Outreach" ? "bg-amber-500 text-white"
+    : actionVerb === "Monitor" ? "bg-blue-500 text-white"
+    : "bg-slate-400 text-white";
+
+  const hasAI = !!(ins.thesis && ins.thesis.length > 30);
+
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {/* Top banner */}
+      <div className="md:col-span-3 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900/20 dark:bg-indigo-950/10">
+        <div className="flex items-start gap-3">
+          <span className={`rounded-md px-3 py-1.5 text-xs font-bold ${verbColor}`}>
+            {actionVerb ?? "Pending"}
+          </span>
+          <div className="flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Deal Takeaway</p>
+            <p className="mt-0.5 text-sm text-slate-800 dark:text-slate-200">{takeaway ?? "—"}</p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1 text-[10px]">
+            {confidence && <span className="text-slate-500">Confidence: {confidence}</span>}
+            {timeSens && <span className="text-slate-500">Stage: {timeSens}</span>}
+            {advisorSignal && <span className="rounded bg-purple-100 px-1.5 py-0.5 font-medium text-purple-700">{advisorSignal}</span>}
+          </div>
+        </div>
+        {whyNot && whyNot !== "—" && (
+          <div className="mt-2 border-t border-indigo-100 pt-2 dark:border-indigo-900/20">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Why Not: </span>
+            <span className="text-[11px] text-slate-700 dark:text-slate-300">{whyNot}</span>
+          </div>
+        )}
+        <div className="mt-2 flex items-center gap-2 border-t border-indigo-100 pt-2 dark:border-indigo-900/20">
+          <button onClick={() => generateAI(false)} disabled={loading}
+            className="flex items-center gap-1 rounded bg-indigo-600 px-2.5 py-1 text-[10px] font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            {hasAI ? (loading ? "Refreshing…" : "AI: Cached") : (loading ? "Generating…" : "Generate AI Insights")}
+          </button>
+          {hasAI && !loading && (
+            <button onClick={() => generateAI(true)} className="text-[10px] text-indigo-600 hover:underline">
+              Force refresh
+            </button>
+          )}
+          {err && <span className="text-[10px] text-red-600">{err}</span>}
+        </div>
+      </div>
+
+      {/* Investment Thesis */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Investment Thesis</p>
+        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.thesis ?? "Click Generate AI Insights"}</p>
+      </div>
+
+      {/* Why Now */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+          <TrendingUp className="mr-1 inline h-3 w-3" /> Why Now
+        </p>
+        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.why_now ?? "—"}</p>
+      </div>
+
+      {/* Advisory Angle */}
+      <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-3 dark:border-purple-900/20 dark:bg-purple-950/10">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">Advisory Angle</p>
+        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.advisory_angle ?? "—"}</p>
+      </div>
+
+      {/* Value Drivers */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Value Drivers</p>
+        <ul className="mt-1 space-y-0.5">
+          {(ins.value_drivers ?? []).map((v: string, i: number) => (
+            <li key={i} className="text-xs text-slate-700 dark:text-slate-300">• {v}</li>
+          ))}
+          {(!ins.value_drivers || ins.value_drivers.length === 0) && <li className="text-xs text-slate-400">—</li>}
+        </ul>
+      </div>
+
+      {/* Key Risks */}
+      <div className="rounded-lg border border-amber-100 bg-amber-50/30 p-3 dark:border-amber-900/20 dark:bg-amber-950/10">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="mr-1 inline h-3 w-3" /> Key Risks
+        </p>
+        <ul className="mt-1 space-y-0.5">
+          {(ins.risks ?? []).map((r: string, i: number) => (
+            <li key={i} className="text-xs text-slate-700 dark:text-slate-300">• {r}</li>
+          ))}
+          {(!ins.risks || ins.risks.length === 0) && <li className="text-xs text-slate-400">—</li>}
+        </ul>
+      </div>
+
+      {/* Deal Tension */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Deal Tension</p>
+        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.tensions ?? "—"}</p>
+      </div>
+
+      {/* Targeting reason */}
+      {targetingReason && (
+        <div className="md:col-span-3 rounded-lg border-l-4 border-l-indigo-500 bg-slate-50 p-3 dark:bg-white/5">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${targetingColor}`}>{targeting}</span>
+          <span className="ml-2 text-xs text-slate-700 dark:text-slate-300">{targetingReason}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const targeting = (deal as Deal & { targeting_recommendation?: string }).targeting_recommendation;
   const targetingReason = (deal as Deal & { targeting_reason?: string }).targeting_reason;
   const takeaway = (deal as Deal & { deal_takeaway?: string }).deal_takeaway;
   const confidence = (deal as Deal & { confidence_level?: string }).confidence_level;
