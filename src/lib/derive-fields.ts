@@ -357,7 +357,9 @@ function actionVerb(targeting: string, advScore: number): string {
 
 export function deriveFields(raw: Record<string, unknown>): DerivedFields {
   const country = (raw.country as string | null) ?? null;
-  const buyer = (raw.buyer as string | null) ?? null;
+  const rawBuyer = (raw.buyer as string | null) ?? null;
+  const buyerInfo = formatMultiParty(rawBuyer);
+  const buyer = buyerInfo.all.length > 0 ? buyerInfo.all.join(", ") : rawBuyer;
   const target = (raw.target as string | null) ?? null;
   const sector = (raw.sector as string | null) ?? null;
   const dealType = (raw.deal_type as string | null) ?? null;
