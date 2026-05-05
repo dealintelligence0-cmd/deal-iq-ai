@@ -90,9 +90,27 @@ CRITICAL RULES:
 - thesis must NOT be generic — it must answer WHY ${isConsortium ? `these ${buyerParts.length} bidders are competing for` : `${buyer} is buying`} ${target}
 - If multi-bidder: state the auction dynamic and what each bidder's strategic angle likely is`;
 
+  const rawNotes = (deal.notes as string | null) ?? "";
+  const heading = (deal.heading as string | null) ?? "";
+
   const userPrompt = `Deal facts:
-Buyer: ${isConsortium ? `Consortium of ${buyerParts.length}: ${buyer}` : buyer}
-${isConsortium ? `Note: This is a MULTI-BIDDER auction. Thesis must reflect competitive bidding dynamic, not a single acquirer narrative.` : ""}
+Buyer: ${isConsortium ? `Auction — ${buyerParts.length} competing bidders: ${buyerParts.join(", ")}` : buyer}
+Target: ${target}
+Sector: ${sector ?? "N/A"}
+Country: ${country ?? "N/A"}
+Deal Type: ${dealType ?? "Acquisition"}
+Stake: ${stake != null ? stake + "%" : "Not disclosed"}
+Deal Value: ${valueRaw || (usdM > 0 ? "$" + usdM.toFixed(0) + "M" : "Unknown")}
+Deal Date: ${dealDate}
+${heading ? `Deal Title: ${heading}` : ""}
+Opportunity Context: ${rawNotes.slice(0, 600)}
+
+${isConsortium ? `IMPORTANT: This is a COMPETITIVE AUCTION with ${buyerParts.length} bidders. Your thesis MUST:
+- State each bidder's likely strategic rationale (1 line each)
+- Explain what makes this target attractive to ALL of them
+- NOT assume a single winner` : ""}
+
+Generate specific, non-generic JSON per schema.`;
 Target: ${target}  
 Sector: ${sector}
 Country: ${country}
