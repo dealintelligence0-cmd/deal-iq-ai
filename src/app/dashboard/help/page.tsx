@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useState } from "react";
@@ -24,12 +26,12 @@ const SECTIONS: Section[] = [
         "Validate — review exceptions and value-parsing tests",
         "Enrich — AI scores each deal for priority, risk, advisory attractiveness",
         "Research — pull live web or AI prompt-based intelligence per deal",
-        "Generate — 6 proposal types with embedded research and citations",
-        "Export — branded CSV/JSON/PDF/PPTX for client delivery",
+        "Generate — 6 proposal types, synergy models, PMI playbooks, TSA frameworks",
+        "Export — CSV/JSON/PDF/PPTX for client delivery",
       ]},
       { heading: "Required setup (5 minutes)", body: "", steps: [
         "Settings → save a Smart-tier AI key (Anthropic, Google, or Groq — all have free tiers)",
-        "Settings → Research Provider → save Tavily / Brave / Serper key (free tiers, 1000-2500/month)",
+        "Settings → Research Provider → save Tavily / Brave / Serper key (free tiers, 1000–2500/month)",
         "Done. Everything else just works.",
       ]},
     ],
@@ -66,7 +68,7 @@ const SECTIONS: Section[] = [
       { heading: "What is the Exceptions page?", body: "Every imported row passes through 8 cleansing rules. Any rule that fires logs an exception. Use this page to audit data quality before relying on it for proposals." },
       { heading: "Three severity levels", body: "", steps: [
         "INFO (blue) — cosmetic fixes like 'Acme Corp.' → 'Acme Corp'",
-        "WARNING (amber) — suspicious values: deal value outside $5M-$500B, stake outside 0-100%",
+        "WARNING (amber) — suspicious values: deal value outside $5M–$500B, stake outside 0–100%",
         "ERROR (red) — missing required fields; row was skipped",
       ]},
       { heading: "How to use", body: "", steps: [
@@ -81,7 +83,7 @@ const SECTIONS: Section[] = [
   {
     id: "value-tests", title: "Value Tests", icon: FlaskConical,
     content: [
-      { heading: "What is the Value Tests page?", body: "A self-test for the value-parsing engine. Confirms the system correctly reads values like '$1.2B', '₹4,200 Cr', '$500M for 49%', '$1-2B', and 11 currencies (USD, EUR, GBP, INR, JPY, CNY, AUD, CAD, SGD, CHF, HKD)." },
+      { heading: "What is the Value Tests page?", body: "A self-test for the value-parsing engine. Confirms the system correctly reads values like '$1.2B', '₹4,200 Cr', '$500M for 49%', '$1–2B', and 11 currencies (USD, EUR, GBP, INR, JPY, CNY, AUD, CAD, SGD, CHF, HKD)." },
       { heading: "When to use", body: "", steps: [
         "After any code change to the parser",
         "If imported deal values look wrong",
@@ -93,7 +95,7 @@ const SECTIONS: Section[] = [
   {
     id: "pipeline", title: "Deal Pipeline", icon: Briefcase,
     content: [
-      { heading: "Overview", body: "Sidebar → Deals. Your enterprise pipeline view of every imported and enriched deal." },
+      { heading: "Overview", body: "Sidebar → Deals. Your full pipeline view of every imported and enriched deal." },
       { heading: "Filters & sort", body: "", steps: [
         "Search box — live-filter by buyer or target",
         "4 dropdowns — sector, country, deal type, status",
@@ -101,15 +103,16 @@ const SECTIONS: Section[] = [
         "Click any column header to sort",
       ]},
       { heading: "Bulk actions", body: "Tick rows → Delete N or Export CSV. Filters and sort apply to the export." },
-      { heading: "Deal detail", body: "Click any buyer name → opens an 11-section intelligence view: headline, profiles, rationale, synergies, integration complexity, TSA, risks, comparables, advisory score. Two action buttons: 'Generate Proposal (General)' for instant offline output, or 'Generate with AI Research' for premium research-backed output." },
+      { heading: "Deal detail", body: "Click any buyer name → opens an 11-section intelligence view: headline, profiles, rationale, synergies, integration complexity, TSA, risks, comparables, advisory score. Two action buttons: 'Generate Proposal (General)' for instant offline output, or 'Generate with AI Research' for research-backed output." },
     ],
   },
 ];
+
 const MORE_SECTIONS: Section[] = [
   {
     id: "enrich", title: "Enrich AI", icon: Sparkles,
     content: [
-      { heading: "What is Enrich AI?", body: "For each selected deal, AI produces: cleaned buyer/target names, classified deal type, priority score (1-10), advisory attractiveness score (1-10), risk flag (low/med/high), and a 2-3 sentence strategic summary. Used by Pipeline filters and Proposal generation." },
+      { heading: "What is Enrich AI?", body: "For each selected deal, AI produces: cleaned buyer/target names, classified deal type, priority score (1–10), advisory attractiveness score (1–10), risk flag (low/med/high), and a 2–3 sentence strategic summary. Used by Pipeline filters and Proposal generation." },
       { heading: "How it works", body: "", steps: [
         "Sidebar → Enrich AI",
         "Click Select All Pending (or tick individual rows)",
@@ -121,18 +124,65 @@ const MORE_SECTIONS: Section[] = [
     ],
   },
   {
-    id: "ai-tiers", title: "AI Tiers (Premium / Economic / Offline)", icon: Sparkles,
+    id: "proposals", title: "Proposal Generator", icon: FileText,
+    content: [
+      { heading: "What it does", body: "Generates six consulting-grade M&A outputs from a single deal record. Each type is structured for its intended audience — from client-facing advisory memos to board-level investment papers." },
+      { heading: "6 proposal types", body: "", steps: [
+        "Advisory Memo — full strategic rationale, synergies, risks, and recommendation",
+        "Executive Summary — 1–2 page deal overview for senior stakeholders",
+        "Board Memo — governance-ready investment case with IC framing",
+        "Investment Teaser — anonymous deal marketing document for buyer outreach",
+        "Integration Blueprint — operational integration architecture for post-close execution",
+        "100-Day Plan — Day-0 / 30 / 60 / 100 action plan with owner and workstream matrix",
+      ]},
+      { heading: "How to generate", body: "", steps: [
+        "Sidebar → Proposals (or click Generate Proposal from any deal detail page)",
+        "Select buyer, target, sector, deal type from dropdowns",
+        "Choose a proposal type",
+        "Optional: select research mode (Live Web or Prompt-Based AI)",
+        "Click Generate → choose AI tier in the modal (Premium / Economic / Offline)",
+        "Output appears with copy-to-clipboard and history save options",
+      ]},
+      { heading: "With vs without research", body: "Without research: instant, uses deal data only. With research: runs 5 parallel queries first, embeds live citations, takes 30–60 seconds longer. Toggle the research mode dropdown before generating." },
+      { heading: "Offline (rule-based) mode", body: "Available for all 6 proposal types. No AI token cost, instant output, structurally complete but lacks deep reasoning. Use when API quotas are exhausted or for quick draft scaffolding." },
+    ],
+  },
+  {
+    id: "ai-tiers", title: "AI Tiers", icon: Sparkles,
     content: [
       { heading: "Three tiers — pick before each generation", body: "Every AI generation (Proposals · PMI · Synergy · TSA) opens a confirmation modal. Pick the tier that matches your need, budget, and quality bar." },
-      { heading: "Premium AI", body: "Anthropic Claude / OpenAI GPT / xAI Grok. Best reasoning, deepest analysis, richest sector-specific output. Costs ~$0.05-0.20 per generation. Use for client-facing deliverables and IC papers." },
-      { heading: "Economic AI", body: "Groq / Gemini Flash / DeepSeek / Mistral. 80% of premium quality at 1-5% of cost. Often free under monthly limits. Use for drafts, internal reviews, exploratory work." },
-      { heading: "Offline (rule-based)", body: "Deterministic template — instant, free, no AI tokens. Available only for Proposals and PMI. Structurally complete but lacks deep reasoning. Use when AI quotas are exhausted or for predictable outputs." },
+      { heading: "Premium AI", body: "Anthropic Claude / OpenAI GPT / xAI Grok. Best reasoning, deepest analysis, richest sector-specific output. Costs ~$0.05–0.20 per generation. Use for client-facing deliverables and IC papers." },
+      { heading: "Economic AI", body: "Groq / Gemini Flash / DeepSeek / Mistral. 80% of premium quality at 1–5% of cost. Often free under monthly limits. Use for drafts, internal reviews, exploratory work." },
+      { heading: "Offline (rule-based)", body: "Deterministic template — instant, free, no AI tokens. Available for Proposals and PMI. Structurally complete but lacks deep reasoning. Use when AI quotas are exhausted or for predictable outputs." },
       { heading: "How it works", body: "", steps: [
         "Settings → save keys for both Premium and Economic tiers",
         "Click Generate on any AI page → modal shows token estimates + costs",
         "Pick tier → generation runs",
         "Cost is logged with each saved output for budget tracking",
       ]},
+    ],
+  },
+  {
+    id: "research", title: "Research Modes", icon: Globe,
+    content: [
+      { heading: "Two research modes", body: "Available on the Proposals page when you have a buyer and target. Pick from a dropdown:" },
+      { heading: "Mode 1 — Live Web Research", body: "", steps: [
+        "Provider: Tavily, Brave, or Serper (whichever key is saved in Settings)",
+        "Runs 5 parallel searches: buyer, target, sector, comparables, regulatory",
+        "Returns 12+ live citations with URLs",
+        "Cached 24h per deal — re-running is free within that window",
+        "Best for: current quarter facts, recent deal activity, regulatory news",
+        "Cost: counts against search provider's monthly free tier",
+      ]},
+      { heading: "Mode 2 — Prompt-Based AI Research", body: "", steps: [
+        "Uses your Smart-tier LLM (GPT / Claude / Gemini / Groq)",
+        "Editable prompt template with {{buyer}} {{target}} {{sector}} variables",
+        "5-section output: sector, buyer, target, rationale + synergies, risks",
+        "Best for: when web search quota is exhausted, or for stable historical context",
+        "No live web — relies on LLM training data",
+        "Cost: counts against your AI provider's tokens",
+      ]},
+      { heading: "When to switch", body: "If Tavily / Brave / Serper quota runs out, flip the dropdown to Prompt-Based — zero downtime. Both modes feed into the same proposal pipeline." },
     ],
   },
   {
@@ -146,54 +196,30 @@ const MORE_SECTIONS: Section[] = [
         "Cost shown per item — total $ visible across runs",
       ]},
       { heading: "Privacy", body: "History is per-user via Supabase RLS. Other users cannot see your runs. Delete anytime via the trash icon." },
-      { heading: "Use cases", body: "Reuse: pull up a prior Synergy model when client asks for an updated version. Compare: regenerate same deal with different AI tier to compare quality. Audit: see which tier + provider was used historically." },
+      { heading: "Use cases", body: "Reuse: pull up a prior Synergy model when a client asks for an updated version. Compare: regenerate the same deal with a different AI tier to compare quality. Audit: see which tier and provider was used historically." },
     ],
   },
   {
-    id: "research", title: "Research Modes", icon: Globe,
-    content: [
-      { heading: "Two research modes", body: "Available on the Proposals page when you have a buyer and target. Pick from a dropdown:" },
-      { heading: "Mode 1 — Live Web Research", body: "", steps: [
-        "Provider: Tavily, Brave, or Serper (whichever key is saved in Settings)",
-        "Runs 5 parallel searches: buyer, target, sector, comparables, regulatory",
-        "Returns 12+ live citations with URLs",
-        "Cached 24h per deal — re-running is free within that window",
-        "Best for: current quarter facts, recent deal activity, regulatory news",
-        "Cost: counts against search-provider's monthly free tier",
-      ]},
-      { heading: "Mode 2 — Prompt-Based AI Research", body: "", steps: [
-        "Uses your Smart-tier LLM (GPT / Claude / Gemini / Groq)",
-        "Editable prompt template with {{buyer}} {{target}} {{sector}} variables",
-        "5-section output: sector, buyer, target, rationale+synergies, risks",
-        "Best for: when web search quota exhausted, or stable historical context",
-        "No live web — relies on LLM training data",
-        "Cost: counts against your AI provider's tokens",
-      ]},
-      { heading: "When to switch", body: "If Tavily / Brave / Serper quota runs out, flip the dropdown to Prompt-Based — zero downtime. Both modes feed into the same proposal pipeline." },
-    ],
-  },
-  
-    {
     id: "pmi", title: "PMI Studio", icon: Briefcase,
     content: [
-      { heading: "What it does", body: "Sidebar → PMI Studio. AI-powered Post-Merger Integration playbook generator. NOT a proposal — this is the execution plan after the deal closes." },
+      { heading: "What it does", body: "Sidebar → PMI Studio. AI-powered Post-Merger Integration playbook generator. This is the execution plan after the deal closes — not a proposal." },
       { heading: "5 output modes", body: "", steps: [
         "Narrative — full board-ready PMI proposal",
         "Slides — slide-style deck format",
         "Workplan — Function × Phase deliverable matrix",
         "Roadmap — Pre/Post-Day-1 Gantt visual",
-        "SteerCo Pack — concise update format (500-700 words)",
+        "SteerCo Pack — concise update format (500–700 words)",
       ]},
       { heading: "Inputs", body: "Buyer, Target, Sector, Deal Size, Synergy Ambition (Low/Med/High), Public/Private, Listed/Unlisted, TSA Needed, Cross-Border, Key Risks, Known Issues, Notes." },
       { heading: "Output sections", body: "Integration Strategy · Functional Plans (sector-tailored) · Cross-Function Dependency Map · Day-0/1/100 Plan · KPI Tree (linked to synergies) · Risk Register · IMO Cadence." },
-      { heading: "Premium / Economic / Offline", body: "Click Generate → modal pops with 3 tiers. Premium = best output. Economic = cheap + fast. Offline = template-based." },
+      { heading: "AI tier selection", body: "Click Generate → modal pops with 3 tiers. Premium = best output. Economic = cheap + fast. Offline = template-based, instant, no cost." },
     ],
   },
   {
     id: "synergy", title: "Synergy Engine", icon: Sparkles,
     content: [
       { heading: "What it does", body: "Bottom-up financial synergy model with sector-anchored benchmarks, comparable transactions, and NPV calculation." },
-      { heading: "Inputs", body: "Buyer, Target, Sector, Geography, Deal Size, optional Target Revenue / EBITDA / Buyer Revenue, Synergy Ambition (Conservative/Base/Aggressive)." },
+      { heading: "Inputs", body: "Buyer, Target, Sector, Geography, Deal Size, optional Target Revenue / EBITDA / Buyer Revenue, Synergy Ambition (Conservative / Base / Aggressive)." },
       { heading: "Output", body: "", steps: [
         "Executive Summary — total synergy, NPV, payback, confidence",
         "Cost Synergies — 8+ initiatives × Y1/Y2/Y3 with confidence and owner",
@@ -203,14 +229,14 @@ const MORE_SECTIONS: Section[] = [
         "Realisation Risks — 4+ risks with $ impact",
         "Sector Benchmarks — 3 named comparable transactions",
       ]},
-      { heading: "Smart-tier required", body: "Synergy modeling needs reasoning depth. Save Anthropic/OpenAI/Gemini/Groq key in Settings." },
+      { heading: "Smart-tier required", body: "Synergy modeling needs reasoning depth. Save an Anthropic / OpenAI / Gemini / Groq key in Settings before running." },
     ],
   },
   {
     id: "tsa", title: "TSA Generator", icon: FileText,
     content: [
       { heading: "What it does", body: "Generates a Transitional Service Agreement framework for carve-outs. Service catalog · pricing · exit milestones · governance." },
-      { heading: "Inputs", body: "Seller (provider), Buyer (carve-out), Sector, Deal Size, Geography, Close Date, selected Functions (12 options — IT, Finance, HR, Legal, Procurement, Facilities, etc.), Duration (6-24mo), Pricing Basis (Cost+5/10%, Market, Negotiated)." },
+      { heading: "Inputs", body: "Seller (provider), Buyer (carve-out), Sector, Deal Size, Geography, Close Date, selected Functions (12 options — IT, Finance, HR, Legal, Procurement, Facilities, etc.), Duration (6–24 mo), Pricing Basis (Cost+5/10%, Market, Negotiated)." },
       { heading: "Output", body: "", steps: [
         "Executive Summary — scope, cost, duration, top exit dependencies",
         "Service Catalog — one row per function with SLA, pricing, obligations",
@@ -220,7 +246,7 @@ const MORE_SECTIONS: Section[] = [
         "Risks & Mitigation — top 5 risks",
         "Negotiation Strategy — 5 buyer positions with fallback",
       ]},
-      { heading: "Complexity rating", body: "Auto-rates as Simple (1-3 functions), Standard (4-6), or Complex (7+). Adjusts pricing benchmark and exit timeline." },
+      { heading: "Complexity rating", body: "Auto-rates as Simple (1–3 functions), Standard (4–6), or Complex (7+). Adjusts pricing benchmark and exit timeline accordingly." },
     ],
   },
   {
@@ -230,14 +256,14 @@ const MORE_SECTIONS: Section[] = [
         "CSV — Excel/Sheets-compatible raw data",
         "JSON — for developers and APIs",
         "PDF — branded report with KPIs and deal table",
-        "PPTX — 4-slide deck: title, KPIs+chart, top 15, closing",
+        "PPTX — 4-slide deck: title, KPIs + chart, top 15 deals, closing",
       ]},
       { heading: "Filter before export", body: "Sector and Status dropdowns narrow the export. Counter updates live." },
     ],
   },
   {
     id: "settings", title: "Settings", icon: SettingsIcon,
-  content: [
+    content: [
       { heading: "Three AI tiers", body: "Premium Smart (Claude/GPT/Grok — best reasoning), Economic (Groq/Gemini Flash/DeepSeek — cheap & fast), Fast Tier (bulk enrichment). Save a key per tier. Generation modal lets you pick at runtime." },
       { heading: "Saved Keys & Status", body: "Top section of Settings shows all saved keys with status badges (ACTIVE / INCOMPLETE / EMPTY). One-click Delete to remove. Refresh button re-checks DB state." },
       { heading: "15 AI providers supported", body: "Google, OpenAI, Anthropic, Mistral, DeepSeek, Alibaba Qwen, xAI Grok, Cohere, Groq, NVIDIA NIM, OpenRouter, Together, HuggingFace, Replicate, plus a free rule-based fallback." },
@@ -260,22 +286,21 @@ const MORE_SECTIONS: Section[] = [
       { heading: "Is my data private?", body: "Yes. RLS scopes every query to your user ID. API keys are encrypted. No user can see another user's data." },
       { heading: "Do AI providers see my deal data?", body: "Only when you trigger enrichment, research, or proposal generation. Anthropic and Google Enterprise APIs don't train on traffic by default." },
       { heading: "Which AI provider should I pick?", body: "Fast Tier: Groq (free, fastest). Smart Tier: Anthropic Claude (best reasoning) or Google Gemini Pro (free tier)." },
-      { heading: "What if all my free tiers exhaust?", body: "Pick Economic tier (Groq is free + fast) or Offline rule-based when generating. Research: switch from Web to Prompt-Based mode. Synergy/TSA require AI — switch tier in the modal." },
-      { heading: "How is cost tracked?", body: "Every AI generation logs estimated cost based on input/output tokens × provider rates. Visible in History per item. Total spend visible by summing cost column." },
+      { heading: "What if all my free tiers exhaust?", body: "Pick Economic tier (Groq is free + fast) or Offline rule-based when generating proposals or PMI. Research: switch from Web to Prompt-Based mode. Synergy/TSA require AI — switch tier in the modal." },
+      { heading: "How is cost tracked?", body: "Every AI generation logs estimated cost based on input/output tokens × provider rates. Visible in History per item. Sum the cost column for total spend." },
       { heading: "Can I edit a generated proposal?", body: "Copy to clipboard, paste into Word/Docs, edit there. Direct in-app editing is on the roadmap." },
-      { heading: "How do I reset everything?", body: "Settings → Danger Zone → Clear All Data. Auth is preserved." },
-      { heading: "Multi-user workspaces?", body: "v1 is single-user. Multi-user orgs are planned for v2." },
+      { heading: "How do I reset everything?", body: "Settings → Danger Zone → Clear All Data. Your authentication is preserved." },
+      { heading: "Multi-user workspaces?", body: "v1 is single-user per account. Multi-user organisations are planned for v2." },
     ],
   },
 ];
 
 const ALL = [...SECTIONS, ...MORE_SECTIONS];
 
-// Group sections to match main sidebar
 const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
   { label: "Deal Data", ids: ["uploads", "mapping", "exceptions", "value-tests", "pipeline", "enrich"] },
-  { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history"] },
+  { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
   { label: "System", ids: ["exports", "settings", "activity", "faq"] },
 ];
 
@@ -299,10 +324,15 @@ export default function HelpPage() {
         </div>
         <div className="relative mb-4">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input type="text" placeholder="Search help…" value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-indigo-300 focus:bg-white" />
+          <input
+            type="text"
+            placeholder="Search help…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-indigo-300 focus:bg-white"
+          />
         </div>
-       <nav className="space-y-3">
+        <nav className="space-y-3">
           {HELP_GROUPS.map((g) => {
             const items = g.ids.map((id) => filtered.find((s) => s.id === id)).filter(Boolean) as Section[];
             if (items.length === 0) return null;
@@ -313,10 +343,15 @@ export default function HelpPage() {
                   {items.map((s) => {
                     const Icon = s.icon;
                     return (
-                      <button key={s.id} onClick={() => setActiveId(s.id)}
+                      <button
+                        key={s.id}
+                        onClick={() => setActiveId(s.id)}
                         className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition ${
-                          activeId === s.id ? "bg-indigo-50 font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300"
-                            : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5"}`}>
+                          activeId === s.id
+                            ? "bg-indigo-50 font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300"
+                            : "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5"
+                        }`}
+                      >
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span className="flex-1 truncate">{s.title}</span>
                         {activeId === s.id && <ChevronRight className="h-3 w-3" />}
@@ -367,7 +402,9 @@ export default function HelpPage() {
                   <ol className="mt-3 space-y-2">
                     {block.steps.map((step, j) => (
                       <li key={j} className="flex gap-3 text-sm text-slate-700">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700">{j + 1}</span>
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700">
+                          {j + 1}
+                        </span>
                         <span className="leading-relaxed">{step}</span>
                       </li>
                     ))}
@@ -378,15 +415,19 @@ export default function HelpPage() {
           </div>
           <div className="mt-10 flex items-center justify-between border-t border-slate-200 pt-6">
             {ALL.findIndex((s) => s.id === active.id) > 0 && (
-              <button onClick={() => setActiveId(ALL[ALL.findIndex((s) => s.id === active.id) - 1].id)}
-                className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
+              <button
+                onClick={() => setActiveId(ALL[ALL.findIndex((s) => s.id === active.id) - 1].id)}
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+              >
                 ← {ALL[ALL.findIndex((s) => s.id === active.id) - 1].title}
               </button>
             )}
             <div className="ml-auto">
               {ALL.findIndex((s) => s.id === active.id) < ALL.length - 1 && (
-                <button onClick={() => setActiveId(ALL[ALL.findIndex((s) => s.id === active.id) + 1].id)}
-                  className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                <button
+                  onClick={() => setActiveId(ALL[ALL.findIndex((s) => s.id === active.id) + 1].id)}
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                >
                   {ALL[ALL.findIndex((s) => s.id === active.id) + 1].title} →
                 </button>
               )}
