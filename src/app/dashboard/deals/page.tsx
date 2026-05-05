@@ -73,8 +73,13 @@ export default function PipelinePage() {
         const hay = [d.buyer, d.target].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (filters.sector && d.sector !== filters.sector) return false;
-      if (filters.country && d.country !== filters.country) return false;
+      const selectedSectors = filters.sector ? new Set(filters.sector.split("|").filter(Boolean)) : null;
+      const selectedCountries = filters.country ? new Set(filters.country.split("|").filter(Boolean)) : null;
+      const selectedDealTypes = filters.dealType ? new Set(filters.dealType.split("|").filter(Boolean)) : null;
+      const selectedStatuses = filters.status ? new Set(filters.status.split("|").filter(Boolean)) : null;
+
+      if (selectedSectors && !selectedSectors.has(d.sector ?? "")) return false;
+      if (selectedCountries && !selectedCountries.has(d.country ?? "")) return false;
 
       if (filters.indiaFlow && (d as Deal & { india_flow?: string | null }).india_flow !== filters.indiaFlow) return false;
       if (filters.stakeStatus && (d as Deal & { stake_status?: string | null }).stake_status !== filters.stakeStatus) return false;
@@ -86,8 +91,8 @@ export default function PipelinePage() {
       if (filters.maxAdvisory && (dExt2.advisory_score ?? 0) > parseInt(filters.maxAdvisory)) return false;
       if (filters.minRisk && (dExt2.risk_score ?? 0) < parseInt(filters.minRisk)) return false;
       if (filters.maxRisk && (dExt2.risk_score ?? 0) > parseInt(filters.maxRisk)) return false;
-      if (filters.dealType && d.deal_type !== filters.dealType) return false;
-      if (filters.status && d.status !== filters.status) return false;
+      if (selectedDealTypes && !selectedDealTypes.has(d.deal_type ?? "")) return false;
+      if (selectedStatuses && !selectedStatuses.has(d.status ?? "")) return false;
       if (filters.dateFrom && (!d.deal_date || d.deal_date < filters.dateFrom)) return false;
       if (filters.dateTo && (!d.deal_date || d.deal_date > filters.dateTo)) return false;
       // New decision filters
