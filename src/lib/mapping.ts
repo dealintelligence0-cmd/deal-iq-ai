@@ -8,7 +8,8 @@ export type StandardField =
   | "value_raw"
   | "stake_percent"
   | "status"
-  | "notes";
+  | "notes"
+  | "heading";
 
 export type FieldMapping = Record<StandardField, string | null>;
 
@@ -112,8 +113,18 @@ export const FIELD_DEFS: FieldDef[] = [
     label: "Notes / Description",
     required: false,
     aliases: [
-      "notes", "description", "summary", "comments", "remarks",
-      "deal rationale", "rationale", "headline", "heading", "opportunity",
+      "notes", "description", "comments", "remarks",
+      "opportunity", "deal opportunity", "deal context", "context",
+      "intelligence", "background",
+    ],
+  },
+{
+    key: "heading",
+    label: "Heading / Title",
+    required: false,
+    aliases: [
+      "heading", "title", "deal title", "deal name", "deal heading",
+      "headline", "deal headline", "subject",
     ],
   },
 ];
@@ -127,7 +138,7 @@ export function autoMap(headers: string[]): FieldMapping {
   const normalized = headers.map((h) => ({ original: h, norm: norm(h) }));
   const out: FieldMapping = {
     deal_date: null, buyer: null, target: null, sector: null, country: null,
-    deal_type: null, value_raw: null, stake_percent: null, status: null, notes: null,
+    deal_type: null, value_raw: null, stake_percent: null, status: null, notes: null, heading: null,
   };
 
   for (const def of FIELD_DEFS) {
