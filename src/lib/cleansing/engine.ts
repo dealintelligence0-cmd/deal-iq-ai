@@ -145,7 +145,7 @@ export function cleanseRow(row: RawDeal): CleansedDeal {
   const stakeVal = parseStakeText(row.stake_percent);
   if (stakeVal !== null) {
     cleaned.stake_percent = stakeVal;
-  } else if (row.stake_percent !== null && row.stake_percent !== undefined && row.stake_percent !== "") {
+ } else if (row.stake_percent !== null && row.stake_percent !== undefined && String(row.stake_percent) !== "") {
     exc.push({ field: "stake_percent", severity: "warn", message: "Could not parse stake", rawValue: String(row.stake_percent) });
     cleaned.stake_percent = null;
   }
