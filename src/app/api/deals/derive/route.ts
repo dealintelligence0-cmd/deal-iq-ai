@@ -10,6 +10,11 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+
+  // Read user FX rate from settings
+  const { data: fxSettings } = await admin.from("ai_settings")
+    .select("fx_inr_usd").eq("user_id", user.id).maybeSingle();
+  const fxRate = (fxSettings as Record<string, unknown> | null)?.fx_inr_usd as number | null ?? 83;
   const admin = createAdminClient();
   const { data: rows, error } = await admin.from("deals").select("*").limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -17,7 +22,7 @@ export async function POST() {
   let updated = 0;
   let failed = 0;
   for (const r of rows ?? []) {
-    const d = deriveFields(r as unknown as Record<string, unknown>);
+    const d = deriveFields(r as unknown as Record<string, unknown>, fxRate);
     const { error: upErr } = await admin.from("deals").update({
       geographies_involved: d.geographies_involved,
       india_flow: d.india_flow,
