@@ -197,7 +197,8 @@ export default function MappingPage() {
             "Stake Value": r.cleaned.stake_percent != null ? String(r.cleaned.stake_percent) : undefined,
             "Intelligence Size": r.cleaned.value_raw ?? undefined,
             Opportunity: r.cleaned.notes ?? undefined,
-            Heading: r.cleaned.notes ?? undefined,
+            Heading: (r.cleaned as Record<string, unknown>).heading as string ?? undefined,
+        
           });
 
           return {
@@ -213,8 +214,8 @@ export default function MappingPage() {
             normalized_value_usd: r.cleaned.normalized_value_usd,
             stake_percent: r.cleaned.stake_percent,
             status: r.cleaned.status ?? "announced",
-           notes: orNull(normalized.deal_takeaway || r.cleaned.notes),
-        heading: orNull((r.cleaned as Record<string, unknown>).heading as string | null),
+           notes: orNull(r.cleaned.notes),
+            heading: orNull((r.cleaned as Record<string, unknown>).heading as string | null),
         source_file: f.fileName,
             confidence_score: r.cleaned.confidence_score,
             data_quality_score: r.cleaned.data_quality_score,
