@@ -196,9 +196,9 @@ export default function MappingPage() {
             "Intelligence Type": r.cleaned.deal_type ?? undefined,
             "Stake Value": r.cleaned.stake_percent != null ? String(r.cleaned.stake_percent) : undefined,
             "Intelligence Size": r.cleaned.value_raw ?? undefined,
-            Opportunity: r.cleaned.notes ?? undefined,
-            Heading: (r.cleaned as Record<string, unknown>).heading as string ?? undefined,
-        
+             Opportunity: r.cleaned.notes ?? undefined,
+            Heading: (r.cleaned as Record<string, unknown>).heading as string ?? r.cleaned.notes ?? undefined,
+            Title: (r.cleaned as Record<string, unknown>).heading as string ?? undefined,
           });
 
           return {
