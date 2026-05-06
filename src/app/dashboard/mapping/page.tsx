@@ -215,7 +215,10 @@ export default function MappingPage() {
             stake_percent: r.cleaned.stake_percent,
             status: r.cleaned.status ?? "announced",
            notes: orNull(r.cleaned.notes),
-            heading: orNull((r.cleaned as Record<string, unknown>).heading as string | null),
+            heading: orNull(
+          (r.cleaned as Record<string, unknown>).heading as string | null
+          ?? (normalized as Record<string, unknown>).heading as string | null
+        ),
         source_file: f.fileName,
             confidence_score: r.cleaned.confidence_score,
             data_quality_score: r.cleaned.data_quality_score,
