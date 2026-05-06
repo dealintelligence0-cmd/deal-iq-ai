@@ -345,9 +345,9 @@ export default function PipelinePage() {
                       </span>
                     ) : "—"}
                   </td>
-               <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={(d as Deal & { heading?: string | null }).heading ?? d.deal_summary ?? ""}>
-                    <div className="truncate font-medium">{(d as Deal & { heading?: string | null }).heading || d.deal_summary || "—"}</div>
-                  </td>
+               <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={(d as Deal & { heading?: string | null }).heading ?? ""}>
+                    <div className="truncate font-medium">{(d as Deal & { heading?: string | null }).heading || "—"}</div>
+                 
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.priority_reason ?? ""}>
                     
                     {d.priority_score != null ? <ScoreBadge score={d.priority_score} /> : "—"}
