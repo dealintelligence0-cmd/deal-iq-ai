@@ -334,7 +334,37 @@ async function saveProvider(tier: Tier, p: ProviderId) {
           }} className="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white">Save</button>
         </div>
       </section>
-
+{/* FX Rate */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Currency Settings</h3>
+          <p className="mt-1 text-xs text-slate-500">USD → INR conversion rate used for deal value calculations.</p>
+          <div className="mt-3 flex items-center gap-3">
+            <span className="text-xs text-slate-600 dark:text-slate-400">1 USD =</span>
+            <input
+              type="number"
+              id="fxRate"
+              defaultValue={83}
+              min={60} max={120} step={0.1}
+              className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+            <span className="text-xs text-slate-600 dark:text-slate-400">INR</span>
+            <button
+              onClick={async () => {
+                const val = parseFloat((document.getElementById("fxRate") as HTMLInputElement).value);
+                if (isNaN(val) || val < 60 || val > 120) { alert("Enter a rate between 60-120"); return; }
+                const sb = (await import("@/lib/supabase/client")).createClient();
+                const { data: { user } } = await sb.auth.getUser();
+                if (!user) return;
+                await sb.from("ai_settings").upsert({ user_id: user.id, fx_inr_usd: val }, { onConflict: "user_id" });
+                alert(`FX rate saved: 1 USD = ${val} INR`);
+              }}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+            >
+              Save Rate
+            </button>
+          </div>
+          <p className="mt-2 text-[10px] text-slate-400">Live market rate as of today: ~84 INR/USD. Update when rates shift significantly.</p>
+        </div>
       {/* SECTION 4: DANGER ZONE — admin only */}
       <AdminDangerZone setStatus={setStatus} />
 
