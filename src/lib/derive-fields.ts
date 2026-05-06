@@ -205,11 +205,11 @@ function buildIntelligence(opts: {
   isHotSector: boolean; isRegulated: boolean; advScore: number; prioScore: number;
   notes: string | null; heading: string | null; buyerParts: string[];
 }) {
-  const {
+ const {
     buyer, target, sector, dealType, usdM, stake, crossBorder,
-    isHotSector, isRegulated, advScore, prioScore, notes, buyerParts,
+    isHotSector, isRegulated, advScore, prioScore, notes, heading, buyerParts,
   } = opts;
-
+  
   const isConsortium = buyerParts.length > 1;
   const sizeLabel = usdM >= 1000 ? "large" : usdM >= 250 ? "mid-market" : "small-cap";
   const buyerDisplay = isConsortium
