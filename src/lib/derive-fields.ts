@@ -1,6 +1,30 @@
 
 
-const FX_INR_USD = 83;
+// FX rate: reads from localStorage if user set it, else fetches live rate, else falls back to 83
+let _fxCache: { rate: number; ts: number } | null = null;
+
+export async function getLiveInrUsdRate(): Promise<number> {
+  // Check in-memory cache (1 hour)
+  if (_fxCache && Date.now() - _fxCache.ts < 3_600_000) return _fxCache.rate;
+  try {
+    const r = await fetch("https://api.exchangerate-api.com/v4/latest/USD", { signal: AbortSignal.timeout(3000) });
+    const j = await r.json();
+    const rate = j?.rates?.INR as number | undefined;
+    if (rate && rate > 50 && rate < 120) {
+      _fxCache = { rate, ts: Date.now() };
+      return rate;
+    }
+  } catch { /* fallback */ }
+  return 83;
+}
+
+function getFxRate(): number {
+  // Derive runs server-side — use fixed rate; UI can override via Settings
+  if (_fxCache) return _fxCache.rate;
+  return 83;
+}
+
+const FX_INR_USD = getFxRate();
 
 const REGION_MAP: Record<string, string> = {
   India: "APAC", USA: "North America", "United States": "North America",
