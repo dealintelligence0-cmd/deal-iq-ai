@@ -218,12 +218,20 @@ function buildIntelligence(opts: {
 
   // ── THESIS: ground in Opportunity text (notes column) ──
   let thesis: string;
-  if (notes && notes.trim().length > 30) {
+ if (notes && notes.trim().length > 30) {
     const sentences = notes.split(/[.!?]/).map((s) => s.trim()).filter((s) => s.length > 15);
     const core = sentences.slice(0, 2).join(". ").trim();
-    thesis = isConsortium
-      ? `Competitive auction — ${buyerDisplay} are each bidding for ${target ?? "target"}: ${core.slice(0, 220)}${core.length > 220 ? "…" : ""}`
-      : `${buyerDisplay} acquires ${target ?? "target"}: ${core.slice(0, 220)}${core.length > 220 ? "…" : ""}`;
+    // Use heading as hook if available, then ground in opportunity text
+    const hook = heading && heading.trim().length > 5 ? heading.trim() : null;
+    if (isConsortium) {
+      thesis = hook
+        ? `${hook} — competitive auction: ${buyerDisplay} are each bidding: ${core.slice(0, 180)}${core.length > 180 ? "…" : ""}`
+        : `Competitive auction — ${buyerDisplay} each bidding for ${target ?? "target"}: ${core.slice(0, 220)}${core.length > 220 ? "…" : ""}`;
+    } else {
+      thesis = hook
+        ? `${hook} — ${buyerDisplay} acquires ${target ?? "target"}: ${core.slice(0, 180)}${core.length > 180 ? "…" : ""}`
+        : `${buyerDisplay} acquires ${target ?? "target"}: ${core.slice(0, 220)}${core.length > 220 ? "…" : ""}`;
+    }
   } else if (isConsortium) {
     thesis = `Competitive auction for ${target ?? "target"} in ${sector ?? "sector"}: ${buyerDisplay} competing — strategic rationale spans ${isHotSector ? "sector positioning" : "consolidation"}${crossBorder ? " + cross-border expansion" : ""}.`;
   } else if (dealType && /ipo/i.test(dealType)) {
