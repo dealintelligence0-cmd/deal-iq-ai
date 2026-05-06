@@ -286,8 +286,7 @@ export default function PipelinePage() {
                 <th className="px-3 py-3">USD Range</th>
                 <th className="px-3 py-3">INR Range</th>
                 <th className="px-3 py-3">Stake</th>
-                <th className="px-3 py-3 min-w-[180px]">Heading</th>
-                <th className="px-3 py-3 min-w-[200px]">Summary</th>
+                <th className="px-3 py-3 min-w-[220px]">Heading</th>
                 <th className="px-3 py-3 text-center">Priority</th>
                 <th className="px-3 py-3 text-center">Advisory</th>
                 <th className="px-3 py-3 text-center">Risk</th>
@@ -296,7 +295,7 @@ export default function PipelinePage() {
             </thead>
             <tbody>
               {pageRows.length === 0 ? (
-               <tr><td colSpan={17} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
+               <tr><td colSpan={16} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
               ) : pageRows.map((d) => (
                 <>
                 <tr key={d.id} className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} cursor-pointer`}
@@ -341,11 +340,8 @@ export default function PipelinePage() {
                       </span>
                     ) : "—"}
                   </td>
-                 <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[180px]" title={(d as Deal & { heading?: string | null }).heading ?? ""}>
-                    <div className="truncate font-medium">{(d as Deal & { heading?: string | null }).heading ?? "—"}</div>
-                  </td>
-                  <td className="px-3 py-3 text-[11px] text-slate-600 dark:text-slate-400 max-w-[260px]" title={d.deal_summary ?? ""}>
-                    <div className="truncate">{d.deal_summary ?? "—"}</div>
+               <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={(d as Deal & { heading?: string | null }).heading ?? d.deal_summary ?? ""}>
+                    <div className="truncate font-medium">{(d as Deal & { heading?: string | null }).heading || d.deal_summary || "—"}</div>
                   </td>
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.priority_reason ?? ""}>
                     
