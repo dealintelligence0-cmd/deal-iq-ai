@@ -386,7 +386,8 @@ function actionVerb(targeting: string, advScore: number): string {
 
 // ─── main export ─────────────────────────────────────────────────────────────
 
-export function deriveFields(raw: Record<string, unknown>): DerivedFields {
+export function deriveFields(raw: Record<string, unknown>, fxOverride?: number): DerivedFields {
+  const FX_INR_USD = fxOverride ?? 83;
   // ── raw inputs ──
   const country    = (raw.country     as string | null) ?? null;
   const rawBuyer   = (raw.buyer       as string | null) ?? null;
