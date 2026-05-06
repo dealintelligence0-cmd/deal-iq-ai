@@ -120,11 +120,10 @@ export const FIELD_DEFS: FieldDef[] = [
   },
 {
     key: "heading",
-    label: "Heading / Title",
+    label: "Heading",
     required: false,
     aliases: [
-      "heading", "title", "deal title", "deal name", "deal heading",
-      "headline", "deal headline", "subject",
+           "headline",
     ],
   },
 ];
@@ -149,7 +148,7 @@ export function autoMap(headers: string[]): FieldMapping {
       for (const alias of def.aliases) {
         const a = norm(alias);
         if (h.norm === a) { score = Math.max(score, 100); }
-        else if (h.norm.includes(a) || a.includes(h.norm)) {
+        else if (def.key !== "heading" && (h.norm.includes(a) || a.includes(h.norm))) {
           score = Math.max(score, 70 + Math.min(a.length, h.norm.length));
         }
       }
@@ -172,7 +171,7 @@ export function applyMapping(
     const out: Record<string, unknown> = { source_file: sourceFile };
     for (const def of FIELD_DEFS) {
       const col = mapping[def.key];
-      out[def.key] = col ? (r[col] ?? null) : null;
+     out[def.key] = col && (def.key !== "heading" || norm(col) === "heading") ? (r[col] ?? null) : null;
     }
     return out;
   });
