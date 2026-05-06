@@ -10,7 +10,6 @@ export type SourceRow = {
   "Value INR(m)"?: string;
   "Value Description"?: string;
   "Heading"?: string;
-  "Title"?: string;
   "Opportunity"?: string;
   "Source"?: string;
   "Intelligence Type"?: string;
@@ -152,7 +151,7 @@ export function normalizeSourceRow(row: SourceRow): NormalizedDealRecord {
   const targeting_reason = targeting_recommendation === "HIGH" ? "High strategic relevance and advisory wallet." : targeting_recommendation === "MEDIUM" ? "Solid opportunity with selective pursuit." : "Low immediate payoff versus complexity.";
   const confidence_level = !date || buyer.includes("Unknown") || target.includes("Unknown") ? "low" : extracted.length === 0 ? "medium" : "high";
 
-  const heading = first(row["Heading"]) ?? first(row["Title" as keyof SourceRow]) ?? null;
+  const heading = first(row["Heading"]) || null;
   return { date, buyer, target, sector, country, geographies_involved, deal_value_inr_range: inrRange, deal_value_usd_range: usdRange, deal_type, deal_summary, india_flow: flow, stake_value: stake, stake_status, priority_score, advisory_score, risk_score, priority_reason, advisory_reason, risk_reason, score_breakdown, deal_takeaway, targeting_recommendation, targeting_reason, confidence_level, heading, dedup_key: `${companyKey(buyer)}|${companyKey(target)}|${date ?? ""}` };
   
 }
