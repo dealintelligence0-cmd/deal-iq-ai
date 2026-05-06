@@ -314,10 +314,15 @@ export default function PipelinePage() {
                       className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-400">{d.deal_date ?? "—"}</td>
-                  <td className="px-4 py-3 max-w-[140px] truncate" title={d.buyer ?? ""}>
+                 <td className="px-4 py-3 max-w-[140px]" title={d.buyer ?? ""}>
                     <Link href={`/dashboard/deals/${d.id}`} className="font-medium text-slate-900 hover:text-indigo-600 dark:text-white">
-                      {d.buyer ?? "—"}
+                      <span className="block truncate">{d.buyer ?? "—"}</span>
                     </Link>
+                    {d.buyer && d.buyer.split(",").length > 1 && (
+                      <span className="mt-0.5 inline-block rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-800">
+                        {d.buyer.split(",").length} bidders
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 max-w-[140px] truncate text-slate-700 dark:text-slate-300" title={d.target ?? ""}>{d.target ?? "—"}</td>
                   <td className="px-4 py-3 max-w-[120px] truncate text-slate-600 dark:text-slate-400" title={d.sector ?? ""}>{d.sector ?? "—"}</td>
