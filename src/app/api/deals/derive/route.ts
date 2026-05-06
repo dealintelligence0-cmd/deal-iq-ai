@@ -12,10 +12,12 @@ export async function POST() {
 
 
   // Read user FX rate from settings
+ const admin = createAdminClient();
+
+  // Read user FX rate from settings
   const { data: fxSettings } = await admin.from("ai_settings")
     .select("fx_inr_usd").eq("user_id", user.id).maybeSingle();
   const fxRate = (fxSettings as Record<string, unknown> | null)?.fx_inr_usd as number | null ?? 83;
-  const admin = createAdminClient();
   const { data: rows, error } = await admin.from("deals").select("*").limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
