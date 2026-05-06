@@ -39,6 +39,8 @@ export type Deal = {
   time_sensitivity: string | null;
   why_not: string | null;
   action_verb: string | null;
+  heading: string | null;
+  opportunity: string | null;
  
 };
 
