@@ -159,6 +159,9 @@ export function cleanseRow(row: RawDeal): CleansedDeal {
   const optionalFilled = [
     cleaned.sector, cleaned.country, cleaned.deal_type,
     cleaned.normalized_value_usd, cleaned.stake_percent, cleaned.notes,
+    if (row.heading !== null && row.heading !== undefined) {
+    cleaned.heading = String(row.heading).trim() || null;
+  }
   ].filter((v) => v !== null && v !== undefined && v !== "").length;
   const errorCount = exc.filter((e) => e.severity === "error").length;
   const dq = (requiredFilled / 3) * 0.6 + (optionalFilled / 6) * 0.4 - errorCount * 0.1;
