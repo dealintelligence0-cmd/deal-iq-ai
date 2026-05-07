@@ -297,12 +297,11 @@ export default function PipelinePage() {
               {pageRows.length === 0 ? (
                <tr><td colSpan={16} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
               ) : pageRows.map((d) => (
-                <React.Fragment key={d.id}>
-                <tr className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} cursor-pointer`}                  onClick={(e) => {
+               <React.Fragment key={d.id}>
+                <tr className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} cursor-pointer`}
+                  onClick={(e) => {
                     if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "A") return;
                     setExpanded(expanded === d.id ? null : d.id);
-                  </React.Fragment>
-                ))}
                   }}>
                   <td className="px-4 py-3">
                     <input type="checkbox"
