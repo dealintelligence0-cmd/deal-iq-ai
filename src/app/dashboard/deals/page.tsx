@@ -2,9 +2,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Briefcase, Loader2, Download, Trash2, ChevronUp, ChevronDown,
