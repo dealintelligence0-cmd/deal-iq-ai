@@ -301,6 +301,8 @@ export default function PipelinePage() {
                 <tr className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} cursor-pointer`}                  onClick={(e) => {
                     if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "A") return;
                     setExpanded(expanded === d.id ? null : d.id);
+                  </React.Fragment>
+                ))}
                   }}>
                   <td className="px-4 py-3">
                     <input type="checkbox"
