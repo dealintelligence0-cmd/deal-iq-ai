@@ -7,13 +7,28 @@ export type ProviderId =
 export type Tier = "fast" | "smart" | "economic";
 export type ApiStyle = "anthropic" | "openai" | "gemini" | "groq" | "openrouter" | "together" | "rules";
 
-export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+export type ChatMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+  /**
+   * Provider-neutral hint: this block is stable across calls and should be cached
+   * if the underlying provider supports caching. The adapter translates this into:
+   *   - Anthropic: cache_control: { type: "ephemeral" } block
+   *   - OpenAI / OSS-OpenAI-compat: positioned at start of prompt for automatic prefix cache
+   *   - Gemini: implicit caching applies automatically; explicit cachedContent if >32K tokens
+   *   - Others: positioned first; pass-through to upstream
+   * Setting this true is always safe — providers that don't support caching simply ignore it.
+   */
+  stable?: boolean;
+};
 export type ChatResult = {
   provider: ProviderId;
   model: string;
   text: string;
   inputTokens: number;
   outputTokens: number;
+  /** Tokens served from cache (provider-reported). 0 or undefined when no cache hit. */
+  cachedInputTokens?: number;
 };
 
 export type ProviderMeta = {
@@ -176,14 +191,36 @@ export async function callProvider(
 async function callAnthropic(
   provider: ProviderId, model: string, apiKey: string, messages: ChatMessage[], maxTokens: number
 ): Promise<ChatResult> {
-  const system = messages.find((m) => m.role === "system")?.content;
+  const systemMsgs = messages.filter((m) => m.role === "system");
   const rest = messages.filter((m) => m.role !== "system");
+
+  let systemPayload: string | Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> | undefined;
+  if (systemMsgs.length > 0) {
+    const hasStable = systemMsgs.some((m) => m.stable);
+    if (hasStable) {
+      const dynamic = systemMsgs.filter((m) => !m.stable).map((m) => m.content).join("\n\n");
+      const stable = systemMsgs.filter((m) => m.stable).map((m) => m.content).join("\n\n");
+      const blocks: Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> = [];
+      // Stable content first → maximizes Anthropic prefix cache hit rate
+      if (stable) blocks.push({ type: "text", text: stable, cache_control: { type: "ephemeral" } });
+      if (dynamic) blocks.push({ type: "text", text: dynamic });
+      systemPayload = blocks;
+    } else {
+      systemPayload = systemMsgs.map((m) => m.content).join("\n\n");
+    }
+  }
+
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "prompt-caching-2024-07-31",
+    },
     body: JSON.stringify({
       model, max_tokens: maxTokens,
-      ...(system ? { system } : {}),
+      ...(systemPayload ? { system: systemPayload } : {}),
       messages: rest.map((m) => ({ role: m.role, content: m.content })),
     }),
   });
@@ -209,9 +246,17 @@ async function callOpenAICompat(
     headers["HTTP-Referer"] = "https://deal-iq-ai.vercel.app";
     headers["X-Title"] = "Deal IQ AI";
   }
+
+  // Reorder: stable system blocks first, then dynamic system, then user/assistant.
+  // This maximizes prefix cache hit rate on providers that do automatic caching (OpenAI, Azure, some OSS).
+  const stableSys = messages.filter((m) => m.role === "system" && m.stable);
+  const dynamicSys = messages.filter((m) => m.role === "system" && !m.stable);
+  const rest = messages.filter((m) => m.role !== "system");
+  const ordered = [...stableSys, ...dynamicSys, ...rest].map((m) => ({ role: m.role, content: m.content }));
+
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST", headers,
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
+    body: JSON.stringify({ model, messages: ordered, max_tokens: maxTokens }),
   });
   if (!res.ok) throw new Error(`${provider} ${res.status}: ${await res.text()}`);
   const j = await res.json();
@@ -220,13 +265,23 @@ async function callOpenAICompat(
     text: (j.choices?.[0]?.message?.content ?? "").toString(),
     inputTokens: j.usage?.prompt_tokens ?? 0,
     outputTokens: j.usage?.completion_tokens ?? 0,
+    // OpenAI returns prompt_tokens_details.cached_tokens; surface if present
+    ...(j.usage?.prompt_tokens_details?.cached_tokens != null
+      ? { cachedInputTokens: j.usage.prompt_tokens_details.cached_tokens }
+      : {}),
   };
 }
 
 async function callGemini(
   provider: ProviderId, model: string, apiKey: string, messages: ChatMessage[], maxTokens: number
 ): Promise<ChatResult> {
-  const systemMsg = messages.find((m) => m.role === "system")?.content;
+  const systemMsgs = messages.filter((m) => m.role === "system");
+  // Gemini implicit caching is automatic on 2.5+ models when the systemInstruction prefix matches a recent call.
+  // We just concatenate (stable first, dynamic last) so the cacheable portion is at the start.
+  const stable = systemMsgs.filter((m) => m.stable).map((m) => m.content).join("\n\n");
+  const dynamic = systemMsgs.filter((m) => !m.stable).map((m) => m.content).join("\n\n");
+  const systemMsg = [stable, dynamic].filter(Boolean).join("\n\n");
+
   const contents = messages.filter((m) => m.role !== "system").map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
@@ -243,6 +298,18 @@ async function callGemini(
       }),
     }
   );
+  if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+  const j = await res.json();
+  return {
+    provider, model,
+    text: (j.candidates?.[0]?.content?.parts?.[0]?.text ?? "").toString(),
+    inputTokens: j.usageMetadata?.promptTokenCount ?? 0,
+    outputTokens: j.usageMetadata?.candidatesTokenCount ?? 0,
+    ...(j.usageMetadata?.cachedContentTokenCount != null
+      ? { cachedInputTokens: j.usageMetadata.cachedContentTokenCount }
+      : {}),
+  };
+}
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
   const j = await res.json();
   return {
