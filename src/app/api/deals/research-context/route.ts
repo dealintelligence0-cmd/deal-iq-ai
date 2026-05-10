@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     try { const { data: dec } = await admin.rpc("decrypt_key", { cipher: premiumCipher }); apiKey = dec as string | null; }
     catch { /* skip */ }
   }
-  if (!apiKey) return NextResponse.json({ error: "No AI provider configured. Add Fast or Smart tier key in Settings." }, { status: 400 });
+  if (!apiKey) return NextResponse.json({ error: "No AI provider configured. Open Settings → AI and save a key for any tier." }, { status: 400 });
 
   // Optional Tavily research
   let webResearch = "";
