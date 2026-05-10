@@ -96,7 +96,10 @@ export function lookupCost(
   model?: string | null,
   userOverrides?: Record<string, Partial<ModelCost>>,
 ): ModelCost {
-  const baseCost = (model && MODEL_COSTS[model]) ?? PROVIDER_FALLBACK[provider] ?? PROVIDER_FALLBACK["openrouter"];
+  const baseCost: ModelCost =
+  MODEL_COSTS[model ?? ""] ??
+  PROVIDER_FALLBACK[provider] ??
+  PROVIDER_FALLBACK["openrouter"];
   const override = userOverrides?.[model ?? provider];
   return override
   ? ({ ...baseCost, ...override } as ModelCost)
