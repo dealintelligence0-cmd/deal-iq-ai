@@ -26,7 +26,8 @@ export function evaluateProposalQuality(content: string): QualityScore {
 
   const hasJurisdiction = /HSR|EU Merger|CCI|CMA|DOJ|FTC|jurisdiction/i.test(content);
   const missingJurisdictionPenalty = hasJurisdiction ? 0 : 10;
-  const genericLanguagePenalty = /best-in-class|robust framework|world-class|seamless integration/gi.test(content) ? 10 : 0;
+  const bannedHits = (content.match(/best-in-class|robust framework|robust pipeline|world-class|seamless integration|leverage operational efficiencies|leverage the strengths|leveraging the strengths|leveraging the capabilities|industry-leading|unlock potential|cost savings opportunity|drive growth and expansion/gi) ?? []).length;
+  const genericLanguagePenalty = Math.min(20, bannedHits * 4);
 
   let score = 100;
   if (numericDensity < 2) score -= 20;
