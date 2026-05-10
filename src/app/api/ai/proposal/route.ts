@@ -288,10 +288,10 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
     { role: "system", stable: true, content: systemPrompt
         + "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" + advisoryRules
         + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock },
-    { role: "user", content:
+{ role: "user", content:
       `Generate the ${proposal_type.replace(/_/g, " ")} document. ${isAdvancedMode ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations." : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."}
 
-`MANDATORY SECTION CHECKLIST — produce ALL 14 sections in this exact order, with the minimum word count shown. Do NOT skip, merge, or summarize sections.
+MANDATORY SECTION CHECKLIST — produce ALL 14 sections in this exact order, with the minimum word count shown. Do NOT skip, merge, or summarize sections.
 
 01. Executive Summary (120-180 words)
 02. Deal Thesis — Strategic / Financial / Operational (140-200 words)
@@ -310,7 +310,6 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
 
 Total target: 1800-2200 words. If you run short on output budget, COMPRESS sections 12-14 prose but DO NOT drop any section. Every section above must appear with its ## heading.
 
-`,
 Mandatory executive decision block at the top:
 - Go / Conditional Go / No-Go
 - Conditions precedent (5-7)
@@ -320,12 +319,32 @@ Mandatory executive decision block at the top:
 Non-negotiable quality bars:
 1) No generic filler language.
 2) Include a numeric value bridge: revenue synergy + cost synergy - one-time cost-to-achieve = net run-rate, with timeline.
-3) For each major risk include probability, quantified impact, mitigation, and named owner.
-4) Include jurisdiction-specific regulatory pathway and filing implications.
-5) End with explicit recommendation: Go / Conditional Go / No-Go and conditions precedent.
+3) For each major risk include probability, quantified impact, mitigation, and named owner (named human role e.g. CFO, General Counsel, Head of Integration).
+4) Include jurisdiction-specific regulatory pathway and filing implications (HSR, EU Merger, CCI, CMA, MOFCOM, SEBI as applicable).
+5) Show synergy derivation: every $ figure has format "[base] × [%] = $[number] [HIGH/MEDIUM/STRETCH]".
+6) End with explicit recommendation: Go / Conditional Go / No-Go and conditions precedent.
 
 Risk & Mitigation MUST include Regulatory Compliance subsection referencing each flagged filing.
-Include section: ## Why NOT This Deal with 3 explicit disconfirming arguments.\n\n## ADVANCED SYNERGY REASONING\n${JSON.stringify(synergyLines, null, 2)}\n\n## ADVANCED RISK REASONING\n${JSON.stringify(riskLines, null, 2)}\n\n## QUANTIFIED SYNERGY LEVERS\n${JSON.stringify(quantifiedLevers, null, 2)}\n\n## QUANTIFIED RISK REGISTER\n${JSON.stringify(riskRegister, null, 2)}\n\n## SCENARIO CASES\n${JSON.stringify(scenarioCases, null, 2)}\n\n${ctxBlock}\n${regBlock}\n${fullContext}` },
+Include section: ## Why NOT This Deal with 3 explicit disconfirming arguments.
+
+## ADVANCED SYNERGY REASONING
+${JSON.stringify(synergyLines, null, 2)}
+
+## ADVANCED RISK REASONING
+${JSON.stringify(riskLines, null, 2)}
+
+## QUANTIFIED SYNERGY LEVERS
+${JSON.stringify(quantifiedLevers, null, 2)}
+
+## QUANTIFIED RISK REGISTER
+${JSON.stringify(riskRegister, null, 2)}
+
+## SCENARIO CASES
+${JSON.stringify(scenarioCases, null, 2)}
+
+${ctxBlock}
+${regBlock}
+${fullContext}` },
   ];
 
   try {
