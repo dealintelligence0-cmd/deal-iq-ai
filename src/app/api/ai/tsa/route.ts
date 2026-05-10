@@ -10,6 +10,9 @@ import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 import { buildPmiDependencyMap } from "@/lib/intelligence/pmi-engine";
+import { getOrSeed, dealModelToPromptBlock } from "@/lib/intelligence/deal-model";
+
+
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -20,7 +23,8 @@ export async function POST(req: Request) {
   const allowed = await checkRateLimit(supabase, "ai_tsa", 10, 60);
   if (!allowed) return NextResponse.json({ error: "Rate limit: 10 requests per minute" }, { status: 429 });
 
-  const body = await req.json() as {
+ const body = await req.json() as {
+    deal_id?: string;
     seller?: string; buyer?: string; sector?: string;
     deal_size?: string; geography?: string; close_date?: string;
     functions?: string[]; duration?: string;
@@ -168,7 +172,26 @@ OUTPUT QUALITY CONTROL:
     integrationStyle: body.integration_style,
     sector,
   });
+ // Load canonical Deal Model — single source of truth across modules.
+  // TSA is target-specific (the seller's carve-out is what the TSA covers), so we pass `seller` as the target.
+  let dealModelBlock = "";
+  if (body.deal_id) {
+    const dm = await getOrSeed(supabase, {
+      deal_id: body.deal_id,
+      user_id: user.id,
+      buyer,
+      target: seller,
+      sector,
+      geography,
+      deal_size_input: deal_size,
+      buyer_type: body.buyer_type,
+      ownership_type: body.ownership_type,
+    });
+    dealModelBlock = dealModelToPromptBlock(dm);
+  }
+
   const userPrompt = [
+    dealModelBlock,
     dealCtx,
     industryCtx,
     researchBlock,
