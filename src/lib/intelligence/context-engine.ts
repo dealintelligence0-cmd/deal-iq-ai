@@ -76,6 +76,13 @@ export function buildDealContext(input: {
   buyer: string; target: string; sector: string; geography: string;
   deal_size: string; stake_percent?: number; deal_type_input?: string;
   client_role?: string; notes?: string;
+  // Optional canonical model override — when present, synergy/cost/EV come from here instead of being heuristically derived
+  existingModel?: {
+    ev_usd: number;
+    cost_synergy_runrate: number;
+    rev_synergy_runrate: number;
+    one_time_integration_cost: number;
+  };
 }): DealContext {
   const buyer = (input.buyer || "").toLowerCase();
   const sector = input.sector || "Diversified";
@@ -146,9 +153,9 @@ export function buildDealContext(input: {
   return {
     deal_type, deal_archetype, industry: sector, buyer_type,
     growth_profile, value_driver, risk_level, deal_size_usd: value, size_bucket,
-    expected_synergy_revenue_usd: Math.round(value * revPct),
-    expected_synergy_cost_usd: Math.round(value * costPct),
-    one_time_costs_usd: Math.round(value * oneTimePct),
+    expected_synergy_revenue_usd: input.existingModel?.rev_synergy_runrate ?? Math.round(value * revPct),
+    expected_synergy_cost_usd: input.existingModel?.cost_synergy_runrate ?? Math.round(value * costPct),
+    one_time_costs_usd: input.existingModel?.one_time_integration_cost ?? Math.round(value * oneTimePct),
     integration_timeline_months: deal_type === "Carve-out" ? 18 : deal_type === "JV" ? 24 : 12,
     industry_levers: getLevers(sector),
     benchmark_multiple: bench.multiple,
