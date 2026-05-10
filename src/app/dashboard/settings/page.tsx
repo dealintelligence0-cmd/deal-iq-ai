@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PROVIDERS, type ProviderId } from "@/lib/ai/providers";
 import { CheckCircle2, XCircle, AlertCircle, Trash2, Key, Settings as SettingsIcon, Search, Loader2, RefreshCw, Shield } from "lucide-react";
+import { Sliders } from "lucide-react";
+import { scoreModels, DEFAULT_WEIGHTS_BY_MODULE, type RubricWeights } from "@/lib/ai/rubric";
+import { getModelsForTier } from "@/lib/ai/providers";
 
 type Tier = "fast" | "smart" | "economic";
 type KeyStatus = { kind: string; provider: string | null; model: string | null; has_key: boolean };
@@ -365,7 +368,21 @@ async function saveProvider(tier: Tier, p: ProviderId) {
           </div>
           <p className="mt-2 text-[10px] text-slate-400">Live market rate as of today: ~84 INR/USD. Update when rates shift significantly.</p>
         </div>
-      {/* SECTION 4: DANGER ZONE — admin only */}
+      {/* SECTION 4: RUBRIC — model ranking weights per module */}
+      <RubricSection
+        smartProvider={smartProv}
+        smartModel={smartModel}
+        smartHasKey={!!smartStatus?.has_key}
+        economicProvider={econProv}
+        economicModel={econModel}
+        economicHasKey={!!economicStatus?.has_key}
+        fastProvider={fastProv}
+        fastModel={fastModel}
+        fastHasKey={!!fastStatus?.has_key}
+        setStatus={setStatus}
+      />
+
+      {/* SECTION 5: DANGER ZONE — admin only */}
       <AdminDangerZone setStatus={setStatus} />
 
       {status && (
@@ -475,6 +492,287 @@ function AdminDangerZone({ setStatus }: { setStatus: (s: string) => void }) {
           </div>
         </div>
       )}
+    </section>
+  );
+}
+// ============================================================
+// SECTION 4: RUBRIC — provider-neutral model ranking weights
+// ============================================================
+
+const MODULES: Array<keyof typeof DEFAULT_WEIGHTS_BY_MODULE> = ["proposal", "pmi", "synergy", "tsa", "insights", "research"];
+const MODULE_LABELS: Record<string, string> = {
+  proposal: "Proposal",
+  pmi: "PMI Plan",
+  synergy: "Synergy Model",
+  tsa: "TSA Framework",
+  insights: "Deal Insights (bulk)",
+  research: "Research Context (bulk)",
+};
+const CRITERIA: Array<{ key: keyof RubricWeights; label: string; help: string }> = [
+  { key: "cost",     label: "Cost",     help: "Higher = cheaper models score higher" },
+  { key: "quality",  label: "Quality",  help: "Higher = frontier models score higher" },
+  { key: "latency",  label: "Latency",  help: "Higher = faster models score higher" },
+  { key: "context",  label: "Context",  help: "Higher = larger context window scores higher" },
+  { key: "caching",  label: "Caching",  help: "Higher = models with cached-input discount score higher" },
+];
+
+function RubricSection({
+  smartProvider, smartModel, smartHasKey,
+  economicProvider, economicModel, economicHasKey,
+  fastProvider, fastModel, fastHasKey,
+  setStatus,
+}: {
+  smartProvider: ProviderId;
+  smartModel: string | null;
+  smartHasKey: boolean;
+  economicProvider: ProviderId;
+  economicModel: string | null;
+  economicHasKey: boolean;
+  fastProvider: ProviderId;
+  fastModel: string | null;
+  fastHasKey: boolean;
+  setStatus: (s: string) => void;
+}) {
+  const sb = createClient();
+  const [activeModule, setActiveModule] = useState<keyof typeof DEFAULT_WEIGHTS_BY_MODULE>("proposal");
+  const [perModuleWeights, setPerModuleWeights] = useState<Record<string, RubricWeights>>({});
+  const [allowFreeFallback, setAllowFreeFallback] = useState(false);
+  const [costOverridesText, setCostOverridesText] = useState("");
+  const [costOverridesError, setCostOverridesError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // Load saved weights and prefs
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await sb.auth.getUser();
+      if (!u.user) { setLoaded(true); return; }
+      const { data } = await sb.from("ai_settings")
+        .select("rubric_weights,cost_overrides,allow_free_fallback")
+        .eq("user_id", u.user.id).maybeSingle();
+      if (data) {
+        const saved = data.rubric_weights as Record<string, RubricWeights> | null;
+        if (saved && typeof saved === "object") setPerModuleWeights(saved);
+        setAllowFreeFallback(!!data.allow_free_fallback);
+        if (data.cost_overrides) {
+          try { setCostOverridesText(JSON.stringify(data.cost_overrides, null, 2)); }
+          catch { setCostOverridesText(""); }
+        }
+      }
+      setLoaded(true);
+    })();
+  }, [sb]);
+
+  const currentWeights: RubricWeights =
+    perModuleWeights[activeModule] ?? DEFAULT_WEIGHTS_BY_MODULE[activeModule] ?? DEFAULT_WEIGHTS_BY_MODULE.proposal;
+
+  function updateWeight(key: keyof RubricWeights, value: number) {
+    const next = { ...currentWeights, [key]: value };
+    // Renormalize so weights sum to 1.0
+    const sum = Object.values(next).reduce((a, b) => a + b, 0);
+    if (sum > 0) {
+      const normalized = Object.fromEntries(
+        Object.entries(next).map(([k, v]) => [k, Math.round((v / sum) * 100) / 100])
+      ) as RubricWeights;
+      setPerModuleWeights({ ...perModuleWeights, [activeModule]: normalized });
+    }
+  }
+
+  function resetModuleToDefault() {
+    const next = { ...perModuleWeights };
+    delete next[activeModule];
+    setPerModuleWeights(next);
+  }
+
+  // Build available-models list for live preview
+  const available: Array<{ provider: string; modelId: string }> = [];
+  if (smartHasKey && smartProvider !== "free") {
+    const models = getModelsForTier(smartProvider, "smart");
+    models.forEach((m) => available.push({ provider: smartProvider, modelId: m }));
+  }
+  if (economicHasKey && economicProvider !== "free") {
+    const models = getModelsForTier(economicProvider, "economic");
+    models.forEach((m) => available.push({ provider: economicProvider, modelId: m }));
+  }
+  if (fastHasKey && fastProvider !== "free") {
+    const models = getModelsForTier(fastProvider, "fast");
+    models.forEach((m) => available.push({ provider: fastProvider, modelId: m }));
+  }
+  // Dedupe (same model may appear in multiple tiers)
+  const uniqueAvailable = Array.from(new Map(available.map((m) => [m.provider + "/" + m.modelId, m])).values());
+
+  let parsedOverrides: Record<string, Partial<unknown>> | undefined;
+  try {
+    if (costOverridesText.trim()) {
+      parsedOverrides = JSON.parse(costOverridesText);
+    }
+  } catch { /* error shown below */ }
+
+  const ranked = scoreModels(uniqueAvailable, currentWeights, parsedOverrides as Parameters<typeof scoreModels>[2]);
+
+  async function save() {
+    setCostOverridesError(null);
+    let overrides: unknown = null;
+    if (costOverridesText.trim()) {
+      try {
+        overrides = JSON.parse(costOverridesText);
+      } catch (e) {
+        setCostOverridesError("Cost overrides must be valid JSON. " + (e as Error).message);
+        return;
+      }
+    }
+    setSaving(true);
+    const { data: u } = await sb.auth.getUser();
+    if (!u.user) { setSaving(false); return; }
+    const { error } = await sb.from("ai_settings").upsert({
+      user_id: u.user.id,
+      rubric_weights: perModuleWeights,
+      cost_overrides: overrides,
+      allow_free_fallback: allowFreeFallback,
+    }, { onConflict: "user_id" });
+    setSaving(false);
+    if (error) setStatus("Save failed: " + error.message);
+    else setStatus("Rubric weights saved.");
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <section className="card p-5 border-l-4 border-l-indigo-500">
+      <div className="mb-4 flex items-center gap-2">
+        <Sliders className="h-4 w-4 text-indigo-600" />
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">Model Rubric — Provider-Neutral Ranking</h2>
+      </div>
+      <p className="mb-4 text-xs text-slate-600 dark:text-slate-400">
+        Rank-score every model you have configured, by your priorities. The modal&apos;s recommended-model star and the &quot;Promote to top-rubric model&quot; button both read from these weights. No vendor is preferred — only the rubric.
+      </p>
+
+      {/* Module tabs */}
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {MODULES.map((m) => (
+          <button
+            key={m}
+            onClick={() => setActiveModule(m)}
+            className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
+              activeModule === m
+                ? "bg-indigo-600 text-white"
+                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+            }`}
+          >
+            {MODULE_LABELS[m]}
+          </button>
+        ))}
+      </div>
+
+      {/* Sliders */}
+      <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+            Weights for <span className="text-indigo-700 dark:text-indigo-400">{MODULE_LABELS[activeModule]}</span> (auto-normalized to sum 100%)
+          </p>
+          {perModuleWeights[activeModule] && (
+            <button onClick={resetModuleToDefault} className="text-[10px] text-indigo-600 underline hover:text-indigo-800 dark:text-indigo-400">
+              Reset to default
+            </button>
+          )}
+        </div>
+
+        {CRITERIA.map(({ key, label, help }) => (
+          <div key={key}>
+            <div className="flex items-baseline justify-between">
+              <label className="text-[11px] font-medium text-slate-700 dark:text-slate-300">{label}</label>
+              <span className="font-mono text-[11px] text-slate-500">{Math.round(currentWeights[key] * 100)}%</span>
+            </div>
+            <input
+              type="range" min="0" max="100" step="5"
+              value={Math.round(currentWeights[key] * 100)}
+              onChange={(e) => updateWeight(key, Number(e.target.value) / 100)}
+              className="w-full accent-indigo-600"
+            />
+            <p className="mt-0.5 text-[10px] text-slate-400">{help}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Live ranking preview */}
+      <div className="mt-4">
+        <p className="mb-2 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+          Live ranking — your configured models for {MODULE_LABELS[activeModule]}:
+        </p>
+        {uniqueAvailable.length === 0 ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-300">
+            No models configured. Save a key for any tier above to see live ranking.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-white/10">
+            <table className="w-full text-[11px]">
+              <thead className="bg-slate-50 dark:bg-white/5">
+                <tr className="text-slate-600 dark:text-slate-400">
+                  <th className="px-2 py-1.5 text-left font-medium">#</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Provider / Model</th>
+                  <th className="px-2 py-1.5 text-center font-medium">Score</th>
+                  <th className="px-2 py-1.5 text-left font-medium">Why</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ranked.map((r, i) => (
+                  <tr key={r.provider + "/" + r.modelId} className={i === 0 ? "bg-emerald-50 font-medium dark:bg-emerald-950/20" : ""}>
+                    <td className="px-2 py-1">{i === 0 ? "★" : i + 1}</td>
+                    <td className="px-2 py-1 font-mono"><span className="opacity-60">{r.provider}/</span>{r.modelId}</td>
+                    <td className="px-2 py-1 text-center font-mono">{r.totalScore.toFixed(2)}</td>
+                    <td className="px-2 py-1 text-slate-600 dark:text-slate-400">{r.why}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Allow free / OSS fallback */}
+      <div className="mt-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-white/5">
+        <div>
+          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Allow free / OSS fallback</p>
+          <p className="text-[10px] text-slate-500">When no paid tier is available, allow rule-based generation to run instead of erroring out.</p>
+        </div>
+        <button
+          onClick={() => setAllowFreeFallback(!allowFreeFallback)}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${allowFreeFallback ? "bg-indigo-600" : "bg-slate-300"}`}
+        >
+          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${allowFreeFallback ? "translate-x-4" : "translate-x-0.5"}`} />
+        </button>
+      </div>
+
+      {/* Cost overrides — JSON editor for enterprise rates */}
+      <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+        <summary className="cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
+          Cost overrides (advanced — paste enterprise / negotiated rates)
+        </summary>
+        <p className="mt-2 text-[10px] text-slate-500">
+          Override per-million-token rates by model ID or provider. Used by the rubric for cost scoring. Format: <code>{"{ \"model-id\": { \"input\": 1.5, \"output\": 6.0 } }"}</code>
+        </p>
+        <textarea
+          value={costOverridesText}
+          onChange={(e) => setCostOverridesText(e.target.value)}
+          placeholder='{ "claude-sonnet-4-6": { "input": 2.5, "output": 12.0 } }'
+          rows={5}
+          className="mt-2 w-full rounded border border-slate-200 bg-white p-2 font-mono text-[11px] dark:border-white/10 dark:bg-[#15151f] dark:text-slate-200"
+        />
+        {costOverridesError && (
+          <p className="mt-1 text-[11px] text-red-600">{costOverridesError}</p>
+        )}
+      </details>
+
+      {/* Save button */}
+      <div className="mt-4 flex justify-end">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-md bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save rubric"}
+        </button>
+      </div>
     </section>
   );
 }
