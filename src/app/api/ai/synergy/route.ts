@@ -189,7 +189,8 @@ OUTPUT QUALITY CONTROL:
   ].filter(Boolean).join("\n");
 
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
+     // Stable across calls for the same mandate type — provider adapter applies caching where supported.
+    { role: "system", stable: true, content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
     { role: "user", content: userPrompt },
   ];
 
