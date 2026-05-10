@@ -98,7 +98,9 @@ export function lookupCost(
 ): ModelCost {
   const baseCost = (model && MODEL_COSTS[model]) ?? PROVIDER_FALLBACK[provider] ?? PROVIDER_FALLBACK["openrouter"];
   const override = userOverrides?.[model ?? provider];
-  return override ? { ...baseCost, ...override } : baseCost;
+  return override
+  ? ({ ...baseCost, ...override } as ModelCost)
+  : baseCost;
 }
 
 export function tierFromCost(c: ModelCost): "premium" | "economic" | "offline" {
