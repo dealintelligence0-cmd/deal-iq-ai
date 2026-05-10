@@ -11,6 +11,9 @@ import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
 import { BIG4_PMI_KIT } from "@/lib/proposal/big4-pmi-templates";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
+import { getOrSeed, dealModelToPromptBlock } from "@/lib/intelligence/deal-model";
+
+
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -21,7 +24,8 @@ export async function POST(req: Request) {
   const allowed = await checkRateLimit(supabase, "ai_pmi", 10, 60);
   if (!allowed) return NextResponse.json({ error: "Rate limit: 10 requests per minute" }, { status: 429 });
 
- const body = await req.json() as {
+const body = await req.json() as {
+    deal_id?: string;
     buyer?: string; target?: string; sector?: string; geography?: string;
     deal_size?: string; synergy_ambition?: string; key_risks?: string;
     public_private?: string; listed?: string; known_issues?: string;
@@ -171,7 +175,22 @@ ${BIG4_PMI_KIT}`;
     sector,
   });
 
+  // Load canonical Deal Model — single source of truth across modules
+  let dealModelBlock = "";
+  if (body.deal_id) {
+    const dm = await getOrSeed(supabase, {
+      deal_id: body.deal_id,
+      user_id: user.id,
+      buyer, target, sector, geography,
+      deal_size_input: deal_size,
+      buyer_type: body.buyer_type,
+      ownership_type: body.ownership_type,
+    });
+    dealModelBlock = dealModelToPromptBlock(dm);
+  }
+
   const userPrompt = [
+    dealModelBlock,
     dealCtx,
     industryCtx,
     `Synergy ambition: ${synergy_ambition}`,
@@ -180,7 +199,6 @@ ${BIG4_PMI_KIT}`;
     key_risks ? `Client-flagged risks: ${key_risks}` : "",
     known_issues ? `Known issues: ${known_issues}` : "",
   ].filter(Boolean).join("\n");
-
   const dependencyMap = buildPmiDependencyMap();
   const messages: ChatMessage[] = [
      // Stable across calls for the same mandate type — provider adapter applies caching where supported.
