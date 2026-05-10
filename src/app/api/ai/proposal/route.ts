@@ -283,8 +283,9 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
     ? advancedBuilder!({ buyer, target, sector, geography, dealSize: deal_size, notes, researchInsights: body.research_docs })
     : PROPOSAL_PROMPTS[proposal_type];
 
-  const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt
+ const messages: ChatMessage[] = [
+    // Stable across calls for the same mandate type — provider adapter applies caching where supported.
+    { role: "system", stable: true, content: systemPrompt
         + "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" + advisoryRules
         + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock },
     { role: "user", content:
