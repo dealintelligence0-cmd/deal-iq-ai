@@ -291,6 +291,26 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
     { role: "user", content:
       `Generate the ${proposal_type.replace(/_/g, " ")} document. ${isAdvancedMode ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations." : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."}
 
+`MANDATORY SECTION CHECKLIST — produce ALL 14 sections in this exact order, with the minimum word count shown. Do NOT skip, merge, or summarize sections.
+
+01. Executive Summary (120-180 words)
+02. Deal Thesis — Strategic / Financial / Operational (140-200 words)
+03. Deal Score — 4-row table (Market, Company, Synergy, Execution Risk inverted) with 0-10 scores and one-sentence rationale each
+04. Synergy Model — 3-year table (Year 1/2/3) for Revenue Synergy, Cost Synergy, One-time Integration Cost, Net Run-rate, with confidence labels HIGH/MEDIUM/STRETCH
+05. Risk Engine — 6-row table (Risk, Type, Probability %, $ Impact, Mitigation, Owner with named human role)
+06. Valuation View (80-120 words) — implied EV/EBITDA, sector benchmark range, premium/discount with logic
+07. Scenario Analysis — Base/Upside/Downside table with synergy capture %, IRR, multiple, probability
+08. What Must Be True (4-6 bullets, each numeric)
+09. Why NOT This Deal (3 explicit disconfirming arguments, 30-50 words each)
+10. IC Questions (5 sharp questions the IC will ask)
+11. Recommendation — Go/Conditional Go/No-Go + confidence + 60-word justification + risk-adjusted value range
+12. Strategic Rationale + Market Context + Value Creation Detail (350-450 words combined; show synergy derivation as "X% of $Y base = $Z")
+13. Integration Strategy + Functional Workstreams + Governance — cover Finance/HR/IT/Operations/Sales/Procurement/Legal/Tax/Cyber, each with named accountable role and Day-30/60/100 milestones (300-400 words)
+14. 100-Day Plan + Why Us + Next Steps — name 2-3 prior engagements in ${sector || "the sector"} for Why Us; 100-day plan has 3-5 named workstream owners per phase (300-400 words)
+
+Total target: 1800-2200 words. If you run short on output budget, COMPRESS sections 12-14 prose but DO NOT drop any section. Every section above must appear with its ## heading.
+
+`,
 Mandatory executive decision block at the top:
 - Go / Conditional Go / No-Go
 - Conditions precedent (5-7)
@@ -312,19 +332,19 @@ Include section: ## Why NOT This Deal with 3 explicit disconfirming arguments.\n
     if (premium_mode && body.research_mode === "web" && !body.research_docs) {
       return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
     }
-    let result = await routedCall(cfg, messages, use_premium ? 8000 : 6000);
+    let result = await routedCall(cfg, messages, use_premium ? 10000 : 8000);
 
     if (isAdvancedMode) {
       const validation = validateRequiredSections(result.text, mandate_type === "carve_out" ? ["Separation Critical Path","Stranded Cost Quantification","TSA Service Catalog","Standalone Capability Gap Analysis","Day-1 Cutover Plan","Customer Continuity Plan","Regulatory & Compliance Risks (deal-specific)","Technology Separation Blueprint"] : []);
       if (!validation.ok) {
         const retryMessages: ChatMessage[] = [...messages, { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` }];
-        result = await routedCall(cfg, retryMessages, use_premium ? 8000 : 6000);
+        result = await routedCall(cfg, retryMessages, use_premium ? 10000 : 8000);
       }
     }
     const quality = evaluateProposalQuality(result.text);
     if (isAdvancedMode && quality.score < 70) {
       const qualityRetry: ChatMessage[] = [...messages, { role: "user", content: `Quality score ${quality.score} is below threshold. Rewrite with higher numeric density, less repetitive language, explicit owners, and jurisdiction-specific regulatory detail.` }];
-      result = await routedCall(cfg, qualityRetry, use_premium ? 8000 : 6000);
+      result = await routedCall(cfg, qualityRetry, use_premium ? 10000 : 8000);
     }
 
     if (result.provider === "free" || result.model === "rules-v1") {
