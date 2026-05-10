@@ -16,6 +16,7 @@ import { deriveDealRisks, buildRiskRegister } from "@/lib/advanced/engines/risk_
 import { validateRequiredSections } from "@/lib/advanced/validators/output_validator";
 import { evaluateProposalQuality } from "@/lib/advanced/validators/quality_validator";
 import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
+import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -108,6 +109,7 @@ export async function POST(req: Request) {
 
   const body = await req.json() as {
     proposal_type: ProposalType;
+    deal_id?: string;
     client_name: string;
     buyer: string;
     target: string;
@@ -282,14 +284,33 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
   const systemPrompt = isAdvancedMode
     ? advancedBuilder!({ buyer, target, sector, geography, dealSize: deal_size, notes, researchInsights: body.research_docs })
     : PROPOSAL_PROMPTS[proposal_type];
+    // Load canonical deal model — every figure in the proposal must come from this
+  let dealModelBlock = "";
+  if (body.deal_id) {
+    const dm = await getOrSeed(supabase, {
+      deal_id: body.deal_id,
+      user_id: user.id,
+      buyer, target, sector, geography,
+      deal_size_input: deal_size,
+      buyer_type,
+      ownership_type,
+      target_revenue_input: undefined,
+      target_ebitda_input: undefined,
+      buyer_revenue_input: undefined,
+    });
+    dealModelBlock = dealModelToPromptBlock(dm);
+  }
 
+  
  const messages: ChatMessage[] = [
     // Stable across calls for the same mandate type — provider adapter applies caching where supported.
     { role: "system", stable: true, content: systemPrompt
         + "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" + advisoryRules
         + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock },
-{ role: "user", content:
-      `Generate the ${proposal_type.replace(/_/g, " ")} document. ${isAdvancedMode ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations." : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."}
+    { role: "user", content:
+      `${dealModelBlock}
+
+Generate the ${proposal_type.replace(/_/g, " ")} document. ${isAdvancedMode ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations." : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."}
 
 MANDATORY SECTION CHECKLIST — produce ALL 14 sections in this exact order, with the minimum word count shown. Do NOT skip, merge, or summarize sections.
 
