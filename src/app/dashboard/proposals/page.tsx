@@ -16,6 +16,7 @@ import { topModel } from "@/lib/ai/rubric";
 import type { RubricWeights } from "@/lib/ai/rubric";
 import { DEFAULT_WEIGHTS_BY_MODULE } from "@/lib/ai/rubric";
 import type { ModelCost } from "@/lib/ai/cost-estimator";
+import AIGenerateConfirm from "@/components/AIGenerateConfirm";
 
 type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -60,6 +61,12 @@ function ProposalsPageInner() {
   ].filter(Boolean).join("\n");
 
   const [usePremium, setUsePremium] = useState(false);
+  // Phase 3 rubric: open the model picker modal instead of using the binary toggle
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [premiumTier, setPremiumTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
+  const [economicTier, setEconomicTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
+  const [userWeights, setUserWeights] = useState<RubricWeights | null>(null);
+  const [allowOffline, setAllowOffline] = useState(false);
   const [generationMode, setGenerationMode] = useState<"standard"|"advanced">("standard");
   const [premiumMode, setPremiumMode] = useState(false);
   const [stakePercent, setStakePercent] = useState("");
@@ -208,6 +215,40 @@ function ProposalsPageInner() {
     })();
   }, []);
 
+  // Load tier configuration + saved rubric weights for the modal
+  useEffect(() => {
+    (async () => {
+      const sb = (await import("@/lib/supabase/client")).createClient();
+      const { data: u } = await sb.auth.getUser();
+      if (!u.user) return;
+      const { data } = await sb.from("ai_settings")
+        .select("premium_provider,premium_model,premium_key_encrypted,economic_provider,economic_model,economic_key_encrypted,rubric_weights,allow_free_fallback")
+        .eq("user_id", u.user.id).maybeSingle();
+      if (data) {
+        setPremiumTier({
+          provider: data.premium_provider as string | null,
+          model: data.premium_model as string | null,
+          hasKey: !!data.premium_key_encrypted && data.premium_provider !== "free",
+        });
+        setEconomicTier({
+          provider: data.economic_provider as string | null,
+          model: data.economic_model as string | null,
+          hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free",
+        });
+        const savedWeights = data.rubric_weights as Record<string, RubricWeights> | RubricWeights | null;
+        if (savedWeights) {
+          // Support both shapes: { proposal: {...}, pmi: {...} } OR a single weights object
+          if ("cost" in (savedWeights as object)) {
+            setUserWeights(savedWeights as RubricWeights);
+          } else if ((savedWeights as Record<string, RubricWeights>).proposal) {
+            setUserWeights((savedWeights as Record<string, RubricWeights>).proposal);
+          }
+        }
+        setAllowOffline(!!data.allow_free_fallback);
+      }
+    })();
+  }, []);
+  
   function toggleService(id: string) {
     setServices((prev) => prev.map((s) => s.id === id ? { ...s, selected: !s.selected } : s));
   }
@@ -807,7 +848,16 @@ strong { color: #0f172a; }
             </button>
           </div>
 
-          <button onClick={() => generate()} disabled={generating || (!buyer && !target)}
+         <button
+            onClick={() => {
+              if (premiumTier.hasKey || economicTier.hasKey || allowOffline) {
+                setConfirmOpen(true);
+              } else {
+                // No keys at all — fall back to legacy direct call so existing UX isn't broken
+                generate();
+              }
+            }}
+            disabled={generating || (!buyer && !target)}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50">
             {generating
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
@@ -954,6 +1004,24 @@ strong { color: #0f172a; }
           </div>
         )}
       </main>
+   
+    <AIGenerateConfirm
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={(tier, modelOverride) => {
+          setConfirmOpen(false);
+          if (tier === "offline") {
+            setError("Offline rule-based proposals are not supported on this route. Pick Premium or Economic.");
+            return;
+          }
+          generate(tier, modelOverride);
+        }}
+        module="proposal"
+        premiumProvider={{ tier: "premium", ...premiumTier }}
+        economicProvider={{ tier: "economic", ...economicTier }}
+        hasOfflineFallback={allowOffline}
+        userWeights={userWeights ?? undefined}
+      />
     </div>
   );
 }
