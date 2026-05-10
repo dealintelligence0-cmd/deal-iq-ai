@@ -11,6 +11,11 @@ import {
 import { renderVisualProposal, renderCitations } from "@/lib/proposal/visual-renderer";
 import { cleanMarkdownToHTML } from "@/lib/ai/utils";
 import { classifyDeal, generateServices, type Service, type DealClassification } from "@/lib/intelligence/deal-classifier";
+import { createClient as createSbClient } from "@/lib/supabase/client";
+import { topModel } from "@/lib/ai/rubric";
+import type { RubricWeights } from "@/lib/ai/rubric";
+import { DEFAULT_WEIGHTS_BY_MODULE } from "@/lib/ai/rubric";
+import type { ModelCost } from "@/lib/ai/cost-estimator";
 
 type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -222,7 +227,10 @@ function ProposalsPageInner() {
     setServices((prev) => prev.filter((s) => s.id !== id));
   }
 
-  async function generate() {
+  async function generate(
+  tier: "premium" | "economic" | "offline" = "premium",
+  modelOverride?: string
+) {
     setGenerating(true); setError(null); setContent(null);
     try {
       let resolvedResearchBrief = researchBrief;
@@ -241,7 +249,8 @@ function ProposalsPageInner() {
           proposal_type: proposalType, client_name: clientName,
           buyer, target, sector, geography, deal_size: dealSize,
           notes: useResearch && resolvedResearchBrief ? `${notes}\n\n${resolvedResearchBrief}` : notes,
-          use_premium: usePremium,
+          use_premium: tier === "premium",
+model_override: modelOverride,
           research_mode: researchMode,
           generation_mode: generationMode,
           premium_mode: premiumMode,
@@ -284,7 +293,114 @@ function ProposalsPageInner() {
       setGenerating(false);
     }
   }
+async function promoteToPartnerGrade() {
+  const sb = createSbClient();
 
+  const { data: u } = await sb.auth.getUser();
+  if (!u.user) return;
+
+  const { data } = await sb
+    .from("ai_settings")
+    .select(`
+      premium_provider,
+      premium_model,
+      premium_key_encrypted,
+      bulk_provider,
+      bulk_model,
+      bulk_key_encrypted,
+      economic_provider,
+      economic_model,
+      economic_key_encrypted,
+      rubric_weights,
+      cost_overrides,
+      allow_free_fallback
+    `)
+    .eq("user_id", u.user.id)
+    .maybeSingle();
+
+  if (!data) return;
+
+  // Build provider-neutral model pool
+  const available: Array<{ provider: string; modelId: string }> = [];
+
+  if (
+    data.premium_key_encrypted &&
+    data.premium_provider !== "free" &&
+    data.premium_model
+  ) {
+    available.push({
+      provider: data.premium_provider,
+      modelId: data.premium_model,
+    });
+  }
+
+  if (
+    data.bulk_key_encrypted &&
+    data.bulk_provider !== "free" &&
+    data.bulk_model
+  ) {
+    available.push({
+      provider: data.bulk_provider,
+      modelId: data.bulk_model,
+    });
+  }
+
+  if (
+    data.economic_key_encrypted &&
+    data.economic_provider !== "free" &&
+    data.economic_model
+  ) {
+    available.push({
+      provider: data.economic_provider,
+      modelId: data.economic_model,
+    });
+  }
+
+  if (data.allow_free_fallback) {
+    available.push({
+      provider: "free",
+      modelId: "rules-v1",
+    });
+  }
+
+  if (available.length === 0) {
+    alert("No AI providers configured. Open Settings → AI to add a key.");
+    return;
+  }
+
+  // Use saved rubric weights
+  const weights =
+    (data.rubric_weights as RubricWeights | null) ??
+    DEFAULT_WEIGHTS_BY_MODULE.proposal;
+
+  const overrides =
+    (data.cost_overrides as Record<string, Partial<ModelCost>> | null) ??
+    undefined;
+
+  const top = topModel(
+    available,
+    "proposal",
+    weights,
+    overrides
+  );
+
+  if (!top) return;
+
+  const ok = confirm(
+    `Re-run on top-rubric model:\n\n` +
+    `${top.provider} / ${top.modelId}\n` +
+    `Score: ${top.totalScore.toFixed(2)} (${top.why})\n` +
+    `Est cost: ~$${(
+      top.cost.input * 0.0045 +
+      top.cost.output * 0.005
+    ).toFixed(3)}\n\n` +
+    `You can change rubric weights in Settings → AI → Rubric.`
+  );
+
+  if (!ok) return;
+
+  await generate("premium", top.modelId);
+}
   function copyToClipboard() {
     if (!content) return;
     navigator.clipboard.writeText(content);
@@ -774,6 +890,15 @@ strong { color: #0f172a; }
 
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 {qualityScore !== null && <span className="rounded bg-emerald-50 px-2 py-1">Quality Score: {qualityScore}/100</span>}
+                {qualityScore !== null && qualityScore < 80 && (
+  <button
+    onClick={promoteToPartnerGrade}
+    disabled={generating}
+    className="rounded bg-purple-600 px-2 py-1 text-white hover:bg-purple-700 disabled:opacity-50"
+  >
+    Promote to Partner Grade
+  </button>
+)}
                 {evidenceCoverage !== null && <span className="rounded bg-indigo-50 px-2 py-1">Evidence: {evidenceCoverage}%</span>}
                 <span className="rounded bg-slate-100 px-2 py-1">Scenarios: {scenarioCount}</span>
               </div>
