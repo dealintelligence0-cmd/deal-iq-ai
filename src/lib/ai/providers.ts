@@ -310,15 +310,7 @@ async function callGemini(
       : {}),
   };
 }
-   if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
-const j = await res.json();
-  return {
-     provider, model,
-     text: (j.candidates?.[0]?.content?.parts?.[0]?.text ?? "").toString(),
-     inputTokens: j.usageMetadata?.promptTokenCount ?? 0,
-     outputTokens: j.usageMetadata?.candidatesTokenCount ?? 0,
-   };
- }
+
 
 export async function probeBestModel(
   provider: ProviderId, tier: Tier, apiKey: string | null
