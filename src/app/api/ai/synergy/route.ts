@@ -10,6 +10,7 @@ import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 import { buildSynergyLevers } from "@/lib/advanced/engines/synergy_engine";
+import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -20,7 +21,8 @@ export async function POST(req: Request) {
   const allowed = await checkRateLimit(supabase, "ai_synergy", 15, 60);
   if (!allowed) return NextResponse.json({ error: "Rate limit: 15 requests per minute" }, { status: 429 });
 
-  const body = await req.json() as {
+ const body = await req.json() as {
+    deal_id?: string;
     buyer?: string; target?: string; sector?: string; geography?: string;
     deal_size?: string; target_revenue?: string; target_ebitda?: string;
     buyer_revenue?: string; ambition?: string; notes?: string;
@@ -176,7 +178,25 @@ OUTPUT QUALITY CONTROL:
   });
   const synergyLevers = buildSynergyLevers({ sector, revenueUsd: Number((deal_size||"").replace(/[^0-9.]/g, "")) || undefined });
 
+// Load or seed the canonical Deal Model. Every module reads from this single source of truth.
+  let dealModelBlock = "";
+  if (body.deal_id) {
+    const dm = await getOrSeed(supabase, {
+      deal_id: body.deal_id,
+      user_id: user.id,
+      buyer, target, sector, geography,
+      deal_size_input: deal_size,
+      buyer_type: body.buyer_type,
+      ownership_type: body.ownership_type,
+      target_revenue_input: target_revenue,
+      target_ebitda_input: target_ebitda,
+      buyer_revenue_input: buyer_revenue,
+    });
+    dealModelBlock = dealModelToPromptBlock(dm);
+  }
+
   const userPrompt = [
+    dealModelBlock,    // CANONICAL MODEL FIRST — model anchors every figure here
     dealCtx,
     industryCtx,
     researchBlock,
@@ -184,8 +204,9 @@ OUTPUT QUALITY CONTROL:
     target_revenue ? `Target Revenue: ${target_revenue}` : "",
     target_ebitda ? `Target EBITDA: ${target_ebitda}` : "",
     buyer_revenue ? `Buyer Revenue: ${buyer_revenue}` : "",
-    researchBlock ? "[USE RESEARCH] Cite specific findings from LIVE WEB RESEARCH using [1], [2] markers throughout. Reference buyer's recent activity, target's actual metrics, and current sector dynamics — never use generic phrases when specifics are available." : "",
-    `Analytical lever inputs (use these exact ranges and formulas): ${JSON.stringify(synergyLevers)}`,
+    researchBlock ? "[USE RESEARCH] Cite specific findings from LIVE WEB RESEARCH using [1], [2] markers throughout." : "",
+    `Analytical lever inputs (use these as percentage ranges; the run-rate dollar amounts MUST come from the CANONICAL DEAL MODEL above): ${JSON.stringify(synergyLevers)}`,
+    `\n## SYNERGY MODULE OUTPUT REQUIREMENTS\n- Use the EXACT cost & revenue synergy figures from CANONICAL DEAL MODEL above.\n- If the model has empty cost_initiatives / rev_initiatives, derive 6-10 line items that SUM to the canonical run-rate (not exceed it).\n- Each initiative line: name, category, basis (e.g. "8% of $X SG&A overlap"), Y1/Y2/Y3 amounts, confidence, owner.\n- Currency throughout: ${body.deal_size?.match(/INR|₹/i) ? "INR" : body.deal_size?.match(/EUR|€/i) ? "EUR" : "USD"}.`,
   ].filter(Boolean).join("\n");
 
   const messages: ChatMessage[] = [
@@ -217,15 +238,67 @@ OUTPUT QUALITY CONTROL:
       meta: { ambition, target_revenue, target_ebitda, buyer_revenue },
     });
 
+   // Best-effort: parse initiative tables out of the markdown and persist to the canonical model.
+    // If parsing fails, the canonical numbers from getOrSeed remain untouched — the proposal still gets the right totals.
+    if (body.deal_id) {
+      try {
+        const parsedCost = parseInitiativeTable(result.text, /Cost Synergies/i);
+        const parsedRev = parseInitiativeTable(result.text, /Revenue Synergies/i);
+        if (parsedCost.length || parsedRev.length) {
+          await updateModel(supabase, body.deal_id, {
+            ...(parsedCost.length ? { cost_initiatives: parsedCost } : {}),
+            ...(parsedRev.length ? { rev_initiatives: parsedRev } : {}),
+          }, "ai-synergy");
+        }
+      } catch { /* parsing best-effort */ }
+    }
+
     return NextResponse.json({
       content: result.text,
       provider: result.provider,
       model: result.model,
       viaFallback: result.viaFallback,
       tokens: { input: inputTokens, output: outputTokens, cost },
+      dealModelUpdated: !!body.deal_id,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
+function parseInitiativeTable(markdown: string, sectionHeading: RegExp): Array<{name: string; category: string; basis: string; amount_y1: number; amount_y2: number; amount_y3: number; runrate: number; confidence: "HIGH"|"MEDIUM"|"STRETCH"; owner: string}> {
+  // Split by ## headings, find the section
+  const sections = markdown.split(/^##\s+/m);
+  const target = sections.find((s) => sectionHeading.test(s.split("\n")[0]));
+  if (!target) return [];
 
+  // Look for markdown table rows: | x | y | z |
+  const rows = target.split("\n").filter((l) => /^\s*\|/.test(l) && !/^\s*\|\s*-/.test(l));
+  if (rows.length < 2) return [];
+
+  // Skip header row
+  const out: Array<{name: string; category: string; basis: string; amount_y1: number; amount_y2: number; amount_y3: number; runrate: number; confidence: "HIGH"|"MEDIUM"|"STRETCH"; owner: string}> = [];
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i].split("|").map((c) => c.trim()).filter((c) => c.length > 0);
+    if (cells.length < 4) continue;
+    const num = (s: string) => {
+      const m = s.match(/(\d+(?:\.\d+)?)\s*(M|B|K)?/i);
+      if (!m) return 0;
+      const v = parseFloat(m[1]);
+      const suffix = (m[2] || "").toUpperCase();
+      return suffix === "B" ? v * 1e9 : suffix === "M" ? v * 1e6 : suffix === "K" ? v * 1e3 : v;
+    };
+    const conf = /HIGH/i.test(rows[i]) ? "HIGH" : /STRETCH/i.test(rows[i]) ? "STRETCH" : "MEDIUM";
+    out.push({
+      name: cells[0] || "Unnamed",
+      category: cells[1] || "general",
+      basis: cells[2] || "",
+      amount_y1: num(cells[3] || "0"),
+      amount_y2: num(cells[4] || "0"),
+      amount_y3: num(cells[5] || "0"),
+      runrate: num(cells[5] || cells[3] || "0"),
+      confidence: conf,
+      owner: cells[cells.length - 1] || "TBD",
+    });
+  }
+  return out;
+}
 }
