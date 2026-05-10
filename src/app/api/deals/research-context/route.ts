@@ -27,19 +27,29 @@ export async function POST(req: Request) {
 
   // Get user's Smart-tier provider
   const { data: settings } = await admin.from("ai_settings")
-    .select("premium_provider, premium_model, premium_key_encrypted, tavily_key_encrypted")
+    .select("premium_provider, premium_model, premium_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted, tavily_key_encrypted")
     .eq("user_id", user.id).maybeSingle();
-
   const s = settings as Record<string, unknown> | null;
-  const cipher = s?.premium_key_encrypted as string | undefined;
+
+  // Use Fast tier for research context — structured JSON bullets, no long-form reasoning needed
   let apiKey: string | null = null;
-  if (cipher) {
-    try {
-      const { data: dec } = await admin.rpc("decrypt_key", { cipher });
-      apiKey = dec as string | null;
-    } catch { /* skip */ }
+  let rcProviderCol = "bulk_provider";
+  let rcModelCol = "bulk_model";
+
+  const bulkCipher = s?.bulk_key_encrypted as string | undefined;
+  const premiumCipher = s?.premium_key_encrypted as string | undefined;
+
+  if (bulkCipher) {
+    try { const { data: dec } = await admin.rpc("decrypt_key", { cipher: bulkCipher }); apiKey = dec as string | null; }
+    catch { /* skip */ }
   }
-  if (!apiKey) return NextResponse.json({ error: "No Smart-tier AI provider configured. Open Settings." }, { status: 400 });
+  if (!apiKey && premiumCipher) {
+    rcProviderCol = "premium_provider";
+    rcModelCol = "premium_model";
+    try { const { data: dec } = await admin.rpc("decrypt_key", { cipher: premiumCipher }); apiKey = dec as string | null; }
+    catch { /* skip */ }
+  }
+  if (!apiKey) return NextResponse.json({ error: "No AI provider configured. Add Fast or Smart tier key in Settings." }, { status: 400 });
 
   // Optional Tavily research
   let webResearch = "";
@@ -107,10 +117,10 @@ ${webResearch ? `\nWEB RESEARCH:\n${webResearch}` : ""}
 Return JSON per schema.`;
 
   const cfg: RouteConfig = {
-    tier: "smart",
-    primaryProvider: (s?.premium_provider as ProviderId) ?? "free",
+    tier: bulkCipher ? "fast" : "smart",
+    primaryProvider: (s?.[rcProviderCol] as ProviderId) ?? "free",
     primaryKey: apiKey,
-    primaryModel: (s?.premium_model as string | undefined),
+    primaryModel: (s?.[rcModelCol] as string | undefined),
     blockFreeFallback: true,
   };
 
