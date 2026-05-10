@@ -183,7 +183,8 @@ ${BIG4_PMI_KIT}`;
 
   const dependencyMap = buildPmiDependencyMap();
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
+     // Stable across calls for the same mandate type — provider adapter applies caching where supported.
+    { role: "system", stable: true, content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
     { role: "user", content: `${userPrompt}
 
 System dependency map (must explicitly cover): ${JSON.stringify(dependencyMap)}` },
