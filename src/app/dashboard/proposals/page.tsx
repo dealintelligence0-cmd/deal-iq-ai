@@ -807,7 +807,7 @@ strong { color: #0f172a; }
             </button>
           </div>
 
-          <button onClick={generate} disabled={generating || (!buyer && !target)}
+          <button onClick={() => generate()} disabled={generating || (!buyer && !target)}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50">
             {generating
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
