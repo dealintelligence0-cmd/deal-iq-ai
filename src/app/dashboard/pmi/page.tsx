@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
 import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2 } from "lucide-react";
 import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
@@ -76,25 +77,38 @@ export default function PmiStudioPage() {
         });
       }
       useEffect(() => {
-  if (typeof window === "undefined") return;
+    saveDealContext({ buyer, target, sector, geography, deal_size: dealSize, deal_id: dealId });
+  }, [buyer, target, sector, geography, dealSize, dealId]);
+      useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
 
-  const params = new URLSearchParams(window.location.search);
+    const did = params.get("deal_id");
+    if (did) resetIfNewDeal(did);
 
-  const did = params.get("deal_id");
-  if (did) setDealId(did);
+    const stored = loadDealContext();
+    const finalDID = did ?? stored.deal_id;
+    const finalB = params.get("buyer") ?? stored.buyer;
+    const finalT = params.get("target") ?? stored.target;
+    const finalS = params.get("sector") ?? stored.sector;
+    const finalG = params.get("geography") ?? stored.geography;
+    const finalDS = params.get("deal_size") ?? stored.deal_size;
 
-  const buyerParam = params.get("buyer");
-  const targetParam = params.get("target");
-  const sectorParam = params.get("sector");
-  const geographyParam = params.get("geography");
-  const dealSizeParam = params.get("deal_size");
+    if (finalDID) setDealId(finalDID);
+    if (finalB) setBuyer(finalB);
+    if (finalT) setTarget(finalT);
+    if (finalS) setSector(finalS);
+    if (finalG) setGeography(finalG);
+    if (finalDS) setDealSize(finalDS);
 
-  if (buyerParam) setBuyer(buyerParam);
-  if (targetParam) setTarget(targetParam);
-  if (sectorParam) setSector(sectorParam);
-  if (geographyParam) setGeography(geographyParam);
-  if (dealSizeParam) setDealSize(dealSizeParam);
-}, []);
+    saveDealContext({
+      buyer: finalB, target: finalT, sector: finalS,
+      geography: finalG, deal_size: finalDS, deal_id: finalDID,
+    });
+
+    const cached = loadOutput("pmi");
+    if (cached) setContent(cached);
+  }, []);
       const { data: h } = await sb.from("ai_outputs")
         .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
         .eq("user_id", u.user.id).eq("module", "pmi")
@@ -183,6 +197,7 @@ export default function PmiStudioPage() {
       const j = await res.json();
       if (j.content) {
         setContent(j.content);
+        saveOutput("pmi", data.content);
         reloadHistory();
       } else if (j.error) alert("AI error: " + j.error);
     } catch {
@@ -475,6 +490,10 @@ ${renderVisualProposal(content)}
                 </button>
                 <button onClick={printDoc} className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1.5 text-xs">
                   <Printer className="h-3 w-3" /> Print / PDF
+                </button>
+                <button onClick={() => { setContent(null); clearOutput("pmi"); }}
+                  className="flex items-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
+                  <Trash2 className="h-3 w-3" /> Clear
                 </button>
               </div>
             </div>
