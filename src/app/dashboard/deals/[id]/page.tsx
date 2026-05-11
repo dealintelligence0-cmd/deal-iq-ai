@@ -137,15 +137,20 @@ export default function DealDetailPage() {
           </div>
           {(() => {
           const params = new URLSearchParams({
-            buyer: deal.buyer ?? "",
-            target: deal.target ?? "",
-            sector: deal.sector ?? "",
-            geography: deal.country ?? "",
-            deal_size: deal.value_raw ?? "",
-            deal_id: deal.id,
-          }).toString();
-          const generalUrl = "/dashboard/proposals?" + params;
-          const researchUrl = generalUrl + "&research=1";
+  deal_id: deal.id,
+  buyer: deal.buyer ?? "",
+  target: deal.target ?? "",
+  sector: deal.sector ?? "",
+  geography: deal.country ?? "",
+  deal_size: deal.deal_size_text ?? "",
+}).toString();
+
+const generalUrl = `/dashboard/proposals?${params}`;
+const researchUrl = `${generalUrl}&research=1`;
+
+const pmiUrl = `/dashboard/pmi?${params}`;
+const synergyUrl = `/dashboard/synergy?${params}`;
+const tsaUrl = `/dashboard/tsa?${params}`;
           return (
             <div className="mt-4 flex flex-wrap gap-2">
               <a href={generalUrl} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Generate Proposal (General)</a>
