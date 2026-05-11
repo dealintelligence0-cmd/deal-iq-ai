@@ -13,7 +13,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getBenchmark } from "./industry";
+import { getSynergyBenchmark } from "./industry";
 
 export type Currency = "USD" | "INR" | "EUR" | "GBP" | "JPY" | "CNY" | "AUD" | "SGD" | "AED";
 
@@ -172,7 +172,12 @@ function deriveSeed(input: SeedInput): Omit<DealModel, "deal_id" | "written_by" 
   const target_ebitda = input.target_ebitda_input ? parseCurrencyAndAmount(input.target_ebitda_input).amount : null;
   const buyer_rev = input.buyer_revenue_input ? parseCurrencyAndAmount(input.buyer_revenue_input).amount : null;
 
-  const bench = getBenchmark(input.sector);
+  const benchRaw = getSynergyBenchmark(input.sector);
+  // getSynergyBenchmark returns { costLow, costHigh, revLow, revHigh } — convert to single midpoint percentages
+  const bench = {
+    costPct: (benchRaw.costLow + benchRaw.costHigh) / 2,
+    revPct: (benchRaw.revLow + benchRaw.revHigh) / 2,
+  };
   const buyerCostMul = input.buyer_type === "pe" ? 1.2 : input.buyer_type === "carve_out" ? 0.7 : 1.0;
   const buyerRevMul = input.buyer_type === "strategic" ? 1.15 : 0.9;
   const ownershipMul = input.ownership_type === "minority" ? 0.5 : input.ownership_type === "jv" ? 0.6 : 1.0;
