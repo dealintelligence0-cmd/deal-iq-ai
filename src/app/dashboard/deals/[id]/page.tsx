@@ -142,7 +142,7 @@ export default function DealDetailPage() {
   target: deal.target ?? "",
   sector: deal.sector ?? "",
   geography: deal.country ?? "",
-  deal_size: deal.deal_size_text ?? "",
+  deal_size: deal.value_raw?.toString() ?? "",
 }).toString();
 
 const generalUrl = `/dashboard/proposals?${params}`;
