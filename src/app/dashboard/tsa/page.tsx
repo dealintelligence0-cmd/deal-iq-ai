@@ -149,7 +149,6 @@ export default function TSAGeneratorPage() {
       return;
     }
     setGen(true); setContent(null); setError(null);
-   saveOutput("tsa", data.content);
 
    
     try {
@@ -169,7 +168,8 @@ export default function TSAGeneratorPage() {
         }),
       });
       const j = await res.json();
-      if (j.content) { setContent(j.content); reloadHistory(); }
+      if (j.content) { setContent(j.content);
+        saveOutput("tsa", j.content); reloadHistory(); }
       else setError(j.error ?? "Generation failed.");
     } catch {
       setError("Request failed. Check API key in Settings.");
