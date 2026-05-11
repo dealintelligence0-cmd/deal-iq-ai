@@ -288,7 +288,7 @@ ${renderVisualProposal(content)}
     win.document.close();
    win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 250);
       }
-    }
+    
 
   return (
     <>
