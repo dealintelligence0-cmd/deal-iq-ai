@@ -24,6 +24,9 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import { buildIntelligence, type Intelligence } from "@/lib/intelligence";
 import AIResearchClient from "@/components/AIResearchClient";
+import DealModelCard from "@/components/DealModelCard";
+
+
 
 const sevColor: Record<string, string> = {
   Low: "bg-slate-100 text-slate-700",
@@ -179,6 +182,7 @@ export default function DealDetailPage() {
       <HowToWinBlock deal={deal} />
       <RiskScenariosBlock deal={deal} />
 
+      <DealModelCard dealId={deal.id} />
 {/* AI-Researched Deal Context — replaces generic Strategic Rationale + generic Synergies + numeric Integration Complexity */}
      <AIResearchClient
         dealId={deal.id}
