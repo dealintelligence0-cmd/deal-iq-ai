@@ -197,7 +197,7 @@ export default function PmiStudioPage() {
       const j = await res.json();
       if (j.content) {
         setContent(j.content);
-        saveOutput("pmi", data.content);
+        saveOutput("pmi", j.content);
         reloadHistory();
       } else if (j.error) alert("AI error: " + j.error);
     } catch {
