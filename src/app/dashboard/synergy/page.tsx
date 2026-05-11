@@ -89,11 +89,26 @@ export default function SynergyEnginePage() {
     setConfirmOpen(true);
   }
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const did = new URLSearchParams(window.location.search).get("deal_id");
-    if (did) setDealId(did);
-  }, []);
+ useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const params = new URLSearchParams(window.location.search);
+
+  const did = params.get("deal_id");
+  if (did) setDealId(did);
+
+  const buyerParam = params.get("buyer");
+  const targetParam = params.get("target");
+  const sectorParam = params.get("sector");
+  const geographyParam = params.get("geography");
+  const dealSizeParam = params.get("deal_size");
+
+  if (buyerParam) setB(buyerParam);
+  if (targetParam) setT(targetParam);
+  if (sectorParam) setSec(sectorParam);
+  if (geographyParam) setGeo(geographyParam);
+  if (dealSizeParam) setDS(dealSizeParam);
+}, []);
   async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
     setGen(true);
