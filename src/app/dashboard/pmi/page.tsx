@@ -76,10 +76,25 @@ export default function PmiStudioPage() {
         });
       }
       useEffect(() => {
-    if (typeof window === "undefined") return;
-    const did = new URLSearchParams(window.location.search).get("deal_id");
-    if (did) setDealId(did);
-  }, []);
+  if (typeof window === "undefined") return;
+
+  const params = new URLSearchParams(window.location.search);
+
+  const did = params.get("deal_id");
+  if (did) setDealId(did);
+
+  const buyerParam = params.get("buyer");
+  const targetParam = params.get("target");
+  const sectorParam = params.get("sector");
+  const geographyParam = params.get("geography");
+  const dealSizeParam = params.get("deal_size");
+
+  if (buyerParam) setBuyer(buyerParam);
+  if (targetParam) setTarget(targetParam);
+  if (sectorParam) setSector(sectorParam);
+  if (geographyParam) setGeography(geographyParam);
+  if (dealSizeParam) setDealSize(dealSizeParam);
+}, []);
       const { data: h } = await sb.from("ai_outputs")
         .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
         .eq("user_id", u.user.id).eq("module", "pmi")
