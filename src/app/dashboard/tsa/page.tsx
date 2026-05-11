@@ -112,6 +112,7 @@ export default function TSAGeneratorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           seller, buyer, sector, deal_size: dealSize, geography,
+          deal_id: dealId || undefined,
           close_date: closeDate, functions: selectedFns,
           duration, pricing_basis: pricing, constraints, tier,
             model_override: modelOverride,
