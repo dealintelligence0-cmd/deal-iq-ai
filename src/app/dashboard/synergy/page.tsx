@@ -34,6 +34,7 @@ export default function SynergyEnginePage() {
   const [targetEbitda, setTE] = useState("");
   const [buyerRevenue, setBR] = useState("");
   const [ambition, setAmb] = useState("base");
+  const [dealId, setDealId] = useState<string>("");
   const [mandateType, setMandateType] = useState<string>("buy_side");
   const [buyerTypeF, setBuyerTypeF] = useState<string>("strategic");
   const [ownershipType, setOwnershipType] = useState<string>("majority");
@@ -88,6 +89,11 @@ export default function SynergyEnginePage() {
     setConfirmOpen(true);
   }
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const did = new URLSearchParams(window.location.search).get("deal_id");
+    if (did) setDealId(did);
+  }, []);
   async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
     setGen(true);
