@@ -22,6 +22,7 @@ export default function PmiStudioPage() {
   const [sector, setSector] = useState("");
   const [geography, setGeography] = useState("");
   const [dealSize, setDealSize] = useState("");
+  const [dealId, setDealId] = useState<string>("");
   const [synergyAmbition, setSynergyAmbition] = useState<"low" | "medium" | "high">("medium");
   const [mandateType, setMandateType] = useState<string>("buy_side");
   const [buyerTypeF, setBuyerTypeF] = useState<string>("strategic");
@@ -74,6 +75,11 @@ export default function PmiStudioPage() {
           hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free",
         });
       }
+      useEffect(() => {
+    if (typeof window === "undefined") return;
+    const did = new URLSearchParams(window.location.search).get("deal_id");
+    if (did) setDealId(did);
+  }, []);
       const { data: h } = await sb.from("ai_outputs")
         .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
         .eq("user_id", u.user.id).eq("module", "pmi")
