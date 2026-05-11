@@ -296,6 +296,7 @@ function ProposalsPageInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           proposal_type: proposalType, client_name: clientName,
+          deal_id: dealId || undefined,
           buyer, target, sector, geography, deal_size: dealSize,
           notes: useResearch && resolvedResearchBrief ? `${notes}\n\n${resolvedResearchBrief}` : notes,
           use_premium: tier === "premium",
