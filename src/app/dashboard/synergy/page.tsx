@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
 import { TrendingUp, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2 } from "lucide-react";
 import { cleanMarkdownToHTML } from "@/lib/ai/utils";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
@@ -89,30 +90,51 @@ export default function SynergyEnginePage() {
     setConfirmOpen(true);
   }
 
- useEffect(() => {
+  useEffect(() => {
+    saveDealContext({ buyer, target, sector, geography, deal_size: dealSize, deal_id: dealId });
+  }, [buyer, target, sector, geography, dealSize, dealId]);
+useEffect(() => {
   if (typeof window === "undefined") return;
 
   const params = new URLSearchParams(window.location.search);
 
   const did = params.get("deal_id");
-  if (did) setDealId(did);
-
   const buyerParam = params.get("buyer");
   const targetParam = params.get("target");
   const sectorParam = params.get("sector");
   const geographyParam = params.get("geography");
   const dealSizeParam = params.get("deal_size");
 
-  if (buyerParam) setB(buyerParam);
-  if (targetParam) setT(targetParam);
-  if (sectorParam) setSec(sectorParam);
-  if (geographyParam) setGeo(geographyParam);
-  if (dealSizeParam) setDS(dealSizeParam);
-}, []);
+  if (did) resetIfNewDeal(did);
+
+  const stored = loadDealContext();
+  const finalDID = did ?? stored.deal_id;
+  const finalB = buyerParam ?? stored.buyer;
+  const finalT = targetParam ?? stored.target;
+  const finalS = sectorParam ?? stored.sector;
+  const finalG = geographyParam ?? stored.geography;
+  const finalDS = dealSizeParam ?? stored.deal_size;
+
+  if (finalDID) setDealId(finalDID);
+  if (finalB) setB(finalB);
+  if (finalT) setT(finalT);
+  if (finalS) setSec(finalS);
+  if (finalG) setGeo(finalG);
+  if (finalDS) setDS(finalDS);
+
+  saveDealContext({
+    buyer: finalB, target: finalT, sector: finalS,
+    geography: finalG, deal_size: finalDS, deal_id: finalDID,
+  });
+
+  const cached = loadOutput("synergy");
+  if (cached) setContent(cached);
+ }, []);
   async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
     setGen(true);
     setContent(null);
+    saveOutput("synergy", data.content);
     try {
       const res = await fetch("/api/ai/synergy", {
         method: "POST",
@@ -327,6 +349,10 @@ export default function SynergyEnginePage() {
                   <button onClick={() => window.print()}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">
                     <Printer className="h-3.5 w-3.5" /> Print
+                  </button>
+                  <button onClick={() => { setContent(null); clearOutput("synergy"); }}
+                    className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
+                    <Trash2 className="h-3.5 w-3.5" /> Clear
                   </button>
                 </div>
               </div>
