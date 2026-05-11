@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
 import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2 } from "lucide-react";
 import { cleanMarkdownToHTML } from "@/lib/ai/utils";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
@@ -51,19 +52,39 @@ export default function TSAGeneratorPage() {
   const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      const { data: u } = await sb.auth.getUser();
-      if (!u.user) return;
-      const { data } = await sb.from("ai_settings")
-        .select("premium_provider,premium_model,premium_key_encrypted,economic_provider,economic_model,economic_key_encrypted")
-        .eq("user_id", u.user.id).maybeSingle();
-      if (data) {
-        setPremiumTier({ provider: data.premium_provider, model: data.premium_model, hasKey: !!data.premium_key_encrypted && data.premium_provider !== "free" });
-        setEconomicTier({ provider: data.economic_provider, model: data.economic_model, hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free" });
-      }
-      reloadHistory();
-    })();
-  }, []); // eslint-disable-line
+    // For TSA, "seller" is the deal target. Store under target key for cross-module consistency.
+    saveDealContext({ buyer, target: seller, sector, geography, deal_size: dealSize, deal_id: dealId });
+  }, [buyer, seller, sector, geography, dealSize, dealId]);
+  uuseEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+
+    const did = params.get("deal_id");
+    if (did) resetIfNewDeal(did);
+
+    const stored = loadDealContext();
+    const finalDID = did ?? stored.deal_id;
+    const finalB = params.get("buyer") ?? stored.buyer;
+    const finalT = params.get("target") ?? stored.target;   // TSA maps target -> seller
+    const finalS = params.get("sector") ?? stored.sector;
+    const finalG = params.get("geography") ?? stored.geography;
+    const finalDS = params.get("deal_size") ?? stored.deal_size;
+
+    if (finalDID) setDealId(finalDID);
+    if (finalB) setBuyer(finalB);
+    if (finalT) setSeller(finalT);   // target = TSA's seller (entity being carved)
+    if (finalS) setSec(finalS);
+    if (finalG) setGeo(finalG);
+    if (finalDS) setDS(finalDS);
+
+    saveDealContext({
+      buyer: finalB, target: finalT, sector: finalS,
+      geography: finalG, deal_size: finalDS, deal_id: finalDID,
+    });
+
+    const cached = loadOutput("tsa");
+    if (cached) setContent(cached);
+  }, []);
 
   useEffect(() => {
   if (typeof window === "undefined") return;
@@ -128,6 +149,9 @@ export default function TSAGeneratorPage() {
       return;
     }
     setGen(true); setContent(null); setError(null);
+   saveOutput("tsa", data.content);
+
+   
     try {
       const res = await fetch("/api/ai/tsa", {
         method: "POST",
@@ -326,6 +350,10 @@ export default function TSAGeneratorPage() {
                   <button onClick={() => window.print()}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">
                     <Printer className="h-3.5 w-3.5" /> Print
+                  </button>
+                  <button onClick={() => { setContent(null); clearOutput("tsa"); }}
+                    className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
+                    <Trash2 className="h-3.5 w-3.5" /> Clear
                   </button>
                 </div>
               </div>
