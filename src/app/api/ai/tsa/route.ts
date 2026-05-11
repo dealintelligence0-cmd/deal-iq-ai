@@ -227,6 +227,11 @@ Mandatory TSA dependencies (ERP/CRM/Supply Chain) with cost derivation and failu
   ];
 
 try {
+  // Groq free-tier TPM safety: swap to a smaller model if the prompt exceeds Llama 3.3 70B's 12K token cap
+  const estimatedTokens = messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0);
+  if (cfg.primaryProvider === "groq" && estimatedTokens > 11000 && cfg.primaryModel?.includes("70b")) {
+    cfg.primaryModel = "llama-3.1-8b-instant";
+  }
     const result = await routedCall(cfg, messages, 5000);
   if (result.provider === "free" || result.model === "rules-v1") {
       return NextResponse.json({
