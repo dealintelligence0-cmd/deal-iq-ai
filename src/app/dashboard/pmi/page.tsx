@@ -140,6 +140,7 @@ export default function PmiStudioPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           buyer, target, sector, geography,
+          deal_id: dealId || undefined,
           deal_size: dealSize,
           synergy_ambition: synergyAmbition,
           key_risks: keyRisks,
