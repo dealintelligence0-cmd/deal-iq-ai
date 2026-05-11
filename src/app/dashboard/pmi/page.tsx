@@ -59,6 +59,7 @@ export default function PmiStudioPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
+ // 1) Load tier settings + history
   useEffect(() => {
     (async () => {
       const { data: u } = await sb.auth.getUser();
@@ -75,6 +76,46 @@ export default function PmiStudioPage() {
           provider: data.economic_provider, model: data.economic_model,
           hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free",
         });
+      }
+      const { data: h } = await sb.from("ai_outputs")
+        .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
+        .eq("user_id", u.user.id).eq("module", "pmi")
+        .order("created_at", { ascending: false }).limit(20);
+      if (h) setHistory(h as HistoryItem[]);
+    })();
+  }, [sb]);
+
+  // 2) URL params + sessionStorage fallback (mount-only)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const did = params.get("deal_id");
+    if (did) resetIfNewDeal(did);
+
+    const stored = loadDealContext();
+    const finalDID = did ?? stored.deal_id;
+    const finalB = params.get("buyer") ?? stored.buyer;
+    const finalT = params.get("target") ?? stored.target;
+    const finalS = params.get("sector") ?? stored.sector;
+    const finalG = params.get("geography") ?? stored.geography;
+    const finalDS = params.get("deal_size") ?? stored.deal_size;
+
+    if (finalDID) setDealId(finalDID);
+    if (finalB) setBuyer(finalB);
+    if (finalT) setTarget(finalT);
+    if (finalS) setSector(finalS);
+    if (finalG) setGeography(finalG);
+    if (finalDS) setDealSize(finalDS);
+
+    saveDealContext({ buyer: finalB, target: finalT, sector: finalS, geography: finalG, deal_size: finalDS, deal_id: finalDID });
+    const cached = loadOutput("pmi");
+    if (cached) setContent(cached);
+  }, []);
+
+  // 3) Persist context whenever any field changes
+  useEffect(() => {
+    saveDealContext({ buyer, target, sector, geography, deal_size: dealSize, deal_id: dealId });
+  }, [buyer, target, sector, geography, dealSize, dealId]);
       }
       useEffect(() => {
     saveDealContext({ buyer, target, sector, geography, deal_size: dealSize, deal_id: dealId });
