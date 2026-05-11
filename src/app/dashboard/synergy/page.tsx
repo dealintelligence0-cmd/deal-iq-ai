@@ -134,7 +134,6 @@ useEffect(() => {
     setConfirmOpen(false);
     setGen(true);
     setContent(null);
-    saveOutput("synergy", data.content);
     try {
       const res = await fetch("/api/ai/synergy", {
         method: "POST",
@@ -157,6 +156,7 @@ useEffect(() => {
       const j = await res.json();
       if (j.content) {
         setContent(j.content);
+        saveOutput("synergy", j.content);
         loadHistory();
       } else {
         setError(j.error ?? "Generation failed.");
