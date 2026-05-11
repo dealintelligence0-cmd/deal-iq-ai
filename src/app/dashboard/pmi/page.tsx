@@ -154,9 +154,7 @@ export default function PmiStudioPage() {
         .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
         .eq("user_id", u.user.id).eq("module", "pmi")
         .order("created_at", { ascending: false }).limit(20);
-      if (h) setHistory(h as HistoryItem[]);
-    })();
-  }, [sb]);
+    if (h) setHistory(h as HistoryItem[]);
 
   async function reloadHistory() {
     const { data: u } = await sb.auth.getUser();
