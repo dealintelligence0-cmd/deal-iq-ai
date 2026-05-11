@@ -195,6 +195,21 @@ OUTPUT QUALITY CONTROL:
     dealModelBlock = dealModelToPromptBlock(dm);
   }
 
+
+  const finalSystemPrompt = systemPrompt + `
+
+# CANONICAL DEAL MODEL DISCIPLINE (CRITICAL)
+
+The user message contains a CANONICAL DEAL MODEL block at the top. That block is the SINGLE SOURCE OF TRUTH for this deal across all modules (proposal, PMI, synergy, TSA).
+
+Rules:
+1. EVERY dollar/INR/currency figure in your output MUST match the canonical model exactly. Do not re-compute, do not round differently, do not change currencies.
+2. If the canonical model lists initiatives, risks, regulatory filings, or comparables BY NAME, cite them by those exact names. Do not invent new ones.
+3. If a section requires DEPTH that the canonical model does not yet provide (e.g. "List 8 cost initiatives totaling the canonical run-rate"), derive that depth — but the SUM must equal the canonical run-rate, not exceed it.
+4. If you believe the canonical numbers are wrong, do NOT change them. Note the disagreement in a "Modeling Note" subsection so the partner can review and override via the Deal Model UI.
+5. Currency: report in the canonical model's primary_currency. Do not switch currencies mid-document.
+
+This rule is more important than any other formatting requirement. Coherence across modules is non-negotiable for an MBB-grade deliverable.`;
   const userPrompt = [
     dealModelBlock,    // CANONICAL MODEL FIRST — model anchors every figure here
     dealCtx,
@@ -211,7 +226,7 @@ OUTPUT QUALITY CONTROL:
 
   const messages: ChatMessage[] = [
      // Stable across calls for the same mandate type — provider adapter applies caching where supported.
-    { role: "system", stable: true, content: systemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
+    { role: "system", stable: true, content: finalSystemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
     { role: "user", content: userPrompt },
   ];
 
