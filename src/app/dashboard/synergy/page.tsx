@@ -98,6 +98,7 @@ export default function SynergyEnginePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           buyer, target, sector, geography,
+          deal_id: dealId || undefined,
           deal_size: dealSize,
           target_revenue: targetRevenue,
           target_ebitda: targetEbitda,
