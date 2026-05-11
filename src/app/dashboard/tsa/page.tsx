@@ -55,7 +55,7 @@ export default function TSAGeneratorPage() {
     // For TSA, "seller" is the deal target. Store under target key for cross-module consistency.
     saveDealContext({ buyer, target: seller, sector, geography, deal_size: dealSize, deal_id: dealId });
   }, [buyer, seller, sector, geography, dealSize, dealId]);
-  uuseEffect(() => {
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
 
