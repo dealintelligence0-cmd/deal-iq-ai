@@ -17,6 +17,8 @@ import type { RubricWeights } from "@/lib/ai/rubric";
 import { DEFAULT_WEIGHTS_BY_MODULE } from "@/lib/ai/rubric";
 import type { ModelCost } from "@/lib/ai/cost-estimator";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
+import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
+
 
 type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -111,7 +113,11 @@ function ProposalsPageInner() {
   const [history, setHistory] = useState<SavedProposal[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
+  // Persist deal context whenever any field changes
   useEffect(() => {
+    saveDealContext({ buyer, target, sector, geography, deal_size: dealSize, deal_id: dealId });
+  }, [buyer, target, sector, geography, dealSize, dealId]);
+useEffect(() => {
     const b = searchParams.get("buyer");
     const t = searchParams.get("target");
     const s = searchParams.get("sector");
@@ -120,15 +126,38 @@ function ProposalsPageInner() {
     const did = searchParams.get("deal_id");
     const wantsResearch = searchParams.get("research") === "1";
 
-    if (b) setBuyer(b);
-    if (t) setTarget(t);
-    if (s) setSector(s);
-    if (g) setGeography(g);
-    if (ds) setDealSize(ds);
-    if (did) setDealId(did);
+    // If a NEW deal_id arrives, wipe stored context+outputs to prevent mixing deals
+    if (did) resetIfNewDeal(did);
 
-    if (wantsResearch && b && t) {
-      runResearch(b, t, s ?? "", g ?? "", did ?? undefined);
+    // 1) URL params win when present (came from deal pipeline)
+    // 2) Fall back to sessionStorage (sidebar navigation between modules)
+    const stored = loadDealContext();
+    const finalB = b ?? stored.buyer;
+    const finalT = t ?? stored.target;
+    const finalS = s ?? stored.sector;
+    const finalG = g ?? stored.geography;
+    const finalDS = ds ?? stored.deal_size;
+    const finalDID = did ?? stored.deal_id;
+
+    if (finalB) setBuyer(finalB);
+    if (finalT) setTarget(finalT);
+    if (finalS) setSector(finalS);
+    if (finalG) setGeography(finalG);
+    if (finalDS) setDealSize(finalDS);
+    if (finalDID) setDealId(finalDID);
+
+    // Persist whatever we now have
+    saveDealContext({
+      buyer: finalB, target: finalT, sector: finalS,
+      geography: finalG, deal_size: finalDS, deal_id: finalDID,
+    });
+
+    // Restore previously generated proposal output for this session
+    const cached = loadOutput("proposal");
+    if (cached) setContent(cached);
+
+    if (wantsResearch && finalB && finalT) {
+      runResearch(finalB, finalT, finalS ?? "", finalG ?? "", finalDID ?? undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -320,6 +349,7 @@ model_override: modelOverride,
         setError(data.error ?? "Generation failed. Check AI Settings.");
       } else {
         setContent(data.content);
+        saveOutput("proposal", data.content);
         setProvider(data.provider);
         setModel(data.model ?? "");
         setVia(data.viaFallback ?? false);
@@ -968,10 +998,10 @@ strong { color: #0f172a; }
                   className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
                   <Printer className="h-3.5 w-3.5" /> Print / Save PDF
                 </button>
-                <button onClick={() => setContent(null)}
-                  className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100">
-                  <Trash2 className="h-3.5 w-3.5" /> Clear
-                </button>
+               <button onClick={() => { setContent(null); clearOutput("proposal"); }}
+  className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100">
+  <Trash2 className="h-3.5 w-3.5" /> Clear
+</button>
               </div>
             </div>
 
