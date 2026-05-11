@@ -28,6 +28,7 @@ export default function TSAGeneratorPage() {
   const [constraints, setCon] = useState("");
   const [generating, setGen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
+  const [dealId, setDealId] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mandateType, setMandateType] = useState<string>("buy_side");
@@ -64,6 +65,12 @@ export default function TSAGeneratorPage() {
     })();
   }, []); // eslint-disable-line
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const did = new URLSearchParams(window.location.search).get("deal_id");
+    if (did) setDealId(did);
+  }, []);
+  
   async function reloadHistory() {
     const { data: u } = await sb.auth.getUser();
     if (!u.user) return;
