@@ -286,10 +286,11 @@ ${renderVisualProposal(content)}
 <div class="pdf-footer">This document is for informational purposes only. Independent verification required. © ${new Date().getFullYear()} Rahul Yadav.</div>
 </body></html>`);
     win.document.close();
-    win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 250);
-  }
+   win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 250);
+      }
+    }
 
- return (
+  return (
     <>
       <AIGenerateConfirm
         open={confirmOpen}
