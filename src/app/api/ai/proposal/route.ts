@@ -152,41 +152,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid proposal_type" }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const col_key = use_premium ? "premium_key_encrypted" : "bulk_key_encrypted";
-  const col_provider = use_premium ? "premium_provider" : "bulk_provider";
-  const col_model = use_premium ? "premium_model" : "bulk_model";
+ const admin = createAdminClient();
 
-  const { data: settings } = await admin
-    .from("ai_settings")
-    .select(`${col_provider}, ${col_model}, ${col_key}`)
-    .eq("user_id", user.id)
-    .maybeSingle();
+// Resolve key via new multi-key library (with legacy ai_settings fallback)
+const { resolveKey } = await import("@/lib/ai/key-resolver");
+const overrideKeyId = ((body as unknown) as { key_id?: string }).key_id;
+const resolved = await resolveKey(admin, user.id, tier === "economic" ? "economic" : "smart", overrideKeyId);
 
-  let apiKey: string | null = null;
-  const s = settings as Record<string, unknown> | null;
-  const cipher = s?.[col_key] as string | undefined;
-  if (cipher) {
-    try {
-      const { data: dec } = await admin.rpc("decrypt_key", { cipher });
-      apiKey = dec as string | null;
-    } catch { /* fallback */ }
-  }
+if (!resolved.apiKey || resolved.provider === "free") {
+  return NextResponse.json({
+    error: "No AI provider configured. Open Settings → API Key Library and save at least one key, or mark one as the Smart/Economic default.",
+  }, { status: 400 });
+}
 
-  const selectedProv = s?.[col_provider] as string | null | undefined;
-  if (!apiKey || !selectedProv || selectedProv === "free") {
-    return NextResponse.json({
-      error: `${use_premium ? "Smart" : "Fast"}-tier AI provider not configured. Open Settings, save a key for ${use_premium ? "Smart" : "Fast"} tier, click Auto-detect.`,
-    }, { status: 400 });
-  }
+const modelOverride = ((body as unknown) as { model_override?: string }).model_override;
 
-  const cfg: RouteConfig = {
-    tier: use_premium ? "smart" : "fast",
-    primaryProvider: (selectedProv as ProviderId) ?? "free",
-    primaryKey: apiKey,
-    primaryModel: ((body as unknown) as { model_override?: string }).model_override || (s?.[col_model] as string | undefined),
-    blockFreeFallback: true,
-  };
+const cfg: RouteConfig = {
+  tier: "smart",
+  primaryProvider: resolved.provider as ProviderId,
+  primaryKey: resolved.apiKey,
+  primaryModel: modelOverride || resolved.model || undefined,
+  blockFreeFallback: true,
+};
 
   const dealInput: DealInput = {
     buyer, target, sector, country: geography,
