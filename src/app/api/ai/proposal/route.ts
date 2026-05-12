@@ -130,6 +130,7 @@ export async function POST(req: Request) {
     selected_services?: Service[];
     research_docs?: string;
     research_mode?: "web" | "prompt";
+allow_free_fallback?: boolean;
   };
 
   const buyer = normalizePrompt(body.buyer ?? "", 200);
@@ -147,6 +148,9 @@ export async function POST(req: Request) {
   const generation_mode = body.generation_mode ?? "standard";
   const premium_mode = !!body.premium_mode;
   const notes = normalizePrompt(body.notes ?? "", 3000);
+  const allowFreeFallback =
+  body.allow_free_fallback === true ||
+  process.env.ALLOW_FREE_FALLBACK === "true";
 
   if (!PROPOSAL_PROMPTS[proposal_type]) {
     return NextResponse.json({ error: "Invalid proposal_type" }, { status: 400 });
@@ -172,7 +176,7 @@ const cfg: RouteConfig = {
   primaryProvider: resolved.provider as ProviderId,
   primaryKey: resolved.apiKey,
   primaryModel: modelOverride || resolved.model || undefined,
-  blockFreeFallback: true,
+  blockFreeFallback: !allowFreeFallback,
 };
 
   const dealInput: DealInput = {
