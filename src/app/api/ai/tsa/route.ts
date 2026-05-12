@@ -54,38 +54,25 @@ export async function POST(req: Request) {
 
   // Build route config
  const admin = createAdminClient();
-  const { data: settings } = await admin
-    .from("ai_settings")
-    .select("premium_provider, premium_model, premium_key_encrypted, economic_provider, economic_model, economic_key_encrypted, bulk_provider, bulk_model, bulk_key_encrypted")
-    .eq("user_id", user.id)
-    .maybeSingle();
 
-  const provCol = tier === "economic" ? "economic_provider" : "premium_provider";
-  const modelCol = tier === "economic" ? "economic_model" : "premium_model";
-  const keyCol = tier === "economic" ? "economic_key_encrypted" : "premium_key_encrypted";
+  // Resolve API key via new multi-key library (with legacy ai_settings fallback)
+  const { resolveKey } = await import("@/lib/ai/key-resolver");
+  const overrideKeyId = ((body as unknown) as { key_id?: string }).key_id;
+  const resolved = await resolveKey(admin, user.id, tier === "economic" ? "economic" : "smart", overrideKeyId);
 
-  const s = settings as Record<string, unknown> | null;
-  let apiKey: string | null = null;
-  const cipher = (s?.[keyCol] ?? s?.bulk_key_encrypted) as string | undefined;
-  if (cipher) {
-    try {
-      const { data: dec } = await admin.rpc("decrypt_key", { cipher });
-      apiKey = dec as string | null;
-    } catch { /* fallback */ }
-  }
-
-  const selectedProv = (s?.[provCol] ?? s?.bulk_provider) as string | null | undefined;
-  if (!apiKey || !selectedProv || selectedProv === "free") {
+  if (!resolved.apiKey || resolved.provider === "free") {
     return NextResponse.json({
-      error: `${tier === "economic" ? "Economic" : "Smart"}-tier AI not configured. Save key in Settings.`,
+      error: "No AI provider configured. Open Settings → API Key Library and save at least one key, or mark one as the Smart/Economic default.",
     }, { status: 400 });
   }
 
+  const modelOverride = ((body as unknown) as { model_override?: string }).model_override;
+
   const cfg: RouteConfig = {
     tier: "smart",
-    primaryProvider: (selectedProv as ProviderId) ?? "free",
-    primaryKey: apiKey,
-    primaryModel: ((body as unknown) as { model_override?: string }).model_override || (s?.[modelCol] as string | undefined),
+    primaryProvider: resolved.provider as ProviderId,
+    primaryKey: resolved.apiKey,
+    primaryModel: modelOverride || resolved.model || undefined,
     blockFreeFallback: true,
   };
   // Pull live web research if a search key exists
