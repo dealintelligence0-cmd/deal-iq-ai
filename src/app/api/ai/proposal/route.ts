@@ -17,6 +17,7 @@ import { validateRequiredSections } from "@/lib/advanced/validators/output_valid
 import { evaluateProposalQuality } from "@/lib/advanced/validators/quality_validator";
 import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
+import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
 
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -290,8 +291,69 @@ const systemPrompt = isAdvancedMode
       target_ebitda_input: undefined,
       buyer_revenue_input: undefined,
     });
+
+    // First proposal run picks the comparable set and seeds it into the canonical model
+    // so subsequent modules (PMI / synergy / TSA) cite the SAME deals by name.
+    if (!dm.comparables_chosen || dm.comparables_chosen.length === 0) {
+      const picked = pickComparablesForModel(sector, geography, 5);
+      if (picked.length > 0) {
+        const updated = await updateModel(supabase, body.deal_id, { comparables_chosen: picked }, "ai-proposal");
+        if (updated) dm.comparables_chosen = updated.comparables_chosen;
+        else dm.comparables_chosen = picked; // in-memory fallback
+      }
+    }
     dealModelBlock = dealModelToPromptBlock(dm);
   }
+
+  // Real, verifiable M&A comparables — strict "do not invent" instruction.
+  // Always injected (not gated on deal_id) so even ad-hoc generations get grounded comps.
+  const comparablesBlock = buildComparablesBlock(sector, geography, 5);
+
+  // Anti-AI-voice discipline. Expanded banned-phrase list and voice rules so the
+  // output reads like an MBB partner memo, not a ChatGPT draft.
+  const voiceDisciplineBlock = `
+# VOICE DISCIPLINE — ENFORCE STRICTLY
+
+Banned phrases (do NOT use any of these or their variants — rewrite as specific named claims):
+- "leverage" / "leveraging" / "leveraged"
+- "robust" / "robustness"
+- "world-class" / "best-in-class" / "best-of-breed" / "industry-leading"
+- "create value" / "value creation" (as a vague claim — be specific about *how*)
+- "synergistic" / "synergize"
+- "ecosystem" (as filler — only if naming a specific partner network)
+- "drive" / "driving" as a verb for outcomes (use "deliver", "produce", "yield" with a number)
+- "unlock" / "unlocking"
+- "innovative" / "innovation" (as adjective — describe *what* is novel instead)
+- "transform" / "transformative" / "transformation" (without naming the operating model change)
+- "seamless" / "seamlessly"
+- "next-generation" / "cutting-edge" / "state-of-the-art"
+- "holistic" / "holistically"
+- "scalable" (without naming the scaling constraint that is being removed)
+- "strategic" as filler (every initiative is "strategic" — be specific)
+- "actionable insights"
+- "data-driven" (as a self-description — show the data instead)
+- "thought leadership" / "trusted advisor"
+- "go-to-market motion" (without naming the channel)
+- "win-win"
+- "moving forward" / "going forward"
+- "deliver on the promise"
+- "the journey ahead"
+- "north star"
+- "value accretive" (without the EPS or IRR number)
+
+Voice rules:
+1. SPECIFIC OVER GENERAL. Name products, brands, channels, customer segments, jurisdictions by name. NOT "the market" — "the US mass-market shaving channel". NOT "synergies in sales" — "joint distribution of Sun Pharma's specialty derm reps + Concert's deuruxolitinib launch team".
+2. ACTIVE VOICE. "We identified three risks" — NOT "Three risks were identified". Sentences own their analysis.
+3. EVERY NUMBER HAS A 'SO WHAT'. After each $ figure, state the implication in one phrase: "$340M run-rate cost synergy = ~6% EBITDA accretion to acquirer Y2".
+4. NAMED ENTITIES THROUGHOUT. Use "${buyer || "the buyer"}" and "${target || "the target"}" by name — not "the buyer" / "the company" / "the target" generically.
+5. NUMBERS BEFORE ADJECTIVES. "EBITDA margin expands 280bps to 18.4%" — NOT "EBITDA margin expands significantly".
+6. NAMED ACCOUNTABLE OWNERS. Every workstream / risk owner is a SPECIFIC role: CFO, General Counsel, Chief Commercial Officer, Head of Integration, IMO Lead. Never "the team", "leadership", "stakeholders".
+7. EVIDENCE > ASSERTION. If you claim 8% synergy is achievable, cite a comparable deal from the VERIFIED COMPARABLE TRANSACTIONS block where that level was captured.
+8. NO DECORATIVE ADJECTIVES. "Strong", "compelling", "powerful", "exciting" — strip them. Replace with the underlying number or fact.
+9. SHOW MATH. "$340M = 8% × $4.25B target SG&A" — derivation visible inline.
+10. ONE IDEA PER SENTENCE. Long sentences with three clauses signal AI generation. Break them.
+
+Self-check before finalising: count "leverage", "robust", "world-class", "create value", "transform", "seamless" — target = 0. Any occurrence is a defect.`;
 
   // === PASTE HERE ===
   const finalSystemPrompt = systemPrompt + `
@@ -314,9 +376,12 @@ This rule is more important than any other formatting requirement. Coherence acr
     // Stable across calls for the same mandate type — provider adapter applies caching where supported.
     { role: "system", stable: true, content: finalSystemPrompt
         + "\n\n=== DEAL-SPECIFIC ADVISORY RULES ===\n" + advisoryRules
-        + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock },
+        + "\n\n=== ADVISOR VERDICT FRAMEWORK ===\n" + advisorBlock
+        + "\n\n" + voiceDisciplineBlock },
     { role: "user", content:
       `${dealModelBlock}
+
+${comparablesBlock}
 
 Generate the ${proposal_type.replace(/_/g, " ")} document. ${isAdvancedMode ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations." : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."}
 
