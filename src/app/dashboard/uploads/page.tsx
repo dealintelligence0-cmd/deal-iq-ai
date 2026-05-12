@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useState } from "react";
@@ -201,7 +203,7 @@ export default function UploadsPage() {
               key={it.id}
               item={it}
               onRemove={remove}
-              onPreview={setPreviewId}
+              onPreview={(id) => setPreviewId(id)}
             />
           ))}
         </div>
