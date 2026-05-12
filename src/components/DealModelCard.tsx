@@ -38,18 +38,40 @@ export default function DealModelCard({ dealId }: { dealId: string }) {
   const [edits, setEdits] = useState<Partial<DealModel>>({});
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data } = await sb.from("deal_models").select("*").eq("deal_id", dealId).maybeSingle();
-      if (data) setModel(data as DealModel);
-      setLoading(false);
+      if (cancelled) return;
+      if (data) {
+        setModel(data as DealModel);
+        setLoading(false);
+        return;
+      }
+      // No model row yet → ask the server to seed it from sector benchmarks
+      // so the partner sees canonical numbers immediately instead of
+      // "Generate a proposal to seed it" friction.
+      try {
+        const r = await fetch("/api/deals/seed-model", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deal_id: dealId }),
+        });
+        const j = await r.json();
+        if (!cancelled && j.model) setModel(j.model as DealModel);
+      } catch {
+        // Seeding failed — fall through to the empty-state message
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, [dealId, sb]);
 
   if (loading) return <div className="card p-4 text-xs text-slate-500">Loading deal model…</div>;
   if (!model) {
     return (
       <div className="card p-4 text-xs text-slate-500">
-        No deal model yet. Generate any proposal/PMI/synergy/TSA document to seed it.
+        Deal model could not be seeded. Generate any proposal/PMI/synergy/TSA document to retry seeding, or check that the deal has a sector and value set.
       </div>
     );
   }
