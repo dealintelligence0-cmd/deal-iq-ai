@@ -104,7 +104,7 @@ export default function InsightsPage() {
   const selectPending = () => setSelected(new Set(deals.filter((d) => !d.ai_enriched_at).map((d) => d.id)));
 
   async function runEnrichment() {
-    const ids = Array.from(selected);
+    const ids: string[] = Array.from(selected);
     if (!ids.length) return;
     setRunning(true); setProgress(0); setTotal(ids.length); setJobResults([]); setShowLog(true);
     const batches: string[][] = [];
