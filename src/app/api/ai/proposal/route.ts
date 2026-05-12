@@ -161,7 +161,8 @@ allow_free_fallback?: boolean;
 // Resolve key via new multi-key library (with legacy ai_settings fallback)
 const { resolveKey } = await import("@/lib/ai/key-resolver");
 const overrideKeyId = ((body as unknown) as { key_id?: string }).key_id;
-const resolved = await resolveKey(admin, user.id, tier === "economic" ? "economic" : "smart", overrideKeyId);
+const tierForResolve = body.use_premium ? "smart" : "economic";
+const resolved = await resolveKey(admin, user.id, tierForResolve, overrideKeyId);
 
 if (!resolved.apiKey || resolved.provider === "free") {
   return NextResponse.json({
