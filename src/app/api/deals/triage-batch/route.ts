@@ -19,8 +19,8 @@ export async function POST(request: Request) {
       const triage = evaluateDealPreLLM({
         revenue_mm: deal.revenue_mm,
         sector: deal.sector,
-        description: deal.description,
-        company_name: deal.company_name
+        description: deal.description
+        // company_name removed here to fix the TypeScript strict type error
       });
       return { ...deal, triage };
     });
