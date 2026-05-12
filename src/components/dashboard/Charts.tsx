@@ -170,7 +170,7 @@ function ChartFrame({
 }: {
   title: string;
   sub: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
