@@ -1,6 +1,5 @@
 
 
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -338,7 +337,7 @@ function Section({
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   tone?: "indigo" | "emerald" | "amber";
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   const tones = {
     indigo: "text-indigo-600 bg-indigo-50",
