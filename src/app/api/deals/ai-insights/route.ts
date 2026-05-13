@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
+import { scanTriggerEvents } from "@/lib/intelligence/trigger-event-scanner";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -18,9 +19,10 @@ export async function POST(req: Request) {
   const { data: deal } = await admin.from("deals").select("*").eq("id", body.deal_id).maybeSingle();
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
+  const trigger_events = scanTriggerEvents(deal);
   const existing = deal.insight_sections as Record<string, unknown> | null;
   if (!body.force && existing?.thesis && String(existing.thesis).length > 30) {
-    return NextResponse.json({ ok: true, cached: true, insight_sections: existing,
+    return NextResponse.json({ ok: true, cached: true, insight_sections: { ...existing, trigger_events }, trigger_events,
       deal_takeaway: deal.deal_takeaway, targeting_recommendation: deal.targeting_recommendation,
       targeting_reason: deal.targeting_reason, confidence_level: deal.confidence_level });
   }
@@ -176,6 +178,7 @@ Return ONLY valid JSON per schema above.`;
       thesis: parsed.thesis, why_now: parsed.why_now,
       value_drivers: parsed.value_drivers, risks: parsed.risks,
       tensions: parsed.tensions, advisory_angle: parsed.advisory_angle,
+      trigger_events,
     };
 
     await admin.from("deals").update({
@@ -190,7 +193,8 @@ Return ONLY valid JSON per schema above.`;
       deal_takeaway: parsed.deal_takeaway,
       targeting_recommendation: parsed.targeting_recommendation,
       targeting_reason: parsed.targeting_reason,
-      confidence_level: parsed.confidence_level });
+      confidence_level: parsed.confidence_level,
+      trigger_events });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

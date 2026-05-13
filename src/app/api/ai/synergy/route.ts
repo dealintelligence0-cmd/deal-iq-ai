@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
+import { getSemanticCache, setSemanticCache } from "@/lib/ai/semantic-cache";
 import { buildIndustryContextBlock, getSynergyBenchmark } from "@/lib/intelligence/industry";
 import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
 import { estimateCost } from "@/lib/ai/cost-estimator";
@@ -215,6 +216,17 @@ This rule is more important than any other formatting requirement. Coherence acr
     { role: "user", content: userPrompt },
   ];
 
+  const cached = getSemanticCache({ userId: user.id, module: "synergy", messages, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
+  if (cached) {
+    return NextResponse.json({
+      content: cached.content,
+      provider: cached.provider ?? cfg.primaryProvider,
+      model: cached.model ?? cfg.primaryModel,
+      cached: true,
+      semanticSimilarity: Number(cached.similarity.toFixed(3)),
+    });
+  }
+
   try {
     // Groq free-tier TPM safety: swap to a smaller model if the prompt exceeds Llama 3.3 70B's 12K token cap
   const estimatedTokens = messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0);
@@ -227,6 +239,8 @@ This rule is more important than any other formatting requirement. Coherence acr
         error: `AI provider call failed. Real reason: ${result.lastError ?? "unknown"}. Provider attempted: ${cfg.primaryProvider} / ${cfg.primaryModel ?? "auto"}. Open Settings → Test This Key to diagnose.`,
       }, { status: 500 });
     }
+
+    setSemanticCache({ userId: user.id, module: "synergy", messages, content: result.text, provider: result.provider, model: result.model, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
 
     // Save to history
     const inputTokens = result.inputTokens ?? 0;
