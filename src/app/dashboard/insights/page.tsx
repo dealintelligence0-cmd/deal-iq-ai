@@ -68,6 +68,21 @@ export default function InsightsPage() {
   const [jobResults, setJobResults] = useState<JobResult[]>([]);
   const [showLog, setShowLog] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Background-queue mode (QStash). For >100 deals, this dispatches one
+  // background job per 25-deal chunk and polls /api/ai/enrich-batch/status
+  // instead of running everything in a single foreground request that would
+  // hit Vercel's 60-second function timeout.
+  const [useBackgroundMode, setUseBackgroundMode] = useState(false);
+  const [bgJobIds, setBgJobIds] = useState<string[]>([]);
+  const [bgSummary, setBgSummary] = useState<{
+    total_chunks: number;
+    done: number;
+    error: number;
+    processing: number;
+    queued: number;
+    total_succeeded: number;
+    total_failed: number;
+  } | null>(null);
 
   const loadDeals = useCallback(async () => {
     setLoading(true);
@@ -106,7 +121,61 @@ export default function InsightsPage() {
   async function runEnrichment() {
     const ids: string[] = Array.from(selected);
     if (!ids.length) return;
+
+    // Auto-promote to background mode for >100 deals so we don't hit Vercel's
+    // function timeout. Partners can also opt in manually for smaller batches.
+    const goBackground = useBackgroundMode || ids.length > 100;
+
     setRunning(true); setProgress(0); setTotal(ids.length); setJobResults([]); setShowLog(true);
+
+    if (goBackground) {
+      try {
+        const res = await fetch("/api/ai/enrich-batch/enqueue", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deal_ids: ids, chunk_size: 25 }),
+        });
+        const json = await res.json();
+        if (!res.ok || json.error) {
+          setJobResults([{ id: "batch", ok: false, error: json.error ?? "enqueue failed" }]);
+          setRunning(false);
+          return;
+        }
+        const jobIds: string[] = json.job_ids ?? [];
+        setBgJobIds(jobIds);
+
+        // Poll status every 4 seconds until all chunks are done or errored.
+        const startedAt = Date.now();
+        const TIMEOUT_MS = 30 * 60 * 1000;  // 30 min hard cap
+        let pollerDone = false;
+        while (!pollerDone) {
+          if (Date.now() - startedAt > TIMEOUT_MS) {
+            setJobResults((prev) => [...prev, { id: "timeout", ok: false, error: "Polling timed out after 30 min" }]);
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 4000));
+          try {
+            const sres = await fetch(`/api/ai/enrich-batch/status?job_ids=${jobIds.join(",")}`);
+            const sjson = await sres.json();
+            if (sjson.summary) {
+              setBgSummary(sjson.summary);
+              const completedDeals =
+                (sjson.summary.total_succeeded ?? 0) + (sjson.summary.total_failed ?? 0);
+              setProgress(completedDeals);
+              if (sjson.summary.queued + sjson.summary.processing === 0) {
+                pollerDone = true;
+              }
+            }
+          } catch { /* keep polling on transient errors */ }
+        }
+      } finally {
+        setRunning(false);
+        setSelected(new Set());
+        await loadDeals();
+      }
+      return;
+    }
+
+    // Synchronous fallback (smaller batches that fit in one function invocation)
     const batches: string[][] = [];
     for (let i = 0; i < ids.length; i += BATCH_SIZE) batches.push(ids.slice(i, i + BATCH_SIZE));
     let done = 0;
@@ -223,12 +292,51 @@ export default function InsightsPage() {
         </button>
         <div className="ml-auto flex items-center gap-2">
           {selected.size > 0 && <span className="text-xs text-slate-500">{selected.size} selected</span>}
+          <label
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-[#15151f] dark:text-slate-300"
+            title="Run enrichment in the background via QStash. Auto-enabled for >100 deals."
+          >
+            <input
+              type="checkbox"
+              checked={useBackgroundMode}
+              onChange={(e) => setUseBackgroundMode(e.target.checked)}
+              disabled={running}
+              className="accent-indigo-600"
+            />
+            Background queue
+            {selected.size > 100 && !useBackgroundMode && (
+              <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">auto-on at &gt;100</span>
+            )}
+          </label>
           <button onClick={runEnrichment} disabled={running || selected.size === 0}
             className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
             {running ? <><Loader2 className="h-4 w-4 animate-spin" /> Enriching {progress}/{total}…</> : <><Sparkles className="h-4 w-4" /> Enrich Selected ({selected.size})</>}
           </button>
         </div>
       </div>
+
+      {/* Background-mode live status — shown while polling QStash jobs */}
+      {running && bgSummary && bgJobIds.length > 0 && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-500/30 dark:bg-indigo-950/20">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium text-indigo-700 dark:text-indigo-300">
+              Background queue: {bgJobIds.length} chunks · {bgSummary.done} done · {bgSummary.processing} processing · {bgSummary.queued} queued
+              {bgSummary.error > 0 && <span className="ml-1 text-red-600">· {bgSummary.error} errored</span>}
+            </span>
+            <span className="font-mono text-[10px] text-indigo-600 dark:text-indigo-400">
+              {bgSummary.total_succeeded} succeeded · {bgSummary.total_failed} failed
+            </span>
+          </div>
+          <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-white dark:bg-white/10">
+            <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(bgSummary.done / Math.max(1, bgSummary.total_chunks)) * 100}%` }} />
+            <div className="h-full bg-indigo-400 transition-all" style={{ width: `${(bgSummary.processing / Math.max(1, bgSummary.total_chunks)) * 100}%` }} />
+            <div className="h-full bg-red-500 transition-all" style={{ width: `${(bgSummary.error / Math.max(1, bgSummary.total_chunks)) * 100}%` }} />
+          </div>
+          <p className="mt-1.5 text-[10px] text-indigo-600/70 dark:text-indigo-300/70">
+            You can leave this page — jobs continue in the background. Refresh AI Insights when done to see updated scores.
+          </p>
+        </div>
+      )}
 
       {running && (
         <div className="space-y-1">
