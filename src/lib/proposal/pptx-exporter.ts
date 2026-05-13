@@ -267,6 +267,3 @@ function stripNumberingPrefix(s: string): string {
   return s.replace(/^\d+\.\s+/, "");
 }
 
-function slugify(s: string): string {
-  return (s || "deal").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42);
-}
