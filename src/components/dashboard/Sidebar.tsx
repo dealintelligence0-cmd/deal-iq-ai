@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import Link from "next/link";
@@ -7,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   BrainCircuit, LayoutDashboard, CloudUpload, GitMerge,
   AlertTriangle, Briefcase, FileText, Settings, Sparkles,
-  Download, Shield, BookOpen, Layers, TrendingUp, ArrowLeftRight, Lightbulb,
+  Download, Shield, BookOpen, Layers, TrendingUp, ArrowLeftRight, Lightbulb, Target,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -18,6 +20,7 @@ const NAV_GROUPS = [
       { label: "Import Deals",    href: "/dashboard/uploads",    icon: CloudUpload },
       { label: "Field Mapping",   href: "/dashboard/mapping",    icon: GitMerge },
       { label: "Deal Pipeline",   href: "/dashboard/deals",      icon: Briefcase },
+      { label: "Prioritization",  href: "/dashboard/prioritization", icon: Target },
       { label: "Data Quality",    href: "/dashboard/exceptions", icon: AlertTriangle },
       { label: "AI Insights",     href: "/dashboard/insights",   icon: Lightbulb },
     ],
