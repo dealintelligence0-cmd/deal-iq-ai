@@ -63,7 +63,7 @@ export async function exportProposalToPptx(
 
 function defineMasters(pptx: pptxgen): void {
   pptx.defineSlideMaster({
-    title: "CONTENT_MASTER",
+    title: "DEAL_IQ_CONTENT",
     background: { color: "FFFFFF" },
     objects: [
       { rect: { x: 0, y: 0, w: SLIDE_W, h: 0.09, fill: { color: BRAND.blue }, line: { color: BRAND.blue } } },
@@ -265,4 +265,8 @@ function slugify(s: string): string {
 
 function stripNumberingPrefix(s: string): string {
   return s.replace(/^\d+\.\s+/, "");
+}
+
+function slugify(s: string): string {
+  return (s || "deal").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42);
 }

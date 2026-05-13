@@ -118,12 +118,12 @@ export const FIELD_DEFS: FieldDef[] = [
       "intelligence", "background",
     ],
   },
-{
+  {
     key: "heading",
     label: "Heading",
     required: false,
     aliases: [
-           "headline",
+      "heading", "headline", "title", "deal heading", "opportunity heading",
     ],
   },
 ];
@@ -162,6 +162,12 @@ export function autoMap(headers: string[]): FieldMapping {
 }
 
 /** Apply a mapping to source rows, producing standardized deal rows. */
+function getExactHeaderValue(row: Record<string, unknown>, wanted: string): unknown {
+  const match = Object.keys(row).find((key) => norm(key) === norm(wanted));
+  return match ? row[match] : null;
+}
+
+/** Apply a mapping to source rows, producing standardized deal rows. */
 export function applyMapping(
   rows: Record<string, unknown>[],
   mapping: FieldMapping,
@@ -171,8 +177,24 @@ export function applyMapping(
     const out: Record<string, unknown> = { source_file: sourceFile };
     for (const def of FIELD_DEFS) {
       const col = mapping[def.key];
-     out[def.key] = col && (def.key !== "heading" || norm(col) === "heading") ? (r[col] ?? null) : null;
+      out[def.key] = col ? (r[col] ?? null) : null;
     }
+
+    // The deal-pipeline Heading column must be a direct pass-through from the
+    // uploaded file's `Heading` column. Do not substitute Opportunity/notes or
+    // generated summaries here, because partners use this as a source-data audit
+    // field and expect it to match the input file exactly.
+    const sourceHeading = getExactHeaderValue(r, "Heading");
+    if (sourceHeading !== null && sourceHeading !== undefined && String(sourceHeading).trim()) {
+      out.heading = sourceHeading;
+    }
+
+    // Also protect the common source schema used by the intelligence feed so a
+    // stale saved mapping cannot accidentally shift Bidders/Targets into the
+    // wrong standardized columns.
+    if (!out.buyer) out.buyer = getExactHeaderValue(r, "Bidders") ?? getExactHeaderValue(r, "Issuers");
+    if (!out.target) out.target = getExactHeaderValue(r, "Targets") ?? getExactHeaderValue(r, "Vendors");
+
     return out;
   });
 }
