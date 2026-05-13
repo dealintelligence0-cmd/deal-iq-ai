@@ -1,3 +1,5 @@
+
+
 const ICONS: Record<string, string> = {
   "Deal Thesis": "▸",
   "Deal Score": "■",
@@ -242,4 +244,60 @@ export function renderCitations(citationsMd: string): string {
     return `<li class="text-[10px] text-slate-600"><span class="font-mono font-bold text-indigo-600">[${n}]</span> ${url ? `<a href="${url}" target="_blank" class="text-slate-700 hover:text-indigo-600 hover:underline">${title}</a>` : title}</li>`;
   }).filter(Boolean).join("");
   return `<aside class="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4"><p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">ߓ Sources & Citations</p><ol class="space-y-1">${items}</ol></aside>`;
+}
+
+// ---------------------------------------------------------------------------
+// Section-level edit support
+// ---------------------------------------------------------------------------
+
+export type ProposalSection = {
+  heading: string;        // "Why NOT This Deal" — without ## prefix and numbering
+  rawHeading: string;     // original "9. Why NOT This Deal" if numbered
+  body: string;           // markdown content beneath the heading
+  index: number;          // position in document, 0-based
+};
+
+/**
+ * Parse a proposal markdown blob into ordered sections by ## heading.
+ * Used by the editable proposal view so each section can be independently
+ * edited or regenerated and then re-stitched back into the full document.
+ */
+export function splitIntoSections(md: string): ProposalSection[] {
+  if (!md) return [];
+  const blocks = md.split(/^## /m).filter(Boolean);
+  return blocks.map((block, idx) => {
+    const lines = block.split("\n");
+    const rawHeading = lines[0].trim();
+    const heading = rawHeading.replace(/^\d+\.\s+/, "").trim();
+    const body = lines.slice(1).join("\n").trim();
+    return { heading, rawHeading, body, index: idx };
+  });
+}
+
+/**
+ * Render a SINGLE section's body markdown to HTML using the same visual
+ * conventions as renderVisualProposal. Useful for in-place rendering after
+ * editing a section without re-rendering the entire document.
+ */
+export function renderSectionBody(heading: string, body: string): string {
+  // Reuse renderVisualProposal by giving it a single-section document.
+  // The renderer's per-section <section> wrapper provides the visual.
+  return renderVisualProposal(`## ${heading}\n${body}`);
+}
+
+/**
+ * Replace one section's body in a full proposal markdown blob.
+ * Heading matching is case-insensitive and tolerates "N." numbering.
+ * Returns the original md unchanged if no matching section is found.
+ */
+export function replaceSection(fullMd: string, heading: string, newBody: string): string {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(
+    `(^|\\n)##\\s+((?:\\d+\\.\\s+)?${escaped})\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`,
+    "i",
+  );
+  if (!re.test(fullMd)) return fullMd;
+  return fullMd.replace(re, (_, leading, headingMatch) => {
+    return `${leading || "\n"}## ${headingMatch}\n${newBody.trim()}\n`;
+  });
 }
