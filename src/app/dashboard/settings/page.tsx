@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -231,13 +233,21 @@ async function saveProvider(tier: Tier, p: ProviderId) {
         </p>
       </section>
 
-      {/* SECTION 2: PROVIDER SELECTION + KEY MGMT */}
-      <section className="card p-5 border-l-4 border-l-indigo-500">
+      {/* SECTION 2: LEGACY 3-SLOT PROVIDER SELECTION — kept behind a disclosure.
+          KeyLibraryManager at the top is now the primary key-management path.
+          This section remains for legacy users who still have keys saved in the
+          old ai_settings 3-slot schema (premium/economic/bulk). Once they migrate
+          their keys into the library, this section can be removed entirely. */}
+      <details className="card overflow-hidden border-l-4 border-l-slate-300 dark:border-l-slate-600">
+        <summary className="cursor-pointer p-4 text-xs text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5">
+          Legacy 3-slot AI Providers (deprecated — migrate to API Key Library above)
+        </summary>
+      <section className="p-5">
         <div className="mb-4 flex items-center gap-2">
           <SettingsIcon className="h-4 w-4 text-indigo-600" />
-          <h2 className="text-base font-semibold text-slate-900 dark:text-white">AI Providers</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">AI Providers (Legacy)</h2>
         </div>
-        <p className="mb-4 text-xs text-slate-500">Step 1: pick provider · Step 2: save key · Step 3: Auto-detect</p>
+        <p className="mb-4 text-xs text-slate-500">Step 1: pick provider · Step 2: save key · Step 3: Auto-detect. New keys should go in the API Key Library above; this section is preserved only for keys saved before the library was introduced.</p>
 
        {(["smart", "economic", "fast"] as const).map((tier) => {
           const prov = tier === "fast" ? fastProv : tier === "economic" ? econProv : smartProv;
@@ -294,6 +304,7 @@ async function saveProvider(tier: Tier, p: ProviderId) {
           );
         })}
       </section>
+      </details>
       {/* SECTION 3: WEB RESEARCH */}
       <section className="card p-5 border-l-4 border-l-amber-500">
         <div className="mb-4 flex items-center gap-2">
@@ -370,20 +381,24 @@ async function saveProvider(tier: Tier, p: ProviderId) {
           </div>
           <p className="mt-2 text-[10px] text-slate-400">Live market rate as of today: ~84 INR/USD. Update when rates shift significantly.</p>
         </div>
-      {/* SECTION 4: RUBRIC — model ranking weights per module */}
-      <RubricSection
-        smartProvider={smartProv}
-        smartModel={smartModel}
-        smartHasKey={!!smartStatus?.has_key}
-        economicProvider={econProv}
-        economicModel={econModel}
-        economicHasKey={!!economicStatus?.has_key}
-        fastProvider={fastProv}
-        fastModel={fastModel}
-        fastHasKey={!!fastStatus?.has_key}
-        setStatus={setStatus}
-      />
-
+      {/* SECTION 4: RUBRIC — model ranking weights per module.
+          UI HIDDEN by design — the rubric logic (scoreModels, topModel, DEFAULT_WEIGHTS_BY_MODULE)
+          still powers the "Promote to top-rubric model" recommendation in the generation modal.
+          Set to `true` to expose the tuning UI again. */}
+      {false && (
+        <RubricSection
+          smartProvider={smartProv}
+          smartModel={smartModel}
+          smartHasKey={!!smartStatus?.has_key}
+          economicProvider={econProv}
+          economicModel={econModel}
+          economicHasKey={!!economicStatus?.has_key}
+          fastProvider={fastProv}
+          fastModel={fastModel}
+          fastHasKey={!!fastStatus?.has_key}
+          setStatus={setStatus}
+        />
+      )}
       {/* SECTION 5: DANGER ZONE — admin only */}
       <AdminDangerZone setStatus={setStatus} />
 
