@@ -26,8 +26,8 @@ const SECTIONS: Section[] = [
         "Validate — review exceptions and value-parsing tests",
         "Enrich — AI scores each deal for priority, risk, advisory attractiveness",
         "Research — pull live web or AI prompt-based intelligence per deal",
-        "Generate — 6 proposal types, synergy models, PMI playbooks, TSA frameworks",
-        "Export — CSV/JSON/PDF/PPTX for client delivery",
+        "Generate — 6 proposal types, synergy models, PMI playbooks, TSA frameworks, and PPTX decks for each module",
+        "Export — CSV/JSON/server-side PDF/PPTX for client delivery",
       ]},
       { heading: "Required setup (5 minutes)", body: "", steps: [
         "Settings → save a Smart-tier AI key (Anthropic, Google, or Groq — all have free tiers)",
@@ -141,7 +141,7 @@ const MORE_SECTIONS: Section[] = [
         "Choose a proposal type",
         "Optional: select research mode (Live Web or Prompt-Based AI)",
         "Click Generate → choose AI tier in the modal (Premium / Economic / Offline)",
-        "Output appears with copy-to-clipboard and history save options",
+        "Output appears with copy-to-clipboard, server-side PDF/print, branded PPTX, and history save options",
       ]},
       { heading: "With vs without research", body: "Without research: instant, uses deal data only. With research: runs 5 parallel queries first, embeds live citations, takes 30–60 seconds longer. Toggle the research mode dropdown before generating." },
       { heading: "Offline (rule-based) mode", body: "Available for all 6 proposal types. No AI token cost, instant output, structurally complete but lacks deep reasoning. Use when API quotas are exhausted or for quick draft scaffolding." },
@@ -183,6 +183,7 @@ const MORE_SECTIONS: Section[] = [
         "Cost: counts against your AI provider's tokens",
       ]},
       { heading: "When to switch", body: "If Tavily / Brave / Serper quota runs out, flip the dropdown to Prompt-Based — zero downtime. Both modes feed into the same proposal pipeline." },
+      { heading: "Sprint 4 cache", body: "AI generations now use a semantic cache for near-identical PMI, Synergy, and TSA prompts. If the deal facts and selected model are materially unchanged, the platform can return the prior output instantly and mark it as cached." },
     ],
   },
   {
@@ -212,6 +213,7 @@ const MORE_SECTIONS: Section[] = [
       ]},
       { heading: "Inputs", body: "Buyer, Target, Sector, Deal Size, Synergy Ambition (Low/Med/High), Public/Private, Listed/Unlisted, TSA Needed, Cross-Border, Key Risks, Known Issues, Notes." },
       { heading: "Output sections", body: "Integration Strategy · Functional Plans (sector-tailored) · Cross-Function Dependency Map · Day-0/1/100 Plan · KPI Tree (linked to synergies) · Risk Register · IMO Cadence." },
+      { heading: "PPTX export", body: "Every generated PMI playbook has a PPTX button. The deck uses the blue (#007CB0), teal (#0097A9), and green (#86BC25) theme, icon markers, and paginated slides so long sections are not lost." },
       { heading: "AI tier selection", body: "Click Generate → modal pops with 3 tiers. Premium = best output. Economic = cheap + fast. Offline = template-based, instant, no cost." },
     ],
   },
@@ -230,6 +232,7 @@ const MORE_SECTIONS: Section[] = [
         "Sector Benchmarks — 3 named comparable transactions",
       ]},
       { heading: "Smart-tier required", body: "Synergy modeling needs reasoning depth. Save an Anthropic / OpenAI / Gemini / Groq key in Settings before running." },
+      { heading: "PPTX export", body: "Use the PPTX button to create a consulting-grade synergy deck with full paginated text, color-coded value/risk markers, and Deal IQ confidential footers." },
     ],
   },
   {
@@ -247,6 +250,7 @@ const MORE_SECTIONS: Section[] = [
         "Negotiation Strategy — 5 buyer positions with fallback",
       ]},
       { heading: "Complexity rating", body: "Auto-rates as Simple (1–3 functions), Standard (4–6), or Complex (7+). Adjusts pricing benchmark and exit timeline accordingly." },
+      { heading: "PPTX export", body: "Use the PPTX button to turn the TSA framework into a board-ready service, SLA, pricing, exit-milestone, and risk deck." },
     ],
   },
   {
@@ -255,10 +259,11 @@ const MORE_SECTIONS: Section[] = [
       { heading: "4 formats", body: "", steps: [
         "CSV — Excel/Sheets-compatible raw data",
         "JSON — for developers and APIs",
-        "PDF — branded report with KPIs and deal table",
-        "PPTX — 4-slide deck: title, KPIs + chart, top 15 deals, closing",
+        "PDF — server-generated branded report with KPIs and deal table",
+        "PPTX — branded deck: title, KPIs + chart, top 15 deals with INR value ranges, closing",
       ]},
-      { heading: "Filter before export", body: "Sector and Status dropdowns narrow the export. Counter updates live." },
+      { heading: "Filter before export", body: "Sector, Country, and Status dropdowns narrow the export. Counter and total value update live." },
+      { heading: "Value accuracy", body: "Top-15 deal slides now display the deal value range in INR when available and fall back to raw imported value or normalized USD. This avoids repeating a single aggregate value across all deals." },
     ],
   },
   {
@@ -276,6 +281,7 @@ const MORE_SECTIONS: Section[] = [
     id: "activity", title: "Activity & Security", icon: Shield,
     content: [
       { heading: "Audit log", body: "Every AI call and major action recorded with user ID, timestamp, metadata. Sidebar → Activity for last 200 events." },
+      { heading: "Trigger-event scanner", body: "Deal insights now scan imported headings, summaries, rationale, risk notes, geography, and deal type for action triggers such as carve-outs, auctions, cross-border approvals, distress, regulatory scrutiny, technology/cyber, and minority governance." },
       { heading: "Rate limits", body: "20 enrichments/min · 20 proposals/min · 5 researches/min. Prevents runaway spend." },
       { heading: "Row-level security", body: "Every table enforces strict RLS — your deals, proposals, keys are invisible to other users." },
     ],
@@ -288,7 +294,7 @@ const MORE_SECTIONS: Section[] = [
       { heading: "Which AI provider should I pick?", body: "Fast Tier: Groq (free, fastest). Smart Tier: Anthropic Claude (best reasoning) or Google Gemini Pro (free tier)." },
       { heading: "What if all my free tiers exhaust?", body: "Pick Economic tier (Groq is free + fast) or Offline rule-based when generating proposals or PMI. Research: switch from Web to Prompt-Based mode. Synergy/TSA require AI — switch tier in the modal." },
       { heading: "How is cost tracked?", body: "Every AI generation logs estimated cost based on input/output tokens × provider rates. Visible in History per item. Sum the cost column for total spend." },
-      { heading: "Can I edit a generated proposal?", body: "Copy to clipboard, paste into Word/Docs, edit there. Direct in-app editing is on the roadmap." },
+      { heading: "Can I edit a generated proposal?", body: "Yes. Proposals support section-level in-app editing/regeneration, copy-to-clipboard, print/server-side PDF export, and branded PPTX download." },
       { heading: "How do I reset everything?", body: "Settings → Danger Zone → Clear All Data. Your authentication is preserved." },
       { heading: "Multi-user workspaces?", body: "v1 is single-user per account. Multi-user organisations are planned for v2." },
     ],

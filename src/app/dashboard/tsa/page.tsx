@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
-import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download } from "lucide-react";
 import { cleanMarkdownToHTML } from "@/lib/ai/utils";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +31,7 @@ export default function TSAGeneratorPage() {
   const [content, setContent] = useState<string | null>(null);
   const [dealId, setDealId] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  const [pptExporting, setPptExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mandateType, setMandateType] = useState<string>("buy_side");
   const [buyerTypeF, setBuyerTypeF] = useState<string>("strategic");
@@ -184,6 +185,19 @@ export default function TSAGeneratorPage() {
     ["Deal Size *", dealSize, setDS, "e.g. $800M"],
     ["Estimated Close Date", closeDate, setCD, "e.g. Q3 2025"],
   ];
+  async function downloadPptx() {
+    if (!content) return;
+    setPptExporting(true);
+    try {
+      const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
+      await exportProposalToPptx(content, { buyer, target: seller, sector, geography, dealSize, moduleLabel: "TSA Framework" }, undefined, `deal-iq-tsa-${buyer || "buyer"}-${seller || "target"}.pptx`);
+    } catch (e) {
+      alert("PPTX export failed: " + String(e));
+    } finally {
+      setPptExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6 p-6">
       <AIGenerateConfirm
@@ -350,6 +364,10 @@ export default function TSAGeneratorPage() {
                   <button onClick={() => window.print()}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">
                     <Printer className="h-3.5 w-3.5" /> Print
+                  </button>
+                  <button onClick={downloadPptx} disabled={pptExporting}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">
+                    {pptExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} PPTX
                   </button>
                   <button onClick={() => { setContent(null); clearOutput("tsa"); }}
                     className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">

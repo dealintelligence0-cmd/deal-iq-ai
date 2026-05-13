@@ -78,6 +78,7 @@ export default function PrioritizationPage() {
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
   const [sortKey, setSortKey] = useState<SortKey>("pursue");
   const [sectorFilter, setSectorFilter] = useState<string>("");
+  const [countryFilter, setCountryFilter] = useState<string>("");
   const [decisionFilter, setDecisionFilter] = useState<"all" | "pursue" | "hold" | "reject">("all");
 
   useEffect(() => {
@@ -99,11 +100,17 @@ export default function PrioritizationPage() {
     return vals.length ? Math.max(...vals) : 0;
   }, [deals]);
 
-  // Distinct sectors for the filter dropdown
+  // Distinct sectors / countries for the filter dropdowns
   const sectors = useMemo(() => {
     const s = new Set<string>();
     deals.forEach((d) => { if (d.sector) s.add(d.sector); });
     return Array.from(s).sort();
+  }, [deals]);
+
+  const countries = useMemo(() => {
+    const c = new Set<string>();
+    deals.forEach((d) => { if (d.country) c.add(d.country); });
+    return Array.from(c).sort();
   }, [deals]);
 
   // Composite scoring + filter + sort
@@ -115,6 +122,7 @@ export default function PrioritizationPage() {
 
     const filtered = withScores.filter(({ deal, pursue }) => {
       if (sectorFilter && deal.sector !== sectorFilter) return false;
+      if (countryFilter && deal.country !== countryFilter) return false;
       if (decisionFilter !== "all") {
         const rec = recommendationFor(pursue).label.toLowerCase();
         if (rec !== decisionFilter) return false;
@@ -132,7 +140,7 @@ export default function PrioritizationPage() {
     };
     filtered.sort(sortFns[sortKey]);
     return filtered;
-  }, [deals, weights, maxSize, sortKey, sectorFilter, decisionFilter]);
+  }, [deals, weights, maxSize, sortKey, sectorFilter, countryFilter, decisionFilter]);
 
   // Roll-up counts for the strip at the top
   const counts = useMemo(() => {
@@ -250,6 +258,15 @@ export default function PrioritizationPage() {
             >
               <option value="">All sectors</option>
               {sectors.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <label className="mt-3 block text-[11px] font-medium text-slate-600">Country</label>
+            <select
+              value={countryFilter}
+              onChange={(e) => setCountryFilter(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+            >
+              <option value="">All countries</option>
+              {countries.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
             <label className="mt-3 block text-[11px] font-medium text-slate-600">Decision</label>
             <select
