@@ -39,6 +39,31 @@ function titleCase(s: string): string {
     .join(" ");
 }
 
+
+
+function splitCompanyList(raw: string): string[] {
+  return raw
+    .replace(/\r?\n/g, ";")
+    .replace(/\s+(?:and|&amp;)\s+/gi, " & ")
+    // Intelligence feeds sometimes concatenate bidders as "A Ltd B Ltd C".
+    // Insert a delimiter after common legal suffixes when another capitalised
+    // company token follows so each bidder remains visible in the pipeline.
+    .replace(/\b(Ltd|Limited|Pvt|Private|Inc|Corp|Corporation|LLC|PLC)\.?\s+(?=[A-Z][A-Za-z0-9&-]*(?:\s|$))/g, "$1;")
+    .split(/\s*(?:;|\||\/)\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+export function cleanCompanyList(raw: unknown): string | null {
+  if (!raw) return null;
+  const text = String(raw).trim();
+  if (!text) return null;
+  const parts = splitCompanyList(text);
+  if (parts.length <= 1) return cleanCompany(text);
+  const cleaned = parts.map((part) => cleanCompany(part)).filter((part): part is string => Boolean(part));
+  return cleaned.length ? Array.from(new Set(cleaned)).join("; ") : null;
+}
+
 /** Simple fuzzy equality for dedup: normalized lowercase, suffixes stripped. */
 export function companyKey(name: string | null | undefined): string {
   return (cleanCompany(name) ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");

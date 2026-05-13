@@ -6,7 +6,7 @@ import {
   Loader2, CheckCircle2, Filter,
 } from "lucide-react";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
-import { exportCsv, exportJson, exportPdf, exportPptx } from "@/lib/export";
+import { exportCsv, exportJson, exportPdfServer, exportPptx } from "@/lib/export";
 
 type Format = "csv" | "json" | "pdf" | "pptx";
 
@@ -31,6 +31,7 @@ export default function ExportsPage() {
   const [done, setDone] = useState<Format | null>(null);
   const [sectorFilter, setSectorFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [countryFilter, setCountryFilter] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -40,8 +41,10 @@ export default function ExportsPage() {
   }, []);
 
   const sectors = Array.from(new Set(deals.map((d) => d.sector).filter(Boolean) as string[])).sort();
+  const countries = Array.from(new Set(deals.map((d) => d.country).filter(Boolean) as string[])).sort();
   const filtered = deals.filter((d) =>
     (!sectorFilter || d.sector === sectorFilter) &&
+    (!countryFilter || d.country === countryFilter) &&
     (!statusFilter || d.status === statusFilter)
   );
 
@@ -53,7 +56,7 @@ export default function ExportsPage() {
     try {
       if (fmt === "csv") exportCsv(filtered);
       else if (fmt === "json") exportJson(filtered);
-      else if (fmt === "pdf") exportPdf(filtered, "Deal Pipeline Report");
+      else if (fmt === "pdf") await exportPdfServer(filtered, "Deal Pipeline Report");
       else if (fmt === "pptx") await exportPptx(filtered, "Deal Pipeline");
       setDone(fmt);
       setTimeout(() => setDone(null), 3000);
@@ -72,7 +75,7 @@ export default function ExportsPage() {
           Export Center
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Download your deal data in 4 branded formats — all generated in your browser.
+          Download your deal data in 4 branded formats — PDF is generated server-side; PPTX uses branded consulting-grade slides.
         </p>
       </div>
 
@@ -87,13 +90,21 @@ export default function ExportsPage() {
             <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
               <Filter className="h-3.5 w-3.5" /> Filter What to Export
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs text-slate-600">Sector</label>
                 <select value={sectorFilter} onChange={(e) => setSectorFilter(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500">
                   <option value="">All sectors</option>
                   {sectors.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-600">Country</label>
+                <select value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                  <option value="">All countries</option>
+                  {countries.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -147,7 +158,7 @@ export default function ExportsPage() {
           </div>
 
           <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
-            <strong>Tip:</strong> PDF opens a print dialog — choose &quot;Save as PDF&quot; as destination. PPTX downloads directly and opens in PowerPoint, Keynote, or Google Slides.
+            <strong>Tip:</strong> PDF now downloads directly from the server. PPTX includes top-deal INR value ranges and opens in PowerPoint, Keynote, or Google Slides.
           </div>
         </>
       )}

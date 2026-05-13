@@ -1,6 +1,6 @@
 
 import { normalizeDate } from "./dates";
-import { cleanCompany, companyKey } from "./companies";
+import { cleanCompany, cleanCompanyList, companyKey } from "./companies";
 import { cleanSector } from "./sectors";
 import { parseValue, parseValueIntelligence } from "./value";
 
@@ -61,7 +61,7 @@ export function cleanseRow(row: RawDeal): CleansedDeal {
   }
 
   // Buyer
-  const buyer = cleanCompany(row.buyer);
+  const buyer = cleanCompanyList(row.buyer);
   if (!buyer) {
     exc.push({ field: "buyer", severity: "error", message: "Missing buyer" });
   } else if (buyer !== row.buyer) {

@@ -4,7 +4,9 @@ import { formatUsdShort } from "@/lib/analytics";
 
 const BRAND = {
   name: "Deal IQ AI",
-  color: "6366f1",
+  color: "007CB0",
+  teal: "0097A9",
+  green: "86BC25",
   tagline: "Intelligence · Advisory · Execution",
 };
 
@@ -53,7 +55,32 @@ export function exportJson(deals: Deal[]): void {
   );
 }
 
-// ---------- PDF (via print-to-PDF) ----------
+
+export function formatDealValueForExport(d: Deal): string {
+  const parts = [
+    d.deal_value_inr_range ? `INR ${d.deal_value_inr_range}` : "",
+    d.value_raw || "",
+    d.normalized_value_usd ? formatUsdShort(d.normalized_value_usd) : "",
+  ].filter(Boolean);
+  return parts[0] || "—";
+}
+
+export async function exportPdfServer(deals: Deal[], title = "Deal Pipeline Report"): Promise<void> {
+  const total = deals.reduce((s, d) => s + (d.normalized_value_usd ?? 0), 0);
+  const table = deals.slice(0, 100).map((d, index) =>
+    `${index + 1}. ${d.buyer ?? "—"} → ${d.target ?? "—"} | ${d.country ?? "—"} | ${d.sector ?? "—"} | ${formatDealValueForExport(d)} | ${d.status ?? "—"}`
+  ).join("\n");
+  const content = `# ${title}\n\nDeals: ${deals.length}\nTotal value: ${formatUsdShort(total)}\nGenerated: ${new Date().toLocaleString()}\n\n## Deal Table\n${table || "No deals"}`;
+  const res = await fetch("/api/deals/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ format: "pdf", proposalData: { content, title } }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  trigger(await res.blob(), `deal-iq-pipeline-${today()}.pdf`);
+}
+
+// ---------- PDF (via print-to-PDF fallback) ----------
 export function exportPdf(deals: Deal[], title = "Deal Pipeline Report"): void {
   const win = window.open("", "_blank");
   if (!win) return;
@@ -189,7 +216,7 @@ export async function exportPptx(deals: Deal[], title = "Deal Pipeline"): Promis
       values: topSectors.map((x) => Math.round(x[1] / 1e6)),
     }], {
       x: 0.5, y: 3.6, w: 12, h: 3.5,
-      chartColors: [BRAND.color],
+      chartColors: [BRAND.color, BRAND.teal, BRAND.green],
       showTitle: true, title: "Top Sectors by Deal Value ($M)",
       titleFontSize: 14, titleColor: "0F172A",
       showLegend: false, catAxisLabelFontSize: 10, valAxisLabelFontSize: 10,
@@ -213,14 +240,14 @@ export async function exportPptx(deals: Deal[], title = "Deal Pipeline"): Promis
       { text: "Buyer", options: { bold: true, color: "FFFFFF", fill: { color: BRAND.color } } },
       { text: "Target", options: { bold: true, color: "FFFFFF", fill: { color: BRAND.color } } },
       { text: "Sector", options: { bold: true, color: "FFFFFF", fill: { color: BRAND.color } } },
-      { text: "Value", options: { bold: true, color: "FFFFFF", fill: { color: BRAND.color }, align: "right" } },
+      { text: "Deal value range (INR)", options: { bold: true, color: "FFFFFF", fill: { color: BRAND.color }, align: "right" } },
     ],
     ...top15.map((d) => [
       { text: d.deal_date ?? "—" },
       { text: d.buyer ?? "—" },
       { text: d.target ?? "—" },
       { text: d.sector ?? "—" },
-      { text: d.normalized_value_usd ? formatUsdShort(d.normalized_value_usd) : "—", options: { align: "right" as const } },
+      { text: formatDealValueForExport(d), options: { align: "right" as const } },
     ]),
   ];
  s3.addTable(tblRows as never, {

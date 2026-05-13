@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
-import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2 } from "lucide-react";
+import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download } from "lucide-react";
 import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
@@ -50,6 +50,7 @@ export default function PmiStudioPage() {
   const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pptExporting, setPptExporting] = useState(false);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [premiumTier, setPremiumTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
@@ -209,6 +210,19 @@ export default function PmiStudioPage() {
     navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function downloadPptx() {
+    if (!content) return;
+    setPptExporting(true);
+    try {
+      const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
+      await exportProposalToPptx(content, { buyer, target, sector, geography, dealSize, moduleLabel: "PMI Playbook" }, undefined, `deal-iq-pmi-${buyer || "buyer"}-${target || "target"}.pptx`);
+    } catch (e) {
+      alert("PPTX export failed: " + String(e));
+    } finally {
+      setPptExporting(false);
+    }
   }
 
   function printDoc() {
@@ -491,6 +505,9 @@ ${renderVisualProposal(content)}
                   </button>
                   <button onClick={printDoc} className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1.5 text-xs">
                     <Printer className="h-3 w-3" /> Print / PDF
+                  </button>
+                  <button onClick={downloadPptx} disabled={pptExporting} className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-50">
+                    {pptExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
                   </button>
                   <button onClick={() => { setContent(null); clearOutput("pmi"); }}
                     className="flex items-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">

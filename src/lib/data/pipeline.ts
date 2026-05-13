@@ -1,6 +1,6 @@
 
 
-import { cleanCompany, companyKey } from "@/lib/cleansing/companies";
+import { cleanCompany, cleanCompanyList, companyKey } from "@/lib/cleansing/companies";
 import { normalizeDate } from "@/lib/cleansing/dates";
 import { cleanSector } from "@/lib/cleansing/sectors";
 
@@ -116,7 +116,7 @@ function oneLineSummary(buyer: string, target: string, sector: string, country: 
 }
 
 export function normalizeSourceRow(row: SourceRow): NormalizedDealRecord {
-  const buyer = cleanCompany(first(row["Bidders"], row["Issuers"])) ?? "Unknown Buyer";
+  const buyer = cleanCompanyList(first(row["Bidders"], row["Issuers"])) ?? "Unknown Buyer";
   const target = cleanCompany(first(row["Targets"], row["Vendors"])) ?? "Unknown Target";
   const sector = cleanSector(first(row["Dominant Sector"], row["Sectors"])) ?? "General";
   const date = normalizeDate(first(row["Date"])) ?? null;
