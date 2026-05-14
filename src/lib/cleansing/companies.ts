@@ -1,3 +1,5 @@
+
+
 /** Canonicalize company names: strip legal suffixes, normalize whitespace, title-case. */
 const SUFFIXES = [
   "inc", "incorporated", "corp", "corporation", "co", "company",
@@ -17,12 +19,12 @@ export function cleanCompany(raw: unknown): string | null {
   s = s.replace(/[,.]/g, " ").replace(/\s+/g, " ").trim();
 
   const tokens = s.split(" ").filter(Boolean);
-  while (tokens.length > 1) {
+  while (tokens.length > 1) { // ensure we don't pop the last token
     const last = tokens[tokens.length - 1].toLowerCase().replace(/\./g, "");
     if (SUFFIXES.includes(last)) tokens.pop();
     else break;
   }
-
+  if (tokens.length === 0) return null;
   return titleCase(tokens.join(" "));
 }
 
@@ -39,16 +41,13 @@ function titleCase(s: string): string {
     .join(" ");
 }
 
-
-
 function splitCompanyList(raw: string): string[] {
   return raw
     .replace(/\r?\n/g, ";")
     .replace(/\s+(?:and|&amp;)\s+/gi, " & ")
     // Intelligence feeds sometimes concatenate bidders as "A Ltd B Ltd C".
-    // Insert a delimiter after common legal suffixes when another capitalised
-    // company token follows so each bidder remains visible in the pipeline.
-    .replace(/\b(Ltd|Limited|Pvt|Private|Inc|Corp|Corporation|LLC|PLC)\.?\s+(?=[A-Z][A-Za-z0-9&-]*(?:\s|$))/g, "$1;")
+    // Insert a delimiter after common legal suffixes when another capitalised/numeric word follows
+    .replace(/\b(Ltd|Limited|Pvt|Private|Inc|Corp|Corporation|LLC|PLC|ltd|limited|pvt|private|inc|corp|corporation|llc|plc)\.?\s+(?=[A-Z0-9])/g, "$1;")
     .split(/\s*(?:;|\||\/)\s*/)
     .map((part) => part.trim())
     .filter(Boolean);
