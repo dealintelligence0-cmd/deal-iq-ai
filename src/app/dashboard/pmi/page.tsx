@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -7,6 +9,7 @@ import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, 
 import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download } from "lucide-react";
 import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
+import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
 import { createClient } from "@/lib/supabase/client";
 
@@ -227,38 +230,17 @@ export default function PmiStudioPage() {
 
   function printDoc() {
     if (!content) return;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    const today = new Date().toLocaleDateString();
-    const title = `PMI Proposal — ${target} · ${buyer}`;
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title><script src="https://cdn.tailwindcss.com"></script>
-<style>
-@page{margin:20mm 18mm 24mm 18mm}
-body{font-family:-apple-system,Helvetica,Arial,sans-serif;color:#0f172a;background:#fff;font-size:11px;line-height:1.55;margin:0;padding:0}
-.pdf-wrap{max-width:780px;margin:0 auto;padding:0 8px}
-.pdf-header{border-bottom:2px solid #4f46e5;padding-bottom:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start}
-.pdf-header .label{font-size:9px;font-weight:700;letter-spacing:2px;color:#4f46e5;text-transform:uppercase}
-.pdf-header h1{font-size:18px;font-weight:700;margin:4px 0 0;color:#0f172a}
-h2{font-size:13px;font-weight:700;border-bottom:1px solid #e2e8f0;padding-bottom:5px;margin:18px 0 8px;color:#1e1b4b}
-h3{font-size:11px;font-weight:600;margin:12px 0 4px;color:#3730a3}
-p,li{color:#334155;line-height:1.55}
-table{width:100%;border-collapse:collapse;font-size:10px;margin:8px 0}
-th{background:#eef2ff;color:#3730a3;font-weight:700;padding:7px 8px;text-align:left}
-td{padding:6px 8px;border-bottom:1px solid #f1f5f9;vertical-align:top}
-tr{page-break-inside:avoid}
-.pdf-footer{position:fixed;bottom:6mm;left:18mm;right:18mm;font-size:7.5px;color:#94a3b8;text-align:center;border-top:.5px solid #e2e8f0;padding-top:3px}
-</style></head><body>
-<div class="pdf-wrap">
-<div class="pdf-header">
-<div><div class="label">Deal IQ AI · PMI Studio · Confidential</div><h1>${title}</h1><div style="font-size:11px;color:#64748b;margin-top:4px">${sector} · ${geography} · ${dealSize}</div></div>
-<div style="text-align:right;font-size:10px;color:#64748b">${today}</div>
-</div>
-${renderVisualProposal(content)}
-</div>
-<div class="pdf-footer">This document is for informational purposes only. Independent verification required.</div>
-</body></html>`);
-    win.document.close();
-    win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 250);
+    openMbbPrintWindow({
+      contentMarkdown: content,
+      meta: {
+        moduleLabel: "PMI Playbook",
+        buyer,
+        target,
+        sector,
+        geography,
+        dealSize,
+      },
+    });
   }
 
   return (
