@@ -1,8 +1,8 @@
 
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
 import React from "react";
 import Link from "next/link";
 import {
@@ -82,31 +82,27 @@ export default function PipelinePage() {
 
       if (filters.indiaFlow && (d as Deal & { india_flow?: string | null }).india_flow !== filters.indiaFlow) return false;
       if (filters.stakeStatus && (d as Deal & { stake_status?: string | null }).stake_status !== filters.stakeStatus) return false;
-      const dExt2 = d as Deal & { priority_score?: number | null; advisory_score?: number | null; risk_score?: number | null; targeting_recommendation?: string | null };
-      if (filters.targeting && dExt2.targeting_recommendation !== filters.targeting) return false;
-      if (filters.minPriority && (dExt2.priority_score ?? 0) < parseInt(filters.minPriority)) return false;
-      if (filters.maxPriority && (dExt2.priority_score ?? 0) > parseInt(filters.maxPriority)) return false;
-      if (filters.minAdvisory && (dExt2.advisory_score ?? 0) < parseInt(filters.minAdvisory)) return false;
-      if (filters.maxAdvisory && (dExt2.advisory_score ?? 0) > parseInt(filters.maxAdvisory)) return false;
-      if (filters.minRisk && (dExt2.risk_score ?? 0) < parseInt(filters.minRisk)) return false;
-      if (filters.maxRisk && (dExt2.risk_score ?? 0) > parseInt(filters.maxRisk)) return false;
+      
+      type DealExt = Deal & { targeting_recommendation?: string | null; priority_score?: number | null; advisory_score?: number | null; time_sensitivity?: string | null };
+      const dExt = d as DealExt;
+      
+      if (filters.targeting && dExt.targeting_recommendation !== filters.targeting) return false;
+      if (filters.minPriority && (dExt.priority_score ?? 0) < parseInt(filters.minPriority)) return false;
+      if (filters.maxPriority && (dExt.priority_score ?? 0) > parseInt(filters.maxPriority)) return false;
+      if (filters.minAdvisory && (dExt.advisory_score ?? 0) < parseInt(filters.minAdvisory)) return false;
+      if (filters.maxAdvisory && (dExt.advisory_score ?? 0) > parseInt(filters.maxAdvisory)) return false;
+      if (filters.minRisk && (dExt.risk_score ?? 0) < parseInt(filters.minRisk)) return false;
+      if (filters.maxRisk && (dExt.risk_score ?? 0) > parseInt(filters.maxRisk)) return false;
       if (selectedDealTypes && !selectedDealTypes.has(d.deal_type ?? "")) return false;
       if (selectedStatuses && !selectedStatuses.has(d.status ?? "")) return false;
       if (filters.dateFrom && (!d.deal_date || d.deal_date < filters.dateFrom)) return false;
       if (filters.dateTo && (!d.deal_date || d.deal_date > filters.dateTo)) return false;
-      // New decision filters
-      type DealExt = Deal & { targeting_recommendation?: string | null; priority_score?: number | null; advisory_score?: number | null; time_sensitivity?: string | null };
-      const dExt = d as DealExt;
-      if (filters.targeting && dExt.targeting_recommendation !== filters.targeting) return false;
-      if (filters.minPriority && (dExt.priority_score ?? 0) < parseInt(filters.minPriority)) return false;
-      if (filters.minAdvisory && (dExt.advisory_score ?? 0) < parseInt(filters.minAdvisory)) return false;
       if (filters.timeSensitivity) {
         const ts = dExt.time_sensitivity ?? "";
         if (filters.timeSensitivity === "Early" && !/Early/i.test(ts)) return false;
         if (filters.timeSensitivity === "Mid" && !/Mid/i.test(ts)) return false;
         if (filters.timeSensitivity === "Late" && !/Late|Stale/i.test(ts)) return false;
       }
-
       
       if (minV !== null && (d.normalized_value_usd ?? 0) < minV) return false;
       if (maxV !== null && (d.normalized_value_usd ?? 0) > maxV) return false;
@@ -170,7 +166,7 @@ export default function PipelinePage() {
       buyer: d.buyer ?? "",
       target: d.target ?? "",
       sector: d.sector ?? "",
-     country: d.country ?? "",
+      country: d.country ?? "",
       geographies_involved: d.geographies_involved ?? "",
       india_flow: d.india_flow ?? "",
       deal_type: d.deal_type ?? "",
@@ -185,7 +181,7 @@ export default function PipelinePage() {
       normalized_value_usd: d.normalized_value_usd ?? "",
       status: d.status ?? "",
     }));
-   downloadCsv(rows, `deals-export-${new Date().toISOString().slice(0, 10)}.csv`,
+    downloadCsv(rows, `deals-export-${new Date().toISOString().slice(0, 10)}.csv`,
       ["deal_date","buyer","target","sector","country","geographies_involved","india_flow","deal_type","deal_summary","stake_percent","stake_status","deal_value_inr_range","deal_value_usd_range","priority_score","advisory_score","risk_score","normalized_value_usd","status"]);
   }
 
@@ -226,14 +222,12 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      {/* TOP 5 PRIORITY DEALS STRIP */}
       <Top5DealsStrip deals={all} />
 
       <div className="mb-4">
         <FilterBar filters={filters} onChange={setFilters} options={options} />
       </div>
 
-      {/* Score-based filters */}
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-[#15151f]">
         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Decision Filters:</span>
         <select value={filters.targeting ?? ""} onChange={(e) => setFilters({ ...filters, targeting: e.target.value || "" })}
@@ -280,7 +274,7 @@ export default function PipelinePage() {
                 <SortHeader label="Target" k="target" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader label="Sector" k="sector" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader label="Country" k="country" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-               <th className="px-3 py-3">Geographies</th>
+                <th className="px-3 py-3">Geographies</th>
                 <th className="px-3 py-3">Flow</th>
                 <th className="px-3 py-3">USD Range</th>
                 <th className="px-3 py-3">INR Range</th>
@@ -297,7 +291,7 @@ export default function PipelinePage() {
                <tr><td colSpan={16} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
               ) : pageRows.map((d) => (
                 <React.Fragment key={d.id}>
-<tr className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} cursor-pointer`}
+                <tr className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} cursor-pointer`}
                   onClick={(e) => {
                     if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "A") return;
                     setExpanded(expanded === d.id ? null : d.id);
@@ -339,11 +333,10 @@ export default function PipelinePage() {
                       </span>
                     ) : "—"}
                   </td>
-               <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={(d as Deal & { heading?: string | null }).heading ?? d.deal_summary ?? ""}>
-                    <div className="truncate font-medium">{(d as Deal & { heading?: string | null }).heading || d.deal_summary || "—"}</div>
+                  <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={d.heading || "—"}>
+                    <div className="truncate font-medium">{d.heading || "—"}</div>
                   </td>
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.priority_reason ?? ""}>
-                    
                     {d.priority_score != null ? <ScoreBadge score={d.priority_score} /> : "—"}
                   </td>
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.advisory_reason ?? ""}>
@@ -352,7 +345,7 @@ export default function PipelinePage() {
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.risk_reason ?? ""}>
                     {d.risk_score != null ? <ScoreBadge score={d.risk_score} /> : "—"}
                   </td>
-                 <td className="px-4 py-3">
+                  <td className="px-4 py-3">
                     <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${statusStyle[d.status ?? ""] ?? "bg-slate-100 text-slate-700"}`}>
                       {d.status ?? "—"}
                     </span>
@@ -407,7 +400,6 @@ function ScoreBadge({ score }: { score: number }) {
               : "bg-slate-100 text-slate-600";
   return <span className={`inline-block rounded-full px-2 py-0.5 ${color}`}>{score}</span>;
 }
-
 
 function DealInsight({ deal }: { deal: Deal }) {
   const [loading, setLoading] = React.useState(false);
@@ -478,7 +470,6 @@ function DealInsight({ deal }: { deal: Deal }) {
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      {/* Top banner */}
       <div className="md:col-span-3 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900/20 dark:bg-indigo-950/10">
         <div className="flex items-start gap-3">
           <span className={`rounded-md px-3 py-1.5 text-xs font-bold ${verbColor}`}>
@@ -515,13 +506,11 @@ function DealInsight({ deal }: { deal: Deal }) {
         </div>
       </div>
 
-      {/* Investment Thesis */}
       <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Investment Thesis</p>
         <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.thesis ?? "Click Generate AI Insights"}</p>
       </div>
 
-      {/* Why Now */}
       <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
         <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
           <TrendingUp className="mr-1 inline h-3 w-3" /> Why Now
@@ -529,13 +518,11 @@ function DealInsight({ deal }: { deal: Deal }) {
         <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.why_now ?? "—"}</p>
       </div>
 
-      {/* Advisory Angle */}
       <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-3 dark:border-purple-900/20 dark:bg-purple-950/10">
         <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">Advisory Angle</p>
         <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.advisory_angle ?? "—"}</p>
       </div>
 
-      {/* Value Drivers */}
       <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Value Drivers</p>
         <ul className="mt-1 space-y-0.5">
@@ -546,7 +533,6 @@ function DealInsight({ deal }: { deal: Deal }) {
         </ul>
       </div>
 
-      {/* Key Risks */}
       <div className="rounded-lg border border-amber-100 bg-amber-50/30 p-3 dark:border-amber-900/20 dark:bg-amber-950/10">
         <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
           <AlertTriangle className="mr-1 inline h-3 w-3" /> Key Risks
@@ -559,13 +545,11 @@ function DealInsight({ deal }: { deal: Deal }) {
         </ul>
       </div>
 
-      {/* Deal Tension */}
       <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#15151f]">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Deal Tension</p>
         <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">{ins.tensions ?? "—"}</p>
       </div>
 
-      {/* Targeting reason */}
       {targetingReason && (
         <div className="md:col-span-3 rounded-lg border-l-4 border-l-indigo-500 bg-slate-50 p-3 dark:bg-white/5">
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${targetingColor}`}>{targeting}</span>
@@ -575,7 +559,6 @@ function DealInsight({ deal }: { deal: Deal }) {
     </div>
   );
 }
-
 
 function SortHeader({ label, k, sortKey, sortDir, onSort, align = "left" }: {
   label: string; k: SortKey; sortKey: SortKey; sortDir: SortDir;
