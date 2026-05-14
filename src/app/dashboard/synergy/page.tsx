@@ -1,9 +1,12 @@
+
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
 import { TrendingUp, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download } from "lucide-react";
-import { cleanMarkdownToHTML } from "@/lib/ai/utils";
+import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
+import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
 import { createClient } from "@/lib/supabase/client";
 
@@ -188,6 +191,21 @@ useEffect(() => {
     }
   }
 
+  function printDoc() {
+    if (!content) return;
+    openMbbPrintWindow({
+      contentMarkdown: content,
+      meta: {
+        moduleLabel: "Synergy Model",
+        buyer,
+        target,
+        sector,
+        geography,
+        dealSize,
+      },
+    });
+  }
+
   function loadFromHistory(item: HistoryItem) {
     setContent(item.content);
     if (item.buyer) setB(item.buyer);
@@ -360,9 +378,9 @@ useEffect(() => {
                     {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                     {copied ? "Copied" : "Copy"}
                   </button>
-                  <button onClick={() => window.print()}
+                  <button onClick={printDoc}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">
-                    <Printer className="h-3.5 w-3.5" /> Print
+                    <Printer className="h-3.5 w-3.5" /> Print / PDF
                   </button>
                   <button onClick={downloadPptx} disabled={pptExporting}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">
@@ -374,8 +392,8 @@ useEffect(() => {
                   </button>
                 </div>
               </div>
-              <div className="prose prose-sm max-w-none p-5 dark:prose-invert"
-                dangerouslySetInnerHTML={{ __html: cleanMarkdownToHTML(content) }} />
+              <div className="mbb-inline p-5"
+                dangerouslySetInnerHTML={{ __html: renderVisualProposal(content) }} />
             </div>
           )}
         </div>
