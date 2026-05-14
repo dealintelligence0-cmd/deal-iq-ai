@@ -1,7 +1,9 @@
+
+
 /**
  * Consulting-grade PPTX exporter for Deal IQ advisory, PMI, synergy, and TSA documents.
- * It preserves the full generated markdown by paginating long prose/tables across
- * multiple slides instead of truncating overflowing text.
+ * Completely redesigned to match McKinsey-style aesthetic: crisp layouts, deep blues,
+ * robust table parsing, and seamless pagination for overflowing text.
  */
 
 import pptxgen from "pptxgenjs";
@@ -17,21 +19,22 @@ export type DealMeta = {
   moduleLabel?: string;
 };
 
+// McKinsey-inspired Consulting Palette
 const BRAND = {
-  blue: "007CB0",
-  teal: "0097A9",
-  green: "86BC25",
-  navy: "0B1F33",
-  ink: "102A43",
-  body: "334E68",
-  muted: "627D98",
-  rule: "D9E2EC",
-  paleBlue: "E6F4F8",
-  paleGreen: "F1F8E8",
+  blue: "051C2C", // McKinsey Navy
+  teal: "00A9E0", // Vibrant structural blue
+  green: "78BE20", // Accent green
+  navy: "020D1A", // Darker background
+  ink: "101820",  // Main text
+  body: "333F48", // Body text
+  muted: "68717A",// Subtle
+  rule: "D1D5DB", // Lines
+  paleBlue: "F0F7FA",
+  paleGreen: "F4F9F1",
 };
 
-const FONT_TITLE = "Aptos Display";
-const FONT_BODY = "Aptos";
+const FONT_TITLE = "Arial"; // Extremely stable cross-platform font
+const FONT_BODY = "Arial";
 const SLIDE_W = 13.33;
 const SLIDE_H = 7.5;
 
@@ -50,12 +53,11 @@ export async function exportProposalToPptx(
 
   defineMasters(pptx);
   addTitleSlide(pptx, meta);
-  addExecutiveSnapshot(pptx, proposalMd, meta);
 
   const sections = splitIntoSections(proposalMd);
-  sections.forEach((section, idx) => addPaginatedSection(pptx, section.heading, section.body, idx + 1, meta));
+  sections.forEach((section) => addPaginatedSection(pptx, section.heading, section.body, meta));
 
-  if (citationsMd) addCitationsSlide(pptx, citationsMd);
+  if (citationsMd) addCitationsSlide(pptx, citationsMd, meta);
   addClosingSlide(pptx, meta);
 
   await pptx.writeFile({ fileName: filename || `${slugify(meta.buyer)}-${slugify(meta.target)}-${slugify(meta.moduleLabel ?? "deck")}.pptx` });
@@ -63,200 +65,170 @@ export async function exportProposalToPptx(
 
 function defineMasters(pptx: pptxgen): void {
   pptx.defineSlideMaster({
-    title: "DEAL_IQ_CONTENT",
+    title: "CONTENT_MASTER",
     background: { color: "FFFFFF" },
     objects: [
-      { rect: { x: 0, y: 0, w: SLIDE_W, h: 0.09, fill: { color: BRAND.blue }, line: { color: BRAND.blue } } },
-      { rect: { x: 0, y: 0.09, w: SLIDE_W * 0.62, h: 0.05, fill: { color: BRAND.teal }, line: { color: BRAND.teal } } },
-      { rect: { x: 0, y: 0.14, w: SLIDE_W * 0.38, h: 0.05, fill: { color: BRAND.green }, line: { color: BRAND.green } } },
-      { rect: { x: 0.45, y: 7.04, w: 12.43, h: 0.01, fill: { color: BRAND.rule }, line: { color: BRAND.rule } } },
-      { text: { text: "DEAL IQ AI · CONFIDENTIAL", options: { x: 0.5, y: 7.13, w: 5, h: 0.25, fontFace: FONT_BODY, fontSize: 7.5, bold: true, color: BRAND.muted, charSpacing: 1 } } },
+      { rect: { x: 0, y: 0, w: SLIDE_W, h: 0.15, fill: { color: BRAND.blue } } },
+      { rect: { x: 0.5, y: 7.0, w: SLIDE_W - 1, h: 0.01, fill: { color: BRAND.rule } } },
+      { text: { text: "CONFIDENTIAL · DEAL IQ AI", options: { x: 0.5, y: 7.05, w: 6, h: 0.3, fontFace: FONT_BODY, fontSize: 8, color: BRAND.muted } } },
     ],
-    slideNumber: { x: 12.4, y: 7.13, w: 0.5, h: 0.25, fontFace: FONT_BODY, fontSize: 7.5, color: BRAND.muted, align: "right" },
+    slideNumber: { x: 12.0, y: 7.05, w: 1, h: 0.3, fontFace: FONT_BODY, fontSize: 8, color: BRAND.muted, align: "right" },
   });
 }
 
 function addTitleSlide(pptx: pptxgen, meta: DealMeta): void {
   const slide = pptx.addSlide();
-  slide.background = { color: BRAND.navy };
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SLIDE_W, h: SLIDE_H, fill: { color: BRAND.navy }, line: { color: BRAND.navy } });
-  slide.addShape(pptx.ShapeType.arc, { x: 8.2, y: -1.5, w: 5.8, h: 5.8, line: { color: BRAND.teal, transparency: 25, width: 2 } });
-  slide.addShape(pptx.ShapeType.arc, { x: 9.1, y: 4.6, w: 4.8, h: 4.8, line: { color: BRAND.green, transparency: 20, width: 2 } });
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 6.75, w: SLIDE_W, h: 0.22, fill: { color: BRAND.blue }, line: { color: BRAND.blue } });
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 6.97, w: SLIDE_W * 0.58, h: 0.16, fill: { color: BRAND.teal }, line: { color: BRAND.teal } });
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 7.13, w: SLIDE_W * 0.35, h: 0.12, fill: { color: BRAND.green }, line: { color: BRAND.green } });
+  slide.background = { color: BRAND.blue };
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 6.8, w: SLIDE_W, h: 0.7, fill: { color: "FFFFFF" } });
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 6.6, w: SLIDE_W * 0.4, h: 0.2, fill: { color: BRAND.teal } });
 
-  slide.addText("DEAL IQ AI", { x: 0.7, y: 0.52, w: 5, h: 0.3, fontFace: FONT_BODY, fontSize: 10, bold: true, color: "FFFFFF", charSpacing: 5 });
-  slide.addText((meta.moduleLabel ?? "M&A Advisory").toUpperCase(), { x: 0.7, y: 1.25, w: 5.7, h: 0.35, fontFace: FONT_BODY, fontSize: 11, bold: true, color: BRAND.green, charSpacing: 2 });
-  slide.addText(`${meta.buyer || "—"}\n→ ${meta.target || "—"}`, { x: 0.7, y: 1.72, w: 8.4, h: 2.25, fontFace: FONT_TITLE, fontSize: 38, bold: true, color: "FFFFFF", breakLine: false, fit: "shrink" });
-  slide.addText([meta.sector, meta.geography, meta.dealSize].filter(Boolean).join("  ·  ") || "Deal intelligence workpaper", { x: 0.72, y: 4.25, w: 7.8, h: 0.35, fontFace: FONT_BODY, fontSize: 12, color: "CFE8EF" });
-
-  addIconMetric(slide, "●", "Strategy", "Rationale and value thesis", 9.35, 1.45, BRAND.blue);
-  addIconMetric(slide, "◆", "Execution", "PMI, TSA and governance", 9.35, 2.58, BRAND.teal);
-  addIconMetric(slide, "▲", "Value", "Synergies, risks and next steps", 9.35, 3.71, BRAND.green);
-  slide.addText(`Prepared ${new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })} · CONFIDENTIAL`, { x: 0.72, y: 6.22, w: 7, h: 0.28, fontFace: FONT_BODY, fontSize: 9, color: "D9E2EC" });
+  slide.addText("CONFIDENTIAL WORKING DRAFT", { x: 0.8, y: 0.8, w: 10, h: 0.3, fontFace: FONT_BODY, fontSize: 12, bold: true, color: "FFFFFF", charSpacing: 2 });
+  slide.addText(`${meta.buyer || "—"}\nAcquisition of ${meta.target || "—"}`, { x: 0.8, y: 2.0, w: 11.5, h: 2.5, fontFace: FONT_TITLE, fontSize: 44, bold: true, color: "FFFFFF", breakLine: true, valign: "top" });
+  slide.addText(`${(meta.moduleLabel ?? "Strategic Advisory Report").toUpperCase()}`, { x: 0.8, y: 4.8, w: 10, h: 0.4, fontFace: FONT_BODY, fontSize: 18, color: BRAND.teal, bold: true });
+  slide.addText(`${[meta.sector, meta.geography, meta.dealSize].filter(Boolean).join("  |  ")}`, { x: 0.8, y: 5.3, w: 10, h: 0.3, fontFace: FONT_BODY, fontSize: 14, color: "FFFFFF" });
+  slide.addText(`Prepared by ${meta.clientName || "Deal IQ AI"}`, { x: 0.8, y: 7.0, w: 5, h: 0.3, fontFace: FONT_BODY, fontSize: 11, color: BRAND.muted, bold: true });
+  slide.addText(`${new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`, { x: 10.5, y: 7.0, w: 2, h: 0.3, fontFace: FONT_BODY, fontSize: 11, color: BRAND.muted, align: "right" });
 }
 
-function addIconMetric(slide: pptxgen.Slide, icon: string, title: string, body: string, x: number, y: number, color: string): void {
-  slide.addShape("roundRect", { x, y, w: 3.25, h: 0.78, fill: { color: "FFFFFF", transparency: 90 }, line: { color, transparency: 15 }, rectRadius: 0.08 });
-  slide.addText(icon, { x: x + 0.16, y: y + 0.16, w: 0.32, h: 0.3, fontSize: 14, bold: true, color, fontFace: FONT_BODY });
-  slide.addText(title, { x: x + 0.58, y: y + 0.12, w: 2.45, h: 0.22, fontSize: 10, bold: true, color: "FFFFFF", fontFace: FONT_BODY });
-  slide.addText(body, { x: x + 0.58, y: y + 0.38, w: 2.45, h: 0.22, fontSize: 7.5, color: "D9E2EC", fontFace: FONT_BODY });
+function addSectionHeader(slide: pptxgen.Slide, heading: string, meta: DealMeta, subtitle?: string): void {
+  slide.addText(stripNumberingPrefix(heading).toUpperCase(), { x: 0.5, y: 0.35, w: 11, h: 0.5, fontFace: FONT_TITLE, fontSize: 24, bold: true, color: BRAND.blue });
+  slide.addText(subtitle || `${meta.buyer || "Buyer"} / ${meta.target || "Target"}`, { x: 0.5, y: 0.85, w: 11, h: 0.3, fontFace: FONT_BODY, fontSize: 12, color: BRAND.muted });
 }
 
-function addExecutiveSnapshot(pptx: pptxgen, md: string, meta: DealMeta): void {
-  const slide = pptx.addSlide({ masterName: "CONTENT_MASTER" });
-  addSectionHeader(slide, "Executive snapshot", "00", meta);
-  const sections = splitIntoSections(md).slice(0, 6);
-  sections.forEach((section, idx) => {
-    const x = 0.55 + (idx % 3) * 4.18;
-    const y = 1.35 + Math.floor(idx / 3) * 2.25;
-    const color = [BRAND.blue, BRAND.teal, BRAND.green][idx % 3];
-    slide.addShape("roundRect", { x, y, w: 3.85, h: 1.78, fill: { color: idx % 2 ? "FFFFFF" : BRAND.paleBlue }, line: { color: BRAND.rule }, rectRadius: 0.08 });
-    slide.addText(["●", "◆", "▲"][idx % 3], { x: x + 0.18, y: y + 0.14, w: 0.25, h: 0.25, fontSize: 10, bold: true, color });
-    slide.addText(stripNumberingPrefix(section.heading), { x: x + 0.5, y: y + 0.12, w: 3.1, h: 0.3, fontFace: FONT_BODY, fontSize: 10.5, bold: true, color: BRAND.ink, fit: "shrink" });
-    slide.addText(firstSentence(section.body), { x: x + 0.2, y: y + 0.55, w: 3.45, h: 0.9, fontFace: FONT_BODY, fontSize: 8.5, color: BRAND.body, fit: "shrink", valign: "top" });
-  });
-}
+type ContentBlock = { type: "text", content: string } | { type: "table", rows: string[][] };
 
-function addPaginatedSection(pptx: pptxgen, heading: string, body: string, num: number, meta: DealMeta): void {
-  const parsed = parseBody(body);
-  if (parsed.kind === "table") {
-    chunk(parsed.rows.slice(1), 10).forEach((rows, page) => {
-      const slide = pptx.addSlide({ masterName: "CONTENT_MASTER" });
-      addSectionHeader(slide, heading, String(num).padStart(2, "0"), meta, page + 1);
-      renderTable(slide, [parsed.rows[0], ...rows], 1.35);
-    });
-    return;
+function extractBlocks(md: string): ContentBlock[] {
+  const lines = md.split('\n');
+  const blocks: ContentBlock[] = [];
+  let currentText: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('|') && line.endsWith('|')) {
+      if (currentText.length > 0) {
+        blocks.push({ type: "text", content: currentText.join('\n') });
+        currentText = [];
+      }
+      const tableRows: string[][] = [];
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        const rowLine = lines[i].trim();
+        if (!/^\|[\s\-:|]+\|$/.test(rowLine)) {
+          // Do not strip `**` here! We need them for bold parsing
+          tableRows.push(rowLine.slice(1, -1).split('|').map(c => c.trim().replace(/_/g, '')));
+        }
+        i++;
+      }
+      i--;
+      blocks.push({ type: "table", rows: tableRows });
+    } else {
+      currentText.push(lines[i]);
+    }
   }
-
-  const items = parsed.kind === "bullets" ? parsed.items : proseToItems(parsed.text);
-  chunk(items, 9).forEach((itemsPage, page) => {
-    const slide = pptx.addSlide({ masterName: "CONTENT_MASTER" });
-    addSectionHeader(slide, heading, String(num).padStart(2, "0"), meta, page + 1);
-    renderConsultingBullets(slide, itemsPage, 1.38);
-  });
-}
-
-function addSectionHeader(slide: pptxgen.Slide, heading: string, num: string, meta: DealMeta, page?: number): void {
-  slide.addText(num, { x: 0.52, y: 0.37, w: 0.58, h: 0.42, fontFace: FONT_TITLE, fontSize: 20, bold: true, color: BRAND.blue });
-  slide.addText(`${stripNumberingPrefix(heading)}${page && page > 1 ? ` (${page})` : ""}`, { x: 1.15, y: 0.39, w: 9.4, h: 0.38, fontFace: FONT_TITLE, fontSize: 20, bold: true, color: BRAND.ink, fit: "shrink" });
-  slide.addText([meta.buyer, meta.target, meta.sector, meta.geography].filter(Boolean).join(" · "), { x: 1.16, y: 0.82, w: 9.6, h: 0.22, fontFace: FONT_BODY, fontSize: 8, color: BRAND.muted, fit: "shrink" });
-  slide.addShape("rect", { x: 11.1, y: 0.36, w: 0.38, h: 0.18, fill: { color: BRAND.blue }, line: { color: BRAND.blue } });
-  slide.addShape("rect", { x: 11.55, y: 0.36, w: 0.38, h: 0.18, fill: { color: BRAND.teal }, line: { color: BRAND.teal } });
-  slide.addShape("rect", { x: 12.0, y: 0.36, w: 0.38, h: 0.18, fill: { color: BRAND.green }, line: { color: BRAND.green } });
-}
-
-type Renderable =
-  | { kind: "table"; rows: string[][] }
-  | { kind: "bullets"; items: string[] }
-  | { kind: "text"; text: string };
-
-function parseBody(body: string): Renderable {
-  const trimmed = body.trim();
-  if (!trimmed) return { kind: "text", text: "No content generated." };
-  const lines = trimmed.split("\n");
-  const tableLines = lines.filter((l) => /^\s*\|.*\|\s*$/.test(l));
-  if (tableLines.length >= 2) {
-    const rows = tableLines
-      .filter((l) => !/^\s*\|[\s\-:|]+\|\s*$/.test(l))
-      .map((l) => l.trim().slice(1, -1).split("|").map(cleanCell));
-    if (rows.length >= 2) return { kind: "table", rows };
+  if (currentText.length > 0) {
+    blocks.push({ type: "text", content: currentText.join('\n') });
   }
-  const nonBlank = lines.filter((l) => l.trim());
-  if (nonBlank.some((l) => /^\s*([-*]|\d+\.)\s+/.test(l))) {
-    return { kind: "bullets", items: nonBlank.map((l) => cleanCell(l.replace(/^\s*([-*]|\d+\.)\s+/, ""))).filter(Boolean) };
+  return blocks;
+}
+
+function parseFormattedText(text: string) {
+  const parts = text.split(/(\*\*.*?\*\*)/g).filter(Boolean);
+  return parts.map(part => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return { text: part.slice(2, -2), options: { bold: true, color: BRAND.ink } };
+    }
+    return { text: part, options: { bold: false, color: BRAND.body } };
+  });
+}
+
+function estimateHeight(text: string, fontSize: number): number {
+  const charsPerLine = 130;
+  const lines = Math.ceil(text.length / charsPerLine) + (text.split('\n').length - 1);
+  return Math.max(0.4, lines * 0.22);
+}
+
+function addPaginatedSection(pptx: pptxgen, heading: string, body: string, meta: DealMeta): void {
+  const blocks = extractBlocks(body);
+  let currentSlide = pptx.addSlide({ masterName: "CONTENT_MASTER" });
+  let yPos = 1.4;
+  let pageNum = 1;
+
+  addSectionHeader(currentSlide, heading, meta);
+
+  for (const block of blocks) {
+    if (block.type === "text") {
+      const items = block.content.split(/\n(?:\s*\n)+|\n(?=[-*\d])/).map(i => i.trim()).filter(i => i.length > 0);
+
+      for (const item of items) {
+        const estH = estimateHeight(item, 11);
+        if (yPos + estH > 6.8) {
+          currentSlide = pptx.addSlide({ masterName: "CONTENT_MASTER" });
+          pageNum++;
+          addSectionHeader(currentSlide, heading, meta, `(continued)`);
+          yPos = 1.4;
+        }
+
+        const textClean = item.replace(/^[-*]\s*/, '').replace(/^\d+\.\s*/, '');
+
+        // Consulting square marker
+        currentSlide.addShape(pptx.ShapeType.rect, { x: 0.5, y: yPos + 0.08, w: 0.06, h: 0.06, fill: { color: BRAND.teal } });
+
+        currentSlide.addText(parseFormattedText(textClean), {
+          x: 0.7, y: yPos, w: 12.0, h: estH,
+          fontFace: FONT_BODY, fontSize: 11, valign: "top", wrap: true
+        });
+
+        yPos += estH + 0.15;
+      }
+    } else if (block.type === "table") {
+      if (yPos > 4.5) {
+        currentSlide = pptx.addSlide({ masterName: "CONTENT_MASTER" });
+        pageNum++;
+        addSectionHeader(currentSlide, heading, meta, `(continued)`);
+        yPos = 1.4;
+      }
+
+      const colCount = Math.max(...block.rows.map(r => r.length));
+      const colW = Array(colCount).fill(12.33 / colCount);
+
+      const tableData = block.rows.map((row, rIdx) => row.map(cell => ({
+        text: parseFormattedText(cell),
+        options: {
+          fill: { color: rIdx === 0 ? BRAND.blue : (rIdx % 2 === 0 ? BRAND.paleBlue : "FFFFFF") },
+          color: rIdx === 0 ? "FFFFFF" : BRAND.ink,
+          bold: rIdx === 0,
+          fontSize: rIdx === 0 ? 11 : 10,
+          border: { type: "solid", pt: 1, color: "FFFFFF" },
+          margin: 0.1,
+          valign: "middle" as const,
+        }
+      })));
+
+      currentSlide.addTable(tableData as any, {
+        x: 0.5, y: yPos, w: 12.33, colW,
+        autoPage: true, autoPageLineWeight: 0, newSlideStartY: 1.4
+      });
+
+      yPos = 8.0; // Force a new slide for anything following a table block
+    }
   }
-  return { kind: "text", text: cleanCell(trimmed) };
 }
 
-function renderConsultingBullets(slide: pptxgen.Slide, items: string[], yStart: number): void {
-  items.forEach((item, idx) => {
-    const y = yStart + idx * 0.58;
-    const color = [BRAND.blue, BRAND.teal, BRAND.green][idx % 3];
-    slide.addText(["●", "◆", "▲"][idx % 3], { x: 0.68, y: y + 0.04, w: 0.24, h: 0.25, fontSize: 9, bold: true, color });
-    const [lead, rest] = splitLead(item);
-    slide.addText([
-      { text: lead, options: { bold: true, color: BRAND.ink } },
-      { text: rest ? ` — ${rest}` : "", options: { bold: false, color: BRAND.body } },
-    ], { x: 1.02, y, w: 11.3, h: 0.46, fontFace: FONT_BODY, fontSize: 10.5, fit: "shrink", valign: "top", breakLine: false });
-  });
-}
-
-function renderTable(slide: pptxgen.Slide, rows: string[][], yStart: number): void {
-  const colCount = Math.max(...rows.map((row) => row.length));
-  const colW = Array(colCount).fill(12.1 / colCount);
-  const data = rows.map((row, rowIndex) => Array.from({ length: colCount }, (_, colIndex) => ({
-    text: row[colIndex] ?? "",
-    options: {
-      fontFace: FONT_BODY,
-      fontSize: rowIndex === 0 ? 8.5 : 7.6,
-      color: rowIndex === 0 ? "FFFFFF" : BRAND.body,
-      bold: rowIndex === 0,
-      fill: { color: rowIndex === 0 ? BRAND.blue : (rowIndex % 2 ? "FFFFFF" : "F8FBFC") },
-      valign: "middle" as const,
-      margin: 0.04,
-    },
-  })));
-  slide.addTable(data, { x: 0.58, y: yStart, w: 12.1, colW, border: { type: "solid", pt: 0.35, color: BRAND.rule }, rowH: 0.42, fontFace: FONT_BODY });
-}
-
-function addCitationsSlide(pptx: pptxgen, citationsMd: string): void {
-  const lines = citationsMd.split("\n").filter((line) => line.trim()).slice(0, 80);
-  chunk(lines, 18).forEach((page, idx) => {
-    const slide = pptx.addSlide({ masterName: "CONTENT_MASTER" });
-    addSectionHeader(slide, "Sources & citations", "S", { buyer: "Sources", target: "Citations" }, idx + 1);
-    renderConsultingBullets(slide, page.map(cleanCell), 1.35);
-  });
+function addCitationsSlide(pptx: pptxgen, citationsMd: string, meta: DealMeta): void {
+  const lines = citationsMd.split("\n").filter(l => /^\[\d+\]/.test(l.trim())).slice(0, 80);
+  if (!lines.length) return;
+  addPaginatedSection(pptx, "Sources & Citations", lines.join('\n\n'), meta);
 }
 
 function addClosingSlide(pptx: pptxgen, meta: DealMeta): void {
   const slide = pptx.addSlide();
   slide.background = { color: BRAND.navy };
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SLIDE_W, h: 0.22, fill: { color: BRAND.blue }, line: { color: BRAND.blue } });
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0.22, w: SLIDE_W * 0.62, h: 0.16, fill: { color: BRAND.teal }, line: { color: BRAND.teal } });
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0.38, w: SLIDE_W * 0.38, h: 0.12, fill: { color: BRAND.green }, line: { color: BRAND.green } });
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SLIDE_W, h: 0.22, fill: { color: BRAND.blue } });
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0.22, w: SLIDE_W * 0.62, h: 0.16, fill: { color: BRAND.teal } });
+  
   slide.addText("From insight to action", { x: 0.7, y: 2.45, w: 11.8, h: 0.7, fontFace: FONT_TITLE, fontSize: 34, bold: true, color: "FFFFFF", align: "center" });
   slide.addText(`${meta.buyer || "—"} → ${meta.target || "—"}`, { x: 0.7, y: 3.42, w: 11.8, h: 0.45, fontFace: FONT_BODY, fontSize: 16, color: "D9E2EC", align: "center" });
   slide.addText("Deal IQ AI · Strategy · Value · Execution", { x: 0.7, y: 4.12, w: 11.8, h: 0.35, fontFace: FONT_BODY, fontSize: 11, bold: true, color: BRAND.green, align: "center", charSpacing: 2 });
   slide.addText("CONFIDENTIAL", { x: 0.7, y: 6.95, w: 11.8, h: 0.24, fontFace: FONT_BODY, fontSize: 8, color: "FFFFFF", align: "center", charSpacing: 4 });
-}
-
-function proseToItems(text: string): string[] {
-  return text.split(/(?<=[.!?])\s+(?=[A-Z0-9])/).flatMap((sentence) => wrapText(sentence, 180)).filter(Boolean);
-}
-
-function wrapText(text: string, max: number): string[] {
-  if (text.length <= max) return [text];
-  const chunks: string[] = [];
-  let remaining = text;
-  while (remaining.length > max) {
-    const cut = Math.max(remaining.lastIndexOf(" ", max), max);
-    chunks.push(remaining.slice(0, cut).trim());
-    remaining = remaining.slice(cut).trim();
-  }
-  if (remaining) chunks.push(remaining);
-  return chunks;
-}
-
-function splitLead(text: string): [string, string] {
-  const cleaned = cleanCell(text);
-  const match = /^([^:—-]{3,58})\s*[:—-]\s*(.+)$/.exec(cleaned);
-  return match ? [match[1], match[2]] : [cleaned, ""];
-}
-
-function cleanCell(text: string): string {
-  return text.replace(/\[\^?\d+\]/g, "").replace(/\*\*/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-}
-
-function firstSentence(text: string): string {
-  return cleanCell(text).split(/(?<=[.!?])\s+/)[0]?.slice(0, 240) || "Section generated for this deal.";
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const result: T[][] = [];
-  for (let i = 0; i < items.length; i += size) result.push(items.slice(i, i + size));
-  return result.length ? result : [[]];
 }
 
 function slugify(s: string): string {
@@ -266,4 +238,3 @@ function slugify(s: string): string {
 function stripNumberingPrefix(s: string): string {
   return s.replace(/^\d+\.\s+/, "");
 }
-
