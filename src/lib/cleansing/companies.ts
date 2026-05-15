@@ -42,12 +42,27 @@ function titleCase(s: string): string {
 }
 
 function splitCompanyList(raw: string): string[] {
-  return raw
-    .replace(/\r?\n/g, ";")
-    .replace(/\s+(?:and|&amp;)\s+/gi, " & ")
-    // Intelligence feeds sometimes concatenate bidders as "A Ltd B Ltd C".
-    // Insert a delimiter after common legal suffixes when another capitalised/numeric word follows
-    .replace(/\b(Ltd|Limited|Pvt|Private|Inc|Corp|Corporation|LLC|PLC|ltd|limited|pvt|private|inc|corp|corporation|llc|plc)\.?\s+(?=[A-Z0-9])/g, "$1;")
+  let s = raw.replace(/\r?\n/g, ";");
+
+  // Normalise "and" to " & " (we'll only split intelligently below)
+  s = s.replace(/\s+(?:and|&amp;)\s+/gi, " & ");
+
+  // Intelligence feeds sometimes concatenate bidders as "A Ltd B Ltd C".
+  // Insert a delimiter after common legal suffixes (case-insensitive, including ALL-CAPS
+  // LTD/PLC/INC) when another capitalised/numeric word follows.
+  s = s.replace(
+    /\b(LTD|LIMITED|PVT|PRIVATE|INC|CORP|CORPORATION|LLC|LLP|LP|PLC|GMBH|HOLDINGS|HOLDING|GROUP)\b\.?\s+(?=[A-Z][A-Za-z0-9])/gi,
+    "$1;"
+  );
+
+  // Only split on " & " when the LEFT side ends with a legal-suffix token —
+  // this protects single-entity brands like "Procter & Gamble", "H & M", "Wipro Consumer CARE & Lighting".
+  s = s.replace(
+    /\b(LTD|LIMITED|PVT|PRIVATE|INC|CORP|CORPORATION|LLC|LLP|LP|PLC|GMBH|HOLDINGS|HOLDING|GROUP)\b\.?\s+&\s+(?=\S+\s\S)/gi,
+    "$1;"
+  );
+
+  return s
     .split(/\s*(?:;|\||\/)\s*/)
     .map((part) => part.trim())
     .filter(Boolean);
