@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -333,8 +335,8 @@ export default function PipelinePage() {
                       </span>
                     ) : "—"}
                   </td>
-                  <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={d.heading || "—"}>
-                    <div className="truncate font-medium">{d.heading || "—"}</div>
+                  <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={d.heading || d.deal_summary || d.opportunity || "—"}>
+                    <div className="truncate font-medium">{d.heading || d.deal_summary || d.opportunity || (d.buyer && d.target ? `${d.buyer} → ${d.target}` : "—")}</div>
                   </td>
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.priority_reason ?? ""}>
                     {d.priority_score != null ? <ScoreBadge score={d.priority_score} /> : "—"}
