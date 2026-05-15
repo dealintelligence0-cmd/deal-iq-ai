@@ -2,6 +2,8 @@
 
 
 
+
+
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
@@ -12,6 +14,7 @@ import {
 } from "lucide-react";
 import { renderVisualProposal, renderCitations } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
+import { generateOfflineProposal } from "@/lib/proposal/offline-engine";
 import { cleanMarkdownToHTML } from "@/lib/ai/utils";
 import { classifyDeal, generateServices, type Service, type DealClassification } from "@/lib/intelligence/deal-classifier";
 import { createClient as createSbClient } from "@/lib/supabase/client";
@@ -841,12 +844,8 @@ async function promoteToPartnerGrade() {
 
          <button
             onClick={() => {
-              if (premiumTier.hasKey || economicTier.hasKey || allowOffline) {
-                setConfirmOpen(true);
-              } else {
-                // No keys at all — fall back to legacy direct call so existing UX isn't broken
-                generate();
-              }
+              // Modal always available now — premium/economic if keys, or offline rule-based as fallback.
+              setConfirmOpen(true);
             }}
             disabled={generating || (!buyer && !target)}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:from-indigo-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50">
@@ -1035,7 +1034,33 @@ async function promoteToPartnerGrade() {
         onConfirm={(tier, modelOverride) => {
           setConfirmOpen(false);
           if (tier === "offline") {
-            setError("Offline rule-based proposals are not supported on this route. Pick Premium or Economic.");
+            // Rule-based deterministic proposal — no AI key needed.
+            // Build a Facts-style prompt the offline engine can parse.
+            const prompt = [
+              `Buyer / Acquirer: ${buyer}`,
+              `Target Company: ${target}`,
+              `Sector: ${sector}`,
+              `Geography: ${geography}`,
+              `Deal Size: ${dealSize}`,
+              `Client / Advisory House: ${clientName || "N/A"}`,
+              `Stake: ${stakePercent || "N/A"}`,
+              `Strategic Intent: ${dealTypeInput || ""}`,
+              `Notes: ${notes || ""}`,
+            ].join("\n");
+            const md = generateOfflineProposal(prompt);
+            setContent(md);
+            saveOutput("proposal", md);
+            setProvider("offline");
+            setModel("rule-based");
+            const label = PROPOSAL_OPTIONS.find((o) => o.value === proposalType)?.label ?? proposalType;
+            setHistory((prev) => [{
+              id: Date.now().toString(),
+              label: `${label} — ${target || buyer || "Unnamed"} (offline)`,
+              content: md,
+              createdAt: new Date().toLocaleString(),
+              provider: "offline",
+              model: "rule-based",
+            }, ...prev].slice(0, 20));
             return;
           }
           generate(tier, modelOverride);
@@ -1043,7 +1068,7 @@ async function promoteToPartnerGrade() {
         module="proposal"
         premiumProvider={{ tier: "premium", ...premiumTier }}
         economicProvider={{ tier: "economic", ...economicTier }}
-        hasOfflineFallback={allowOffline}
+        hasOfflineFallback={true}
         userWeights={userWeights ?? undefined}
       />
     </div>
