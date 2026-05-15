@@ -1,14 +1,17 @@
 
 
+
+
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
 import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download } from "lucide-react";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
 import { createClient } from "@/lib/supabase/client";
+import { generateOfflineTsa } from "@/lib/proposal/offline-tsa";
 
 const FUNCTIONS = ["IT & Systems", "Finance & Accounting", "HR & Payroll", "Legal", "Procurement", "Facilities", "Customer Service", "Supply Chain", "Manufacturing", "Sales Support", "Tax", "Treasury"];
 const PRICING_OPTIONS = [
@@ -59,6 +62,26 @@ export default function TSAGeneratorPage() {
     // For TSA, "seller" is the deal target. Store under target key for cross-module consistency.
     saveDealContext({ buyer, target: seller, sector, geography, deal_size: dealSize, deal_id: dealId });
   }, [buyer, seller, sector, geography, dealSize, dealId]);
+
+  // Load saved AI keys so the confirmation modal shows real options instead of "No AI providers configured"
+  const loadTiers = useCallback(async () => {
+    const { data: u } = await sb.auth.getUser();
+    if (!u.user) return;
+    const { data } = await sb.from("ai_settings")
+      .select("premium_provider,premium_model,premium_key_encrypted,economic_provider,economic_model,economic_key_encrypted")
+      .eq("user_id", u.user.id).maybeSingle();
+    if (data) {
+      setPremiumTier({
+        provider: data.premium_provider, model: data.premium_model,
+        hasKey: !!data.premium_key_encrypted && data.premium_provider !== "free",
+      });
+      setEconomicTier({
+        provider: data.economic_provider, model: data.economic_model,
+        hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free",
+      });
+    }
+  }, [sb]);
+  useEffect(() => { loadTiers(); }, [loadTiers]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -149,7 +172,16 @@ export default function TSAGeneratorPage() {
  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
     if (tier === "offline") {
-      setError("Offline mode not available for TSA — needs AI for service catalog generation. Pick Premium or Economic.");
+      // Rule-based deterministic TSA — no AI key needed
+      const md = generateOfflineTsa({
+        seller, buyer, sector, geography, dealSize,
+        closeDate, functions: selectedFns, duration, pricing,
+        constraints, mandateType, buyerType: buyerTypeF,
+        ownershipType, integrationStyle,
+      });
+      setContent(md);
+      saveOutput("tsa", md);
+      reloadHistory();
       return;
     }
     setGen(true); setContent(null); setError(null);
@@ -225,7 +257,7 @@ export default function TSAGeneratorPage() {
         module="tsa"
         premiumProvider={{ tier: "premium", ...premiumTier }}
         economicProvider={{ tier: "economic", ...economicTier }}
-        hasOfflineFallback={false}
+        hasOfflineFallback={true}
       />
 
       <div className="page-header">
