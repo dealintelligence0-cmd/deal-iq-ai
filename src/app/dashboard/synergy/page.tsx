@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -7,6 +9,7 @@ import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, 
 import { TrendingUp, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download } from "lucide-react";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
+import { generateOfflineSynergy } from "@/lib/proposal/offline-synergy";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
 import { createClient } from "@/lib/supabase/client";
 
@@ -136,6 +139,20 @@ useEffect(() => {
  }, []);
   async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
     setConfirmOpen(false);
+    if (tier === "offline") {
+      const md = generateOfflineSynergy({
+        buyer, target, sector, geography, dealSize,
+        targetRevenue, buyerRevenue,
+        ambition: ambition as "conservative" | "base" | "aggressive",
+        notes,
+        mandateType, buyerType: buyerTypeF,
+        ownershipType, integrationStyle,
+      });
+      setContent(md);
+      saveOutput("synergy", md);
+      loadHistory();
+      return;
+    }
     setGen(true);
     setContent(null);
     try {
@@ -240,7 +257,7 @@ useEffect(() => {
         module="synergy"
         premiumProvider={{ tier: "premium", ...premiumTier }}
         economicProvider={{ tier: "economic", ...economicTier }}
-        hasOfflineFallback={false}
+        hasOfflineFallback={true}
       />
 
       <div className="page-header">
