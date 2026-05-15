@@ -56,48 +56,85 @@ function renderInline(text: string): string {
 // ===========================================================================
 // Tables (markdown → consulting table with navy header + alt rows)
 // ===========================================================================
-function extractTable(text: string): { tableHtml: string; remainder: string } {
+
+/**
+ * Try to detect "smushed" inline pipe tables — when an AI writes a table all on
+ * one line without newlines (e.g. "| A | B | | --- | --- | | 1 | 2 |").
+ * Returns the reflowed markdown text with proper newlines so the regular
+ * extractTable below can pick it up.
+ */
+function reflowInlineTables(text: string): string {
+  return text.replace(/(\|[^\n]*\|)/g, (match) => {
+    // Only reflow if this is one long pipe-segmented line with separator markers
+    if (!match.includes("|") || match.length < 30) return match;
+    if (!/\|\s*-{2,}\s*\|/.test(match)) return match;     // must contain |--- | divider
+    const cells = match.split(/\s*\|\s*/).filter((c) => c !== "");
+    if (cells.length < 6) return match;
+    // Determine the number of columns by locating the first separator cell
+    const sepIdx = cells.findIndex((c) => /^-{2,}$/.test(c.trim()));
+    if (sepIdx < 2) return match;
+    const cols = sepIdx;
+    // Re-emit as proper rows
+    const rows: string[] = [];
+    for (let i = 0; i < cells.length; i += cols) {
+      const row = cells.slice(i, i + cols);
+      if (row.length === cols) rows.push("| " + row.join(" | ") + " |");
+    }
+    return "\n" + rows.join("\n") + "\n";
+  });
+}
+
+function extractAllTables(text: string): { tablesHtml: string[]; remainder: string } {
+  text = reflowInlineTables(text);
+  const tablesHtml: string[] = [];
+  const remainderLines: string[] = [];
+
   const lines = text.split("\n");
-  let start = -1, end = -1;
-  for (let i = 0; i < lines.length; i++) {
+  let i = 0;
+  while (i < lines.length) {
     const l = lines[i].trim();
     if (l.startsWith("|") && l.endsWith("|")) {
-      if (start === -1) start = i;
-      end = i;
-    } else if (start !== -1) {
-      break;
-    }
-  }
-  if (start === -1) return { tableHtml: "", remainder: text };
-  const tableLines = lines.slice(start, end + 1).filter((l) => l.trim().startsWith("|"));
-  const remainder = [...lines.slice(0, start), ...lines.slice(end + 1)].join("\n");
-
-  const rows = tableLines
-    .filter((l) => !/^\|[\s\-:|]+\|$/.test(l.trim()))
-    .map((l) => l.trim().slice(1, -1).split("|").map((c) => c.trim()));
-  if (rows.length < 1) return { tableHtml: "", remainder };
-
-  const [head, ...body] = rows;
-  const ths = head.map(
-    (h) => `<th style="background:${C.navy};color:#fff;text-align:left;padding:8px 10px;font-size:11px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.12)">${renderInline(h)}</th>`,
-  ).join("");
-
-  const trs = body.map((row, i) => {
-    const bg = i % 2 === 0 ? C.tealPl : "#ffffff";
-    const tds = row.map(
-      (c) => `<td style="padding:7px 10px;border-bottom:1px solid ${C.rule};font-size:11.5px;color:${C.body};vertical-align:top">${renderInline(c)}</td>`,
-    ).join("");
-    return `<tr style="background:${bg}">${tds}</tr>`;
-  }).join("");
-
-  const tableHtml = `
+      // capture contiguous pipe-block
+      const block: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|") && lines[i].trim().endsWith("|")) {
+        block.push(lines[i]);
+        i++;
+      }
+      // build the table HTML for this block
+      const rows = block
+        .filter((l2) => !/^\|[\s\-:|]+\|$/.test(l2.trim()))
+        .map((l2) => l2.trim().slice(1, -1).split("|").map((c) => c.trim()));
+      if (rows.length >= 1) {
+        const [head, ...body] = rows;
+        const ths = head.map(
+          (h) => `<th style="background:${C.navy};color:#fff;text-align:left;padding:8px 10px;font-size:11px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;border-right:1px solid rgba(255,255,255,0.12)">${renderInline(h)}</th>`,
+        ).join("");
+        const trs = body.map((row, k) => {
+          const bg = k % 2 === 0 ? C.tealPl : "#ffffff";
+          const tds = row.map(
+            (c) => `<td style="padding:7px 10px;border-bottom:1px solid ${C.rule};font-size:11.5px;color:${C.body};vertical-align:top">${renderInline(c)}</td>`,
+          ).join("");
+          return `<tr style="background:${bg}">${tds}</tr>`;
+        }).join("");
+        tablesHtml.push(`
 <div style="margin:14px 0;border:1px solid ${C.rule};border-radius:4px;overflow:hidden">
   <table style="width:100%;border-collapse:collapse;table-layout:auto">
     <thead><tr>${ths}</tr></thead>
     <tbody>${trs}</tbody>
   </table>
-</div>`;
-  return { tableHtml, remainder };
+</div>`);
+      }
+    } else {
+      remainderLines.push(lines[i]);
+      i++;
+    }
+  }
+  return { tablesHtml, remainder: remainderLines.join("\n") };
+}
+
+function extractTable(text: string): { tableHtml: string; remainder: string } {
+  const { tablesHtml, remainder } = extractAllTables(text);
+  return { tableHtml: tablesHtml.join(""), remainder };
 }
 
 // ===========================================================================
@@ -199,6 +236,16 @@ function maybeRenderKpiStrip(text: string, kind: SectionKind): string {
 function renderParagraphBlock(p: string): string {
   p = p.trim();
   if (!p) return "";
+
+  // Defensive: if the paragraph is a stranded pipe row (left over from an
+  // unparseable inline table fragment), drop it rather than render raw pipes.
+  const lines = p.split("\n");
+  const pipeOnly = lines.every((l) => {
+    const t = l.trim();
+    return t === "" || (t.startsWith("|") && t.endsWith("|"));
+  });
+  if (pipeOnly && p.includes("|")) return "";
+  if (/^\|[\s\-:|]+\|$/.test(p)) return "";
   if (/^[-*]\s/.test(p)) {
     const items = p.split(/\n[-*]\s/).map((l) => l.replace(/^[-*]\s/, "").trim()).filter(Boolean);
     const lis = items.map((i) => `
