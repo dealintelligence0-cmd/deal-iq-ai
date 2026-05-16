@@ -1,3 +1,5 @@
+
+
 export type StandardField =
   | "deal_date"
   | "buyer"
@@ -168,11 +170,20 @@ function getExactHeaderValue(row: Record<string, unknown>, wanted: string): unkn
 }
 
 /** Apply a mapping to source rows, producing standardized deal rows. */
+import { isIntelligenceFeedRow, parseIntelligenceRow } from "./cleansing/intelligence-feed";
+
 export function applyMapping(
   rows: Record<string, unknown>[],
   mapping: FieldMapping,
   sourceFile: string
 ): Record<string, unknown>[] {
+  // Detect Mergermarket-style intelligence-feed shape by inspecting the first
+  // non-empty row's headers. If the source has Heading + Opportunity + Intelligence
+  // Type / Source columns, we switch into intelligence-feed mode and extract
+  // buyer / target / value from the Heading prose rather than from a structured
+  // bidder/target column (which typically doesn't exist in these feeds).
+  const intelMode = rows.length > 0 && isIntelligenceFeedRow(rows[0]);
+
   return rows.map((r) => {
     const out: Record<string, unknown> = { source_file: sourceFile };
     for (const def of FIELD_DEFS) {
@@ -194,6 +205,39 @@ export function applyMapping(
     // wrong standardized columns.
     if (!out.buyer) out.buyer = getExactHeaderValue(r, "Bidders") ?? getExactHeaderValue(r, "Issuers");
     if (!out.target) out.target = getExactHeaderValue(r, "Targets") ?? getExactHeaderValue(r, "Vendors");
+
+    // Intelligence-feed mode: derive buyer/target/value/status/stake from the
+    // Heading prose using a pattern library + Opportunity body text.
+    // This is the only reliable way to get clean data from Mergermarket-style
+    // feeds, which don't have structured Bidder/Target columns.
+    if (intelMode) {
+      const heading = String(out.heading ?? "").trim();
+      if (heading) {
+        const opportunity = String(getExactHeaderValue(r, "Opportunity") ?? "").trim() || null;
+        const intelType = String(getExactHeaderValue(r, "Intelligence Type") ?? "").trim() || null;
+        const parsed = parseIntelligenceRow({
+          heading,
+          opportunity,
+          intelligence_type: intelType,
+        });
+        // Only OVERWRITE buyer/target if the existing values are empty AND
+        // the parser had usable output. We never overwrite human-mapped data.
+        if (!out.buyer && parsed.buyer) out.buyer = parsed.buyer;
+        if (!out.target && parsed.target) out.target = parsed.target;
+        if (!out.deal_type && parsed.deal_type) out.deal_type = parsed.deal_type;
+        if (!out.status && parsed.status) out.status = parsed.status;
+        if (!out.stake_percent && parsed.stake_percent !== null) out.stake_percent = parsed.stake_percent;
+        // Surface parse metadata so the UI can flag low-confidence rows.
+        out.parse_confidence = parsed.confidence;
+        out.parse_pattern = parsed.parse_pattern;
+        out.is_digest = parsed.is_digest;
+        out.needs_review = parsed.needs_review;
+        out.deal_value_usd_extracted = parsed.deal_value_usd;
+        out.deal_value_raw_extracted = parsed.deal_value_raw;
+        // If the structured Value INR(m) column is empty, use the parsed value as a fallback
+        if (!out.value_raw && parsed.deal_value_raw) out.value_raw = parsed.deal_value_raw;
+      }
+    }
 
     return out;
   });
