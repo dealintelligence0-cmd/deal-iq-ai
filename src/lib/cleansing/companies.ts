@@ -1,5 +1,7 @@
 
 
+
+
 /** Canonicalize company names: strip legal suffixes, normalize whitespace, title-case. */
 const SUFFIXES = [
   "inc", "incorporated", "corp", "corporation", "co", "company",
@@ -8,10 +10,20 @@ const SUFFIXES = [
   "holdings", "holding", "group", "the",
 ];
 
+/** True if the string is *only* a legal suffix token (e.g. "LTD", "Limited", "Inc."). */
+function isBareLegalSuffix(s: string): boolean {
+  if (!s) return false;
+  const norm = s.toLowerCase().replace(/[.,\s]/g, "");
+  return SUFFIXES.includes(norm);
+}
+
 export function cleanCompany(raw: unknown): string | null {
   if (!raw) return null;
   let s = String(raw).trim();
   if (!s) return null;
+
+  // Reject bare legal-suffix tokens — these should never be treated as a company.
+  if (isBareLegalSuffix(s)) return null;
 
   // Remove things in parens: "Acme Corp (subsidiary of X)"
   s = s.replace(/\([^)]*\)/g, " ");
@@ -25,6 +37,8 @@ export function cleanCompany(raw: unknown): string | null {
     else break;
   }
   if (tokens.length === 0) return null;
+  // Also reject if after suffix-stripping the only remaining token IS a suffix.
+  if (tokens.length === 1 && isBareLegalSuffix(tokens[0])) return null;
   return titleCase(tokens.join(" "));
 }
 
@@ -39,6 +53,23 @@ function titleCase(s: string): string {
       return w.charAt(0).toUpperCase() + w.slice(1);
     })
     .join(" ");
+}
+
+/**
+ * Merge any "bare legal suffix" fragments back onto the preceding company name.
+ * Catches both intentional separators ("Suntera; LTD") and legacy data that was
+ * incorrectly split during a previous import.
+ */
+function mergeStrayLegalSuffix(parts: string[]): string[] {
+  const out: string[] = [];
+  for (const p of parts) {
+    if (isBareLegalSuffix(p) && out.length > 0) {
+      out[out.length - 1] = out[out.length - 1] + " " + p;
+    } else {
+      out.push(p);
+    }
+  }
+  return out;
 }
 
 function splitCompanyList(raw: string): string[] {
@@ -56,16 +87,23 @@ function splitCompanyList(raw: string): string[] {
   );
 
   // Only split on " & " when the LEFT side ends with a legal-suffix token —
-  // this protects single-entity brands like "Procter & Gamble", "H & M", "Wipro Consumer CARE & Lighting".
+  // this protects single-entity brands like "Procter & Gamble", "H & M",
+  // "Wipro Consumer CARE & Lighting".
   s = s.replace(
     /\b(LTD|LIMITED|PVT|PRIVATE|INC|CORP|CORPORATION|LLC|LLP|LP|PLC|GMBH|HOLDINGS|HOLDING|GROUP)\b\.?\s+&\s+(?=\S+\s\S)/gi,
     "$1;"
   );
 
-  return s
+  const raw_parts = s
     .split(/\s*(?:;|\||\/)\s*/)
     .map((part) => part.trim())
     .filter(Boolean);
+
+  // Critical defensive merge: if a "company" in the split is JUST a legal suffix
+  // (LTD, LIMITED, INC, …) it can never be a real entity — merge it onto the
+  // previous entry. This catches the "Suntera; LTD" / "ABP FOOD; LTD" bug
+  // where a single company name was incorrectly split during a prior pass.
+  return mergeStrayLegalSuffix(raw_parts);
 }
 
 export function cleanCompanyList(raw: unknown): string | null {
