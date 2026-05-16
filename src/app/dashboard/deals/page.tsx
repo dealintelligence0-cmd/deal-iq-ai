@@ -14,6 +14,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import { downloadCsv } from "@/lib/csv";
+import { displayCompanyName } from "@/lib/display-company";
 import FilterBar, { EMPTY_FILTERS, type Filters } from "@/components/pipeline/FilterBar";
 
 type SortKey = "deal_date" | "buyer" | "target" | "sector" | "country" | "normalized_value_usd" | "status";
@@ -309,12 +310,12 @@ export default function PipelinePage() {
                       className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-400">{d.deal_date ?? "—"}</td>
-                  <td className="px-4 py-3 max-w-[140px] truncate" title={d.buyer ?? ""}>
+                  <td className="px-4 py-3 max-w-[140px] truncate" title={displayCompanyName(d.buyer)}>
                     <Link href={`/dashboard/deals/${d.id}`} className="font-medium text-slate-900 hover:text-indigo-600 dark:text-white">
-                      {d.buyer ?? "—"}
+                      {displayCompanyName(d.buyer) || "—"}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 max-w-[140px] truncate text-slate-700 dark:text-slate-300" title={d.target ?? ""}>{d.target ?? "—"}</td>
+                  <td className="px-4 py-3 max-w-[140px] truncate text-slate-700 dark:text-slate-300" title={displayCompanyName(d.target)}>{displayCompanyName(d.target) || "—"}</td>
                   <td className="px-4 py-3 max-w-[120px] truncate text-slate-600 dark:text-slate-400" title={d.sector ?? ""}>{d.sector ?? "—"}</td>
                   <td className="px-4 py-3 max-w-[100px] truncate text-slate-600 dark:text-slate-400" title={d.country ?? ""}>{d.country ?? "—"}</td>
                   <td className="px-3 py-3 text-[11px] text-slate-600 dark:text-slate-400">{d.geographies_involved ?? "—"}</td>
@@ -335,8 +336,8 @@ export default function PipelinePage() {
                       </span>
                     ) : "—"}
                   </td>
-                  <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={d.heading || d.deal_summary || d.opportunity || "—"}>
-                    <div className="truncate font-medium">{d.heading || d.deal_summary || d.opportunity || (d.buyer && d.target ? `${d.buyer} → ${d.target}` : "—")}</div>
+                  <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={d.heading || "—"}>
+                    <div className="truncate font-medium">{d.heading || "—"}</div>
                   </td>
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.priority_reason ?? ""}>
                     {d.priority_score != null ? <ScoreBadge score={d.priority_score} /> : "—"}
@@ -600,7 +601,7 @@ function Top5DealsStrip({ deals }: { deals: Deal[] }) {
               P{d.priority_score ?? "—"} · A{d.advisory_score ?? "—"}
             </div>
             <p className="mt-1 truncate text-xs font-semibold text-slate-900 dark:text-white">
-              {d.buyer ?? "—"} → {d.target ?? "—"}
+              {displayCompanyName(d.buyer) || "—"} → {displayCompanyName(d.target) || "—"}
             </p>
             <p className="text-[10px] text-slate-500">{d.sector} · {d.country}</p>
             <p className="mt-1 text-[10px] text-slate-700 dark:text-slate-300 line-clamp-2">{d.deal_takeaway ?? "—"}</p>
