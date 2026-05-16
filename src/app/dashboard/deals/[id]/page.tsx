@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -22,6 +24,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import { buildIntelligence, type Intelligence } from "@/lib/intelligence";
+import { displayCompanyName } from "@/lib/display-company";
 import AIResearchClient from "@/components/AIResearchClient";
 import DealModelCard from "@/components/DealModelCard";
 
@@ -128,7 +131,7 @@ export default function DealDetailPage() {
               )}
             </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-              {deal.buyer} <span className="text-slate-400">→</span> {deal.target}
+              {displayCompanyName(deal.buyer)} <span className="text-slate-400">→</span> {displayCompanyName(deal.target)}
             </h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-700">
               {intel.headline}
