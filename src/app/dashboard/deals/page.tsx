@@ -166,8 +166,9 @@ export default function PipelinePage() {
   function exportCsv() {
     const rows = sorted.map((d) => ({
       deal_date: d.deal_date ?? "",
-      buyer: d.buyer ?? "",
-      target: d.target ?? "",
+      heading: displayCompanyName(d.heading) || d.heading || "",
+      buyer: displayCompanyName(d.buyer),
+      target: displayCompanyName(d.target),
       sector: d.sector ?? "",
       country: d.country ?? "",
       geographies_involved: d.geographies_involved ?? "",
@@ -185,7 +186,7 @@ export default function PipelinePage() {
       status: d.status ?? "",
     }));
     downloadCsv(rows, `deals-export-${new Date().toISOString().slice(0, 10)}.csv`,
-      ["deal_date","buyer","target","sector","country","geographies_involved","india_flow","deal_type","deal_summary","stake_percent","stake_status","deal_value_inr_range","deal_value_usd_range","priority_score","advisory_score","risk_score","normalized_value_usd","status"]);
+      ["deal_date","heading","buyer","target","sector","country","geographies_involved","india_flow","deal_type","deal_summary","stake_percent","stake_status","deal_value_inr_range","deal_value_usd_range","priority_score","advisory_score","risk_score","normalized_value_usd","status"]);
   }
 
   if (loading) {
