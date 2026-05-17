@@ -156,36 +156,55 @@ export default function UploadsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
-            <CloudUpload className="h-6 w-6 text-indigo-600" />
-            Upload Deal Data
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Drop CSV, XLSX, XLS, TXT, or JSON files. We'll parse them in your
-            browser and store them securely.
-          </p>
-        </div>
-        {items.length > 0 && (
-          <button
-            onClick={importAll}
-            disabled={busy || pendingCount === 0}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-400 hover:to-purple-500 disabled:opacity-50"
-          >
-            <Sparkles className="h-4 w-4" />
-            {busy
-              ? "Importing…"
-              : `Import ${pendingCount} file${pendingCount === 1 ? "" : "s"}`}
-          </button>
-        )}
+      <div className="mb-8">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
+          <CloudUpload className="h-6 w-6 text-indigo-600" />
+          Upload Deal Data
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Drop CSV, XLSX, XLS, TXT, or JSON files. We'll parse them in your
+          browser and store them securely.
+        </p>
       </div>
 
+      {/* PRIMARY PATH — v2 pipeline (one-click upload + ingest) */}
       <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          PRIMARY PATH — recommended for Mergermarket exports
+        </div>
         <IngestionV2Launcher />
       </div>
 
-      <Dropzone onFiles={addFiles} />
+      {/* LEGACY PATH — only for non-Mergermarket CSVs that need column mapping */}
+      <details className="mb-6 rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+        <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">
+          Legacy two-step path (CSV with custom column mapping)
+        </summary>
+        <p className="mt-2 text-[11px] text-slate-500">
+          Use this only when your file doesn&apos;t match the Mergermarket schema and you need to manually map columns.
+          Files uploaded here will NOT use the v2 ingestion pipeline — they will skip raw preservation, digest detection, and resolution tasks.
+          After upload, you must visit the Mapping page to run the import.
+        </p>
+
+        {items.length > 0 && (
+          <div className="mt-3 flex items-center justify-between gap-4">
+            <span className="text-[11px] text-slate-500">{pendingCount} file(s) pending mapping</span>
+            <button
+              onClick={importAll}
+              disabled={busy || pendingCount === 0}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+            >
+              <Sparkles className="h-3 w-3" />
+              {busy ? "Storing…" : `Store ${pendingCount} file(s) for mapping`}
+            </button>
+          </div>
+        )}
+
+        <div className="mt-3">
+          <Dropzone onFiles={addFiles} />
+        </div>
+      </details>
 
       {toast && (
         <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
