@@ -2,6 +2,8 @@
 
 
 
+
+
 /** Canonicalize company names: strip legal suffixes, normalize whitespace, title-case. */
 const SUFFIXES = [
   "inc", "incorporated", "corp", "corporation", "co", "company",
@@ -33,7 +35,7 @@ export function cleanCompany(raw: unknown): string | null {
   const tokens = s.split(" ").filter(Boolean);
   while (tokens.length > 1) { // ensure we don't pop the last token
     const last = tokens[tokens.length - 1].toLowerCase().replace(/\./g, "");
-    if (SUFFIXES.includes(last)) tokens.pop();
+    if (SUFFIXES.includes(last) || last === "&" || last === "and") tokens.pop();
     else break;
   }
   if (tokens.length === 0) return null;
