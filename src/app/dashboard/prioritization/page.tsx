@@ -25,6 +25,7 @@ import {
   TrendingUp, ShieldAlert, DollarSign, Target, FileText,
 } from "lucide-react";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
+import ScoringMethodologyCard from "@/components/dashboard/ScoringMethodologyCard";
 
 type Weights = {
   priority: number;
@@ -189,37 +190,19 @@ export default function PrioritizationPage() {
         </p>
       </div>
 
-      <details className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-900 dark:bg-indigo-950/30">
-        <summary className="cursor-pointer text-sm font-semibold text-indigo-900 dark:text-indigo-200">
-          How the Pursue Score works (tap to expand)
-        </summary>
-        <div className="mt-3 grid gap-3 text-[12px] text-indigo-900 dark:text-indigo-200 sm:grid-cols-2">
-          <div>
-            <div className="font-semibold mb-1">Formula</div>
-            <div className="font-mono text-[11px]">
-              Pursue ={" "}
-              <span className="text-indigo-600">0.50·priority</span> +{" "}
-              <span className="text-indigo-600">0.30·advisory</span> +{" "}
-              <span className="text-indigo-600">0.20·size</span> −{" "}
-              <span className="text-rose-600">0.15·risk</span>
-            </div>
-            <p className="mt-2 text-[11px] text-indigo-700 dark:text-indigo-300">
-              All inputs normalized to 0–1. Output rebased to 0–100.
-            </p>
-          </div>
-          <div>
-            <div className="font-semibold mb-1">Thresholds</div>
-            <ul className="space-y-1 text-[11px]">
-              <li>🟢 <b>PURSUE</b> ≥ 60 — actively work this deal</li>
-              <li>🟡 <b>HOLD</b> 40–59 — watch-list, revisit weekly</li>
-              <li>⚪ <b>REJECT</b> &lt; 40 — pass</li>
-            </ul>
-            <p className="mt-2 text-[11px] text-indigo-700 dark:text-indigo-300">
-              Weights are partner-tunable below — drag the sliders to re-rank in real time.
-            </p>
-          </div>
-        </div>
-      </details>
+      <ScoringMethodologyCard />
+
+      <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-900 dark:bg-indigo-950/30">
+        <p className="text-[12px] text-indigo-900 dark:text-indigo-200">
+          <b>Pursue Score (composite):</b>{" "}
+          <span className="font-mono text-[11px]">0.50·priority + 0.30·advisory + 0.20·size − 0.15·risk</span>
+          {" "}— rebased to 0–100. Bands:{" "}
+          <span className="rounded bg-emerald-200 px-1.5 py-0.5 text-emerald-900">PURSUE ≥ 60</span>{" "}
+          <span className="rounded bg-amber-200 px-1.5 py-0.5 text-amber-900">HOLD 40–59</span>{" "}
+          <span className="rounded bg-slate-200 px-1.5 py-0.5 text-slate-700">REJECT &lt; 40</span>.
+          Weights are partner-tunable below.
+        </p>
+      </div>
 
       {/* TOP KPI STRIP */}
       <div className="grid gap-3 sm:grid-cols-4">

@@ -15,8 +15,8 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import { downloadCsv } from "@/lib/csv";
 import { displayCompanyName } from "@/lib/display-company";
-import { scorePriority, scoreAdvisory, scoreRisk } from "@/lib/scoring/mbb-rubric";
 import ScorePill from "@/components/dashboard/ScorePill";
+import ScoringMethodologyCard from "@/components/dashboard/ScoringMethodologyCard";
 import FilterBar, { EMPTY_FILTERS, type Filters } from "@/components/pipeline/FilterBar";
 
 type SortKey = "deal_date" | "buyer" | "target" | "sector" | "country" | "normalized_value_usd" | "status";
@@ -230,6 +230,8 @@ export default function PipelinePage() {
 
       <Top5DealsStrip deals={all} />
 
+      <ScoringMethodologyCard />
+
       <div className="mb-4">
         <FilterBar filters={filters} onChange={setFilters} options={options} />
       </div>
@@ -360,17 +362,17 @@ export default function PipelinePage() {
                   </td>
                   <td className="px-3 py-3 text-center text-xs">
                     {d.priority_score != null ? (
-                      <ScorePill score={d.priority_score} kind="priority" breakdown={scorePriority(d)} />
+                      <ScorePill score={d.priority_score} kind="priority" reason={d.priority_reason} />
                     ) : "—"}
                   </td>
                   <td className="px-3 py-3 text-center text-xs">
                     {d.advisory_score != null ? (
-                      <ScorePill score={d.advisory_score} kind="advisory" breakdown={scoreAdvisory(d)} />
+                      <ScorePill score={d.advisory_score} kind="advisory" reason={d.advisory_reason} />
                     ) : "—"}
                   </td>
                   <td className="px-3 py-3 text-center text-xs">
                     {d.risk_score != null ? (
-                      <ScorePill score={d.risk_score} kind="risk" breakdown={scoreRisk(d)} />
+                      <ScorePill score={d.risk_score} kind="risk" reason={d.risk_reason} />
                     ) : "—"}
                   </td>
                   <td className="px-4 py-3">
