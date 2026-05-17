@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -20,6 +22,7 @@ import {
   type FieldMapping,
 } from "@/lib/mapping";
 import { cleanseBatch, type RawDeal } from "@/lib/cleansing/engine";
+import { ingestRows } from "@/lib/cleansing/orchestrator";
 import { normalizeSourceRow } from "@/lib/data/pipeline";
 import MappingGrid from "@/components/mapping/MappingGrid";
 import TemplateBar, { type Template } from "@/components/mapping/TemplateBar";
@@ -180,44 +183,108 @@ export default function MappingPage() {
       let totalExceptions = 0;
 
       for (const f of loaded) {
-        const mapped = applyMapping(f.rows, mapping, f.fileName) as RawDeal[];
-        const { results, duplicatesRemoved, blanksRemoved } = cleanseBatch(mapped);
-        totalDupes += duplicatesRemoved;
-        totalBlanks += blanksRemoved;
+        // v3: route through orchestrator first. For intelligence feeds (Mergermarket
+        // shape), this produces clean buyer/target/value/status. For other CSVs, it
+        // falls back to the legacy column-mapping behavior.
+        const { kept, dropped, feed_mode } = ingestRows(f.rows, f.fileName);
+        totalBlanks += dropped.length;
 
-        const dealRows = results.map((r) => {
+        let mapped: Record<string, unknown>[];
+        let legacyResults: Awaited<ReturnType<typeof cleanseBatch>>["results"] | null = null;
+        if (feed_mode) {
+          // Intelligence-feed path: build the mapped rows from the orchestrator's
+          // clean output, using the orchestrator's already-cleaned buyer/target/etc.
+          // We do NOT re-run applyMapping/cleanseBatch on these — that's what
+          // contaminated the buyer/target columns previously.
+          mapped = kept.map((d) => ({
+            deal_date: d.deal_date,
+            heading: d.heading,
+            buyer: d.buyer,
+            target: d.target,
+            sector: d.sector,
+            country: d.country,
+            deal_type: d.deal_type,
+            value_raw: d.value_raw,
+            stake_percent: d.stake_percent,
+            status: d.status,
+            notes: d.notes,
+            source_file: d.source_file,
+            parse_confidence: d.parse_confidence,
+            parse_path: d.parse_path,
+            is_digest: d.is_digest,
+            needs_review: d.needs_review,
+            deal_value_usd_m: d.deal_value_usd_m,
+            size_bucket: d.size_bucket,
+            vendor: d.vendor,
+            intelligence_type: d.intelligence_type,
+          }));
+        } else {
+          // Legacy path: original applyMapping → cleanseBatch chain
+          const legacyMapped = applyMapping(f.rows, mapping, f.fileName) as RawDeal[];
+          const { results, duplicatesRemoved } = cleanseBatch(legacyMapped);
+          legacyResults = results;
+          totalDupes += duplicatesRemoved;
+          mapped = results.map((r) => ({
+            ...r.cleaned,
+            source_file: f.fileName,
+            parse_confidence: null,
+            parse_path: "legacy",
+            is_digest: false,
+            needs_review: false,
+            deal_value_usd_m: null,
+            size_bucket: null,
+            vendor: null,
+            intelligence_type: r.cleaned.deal_type,
+          }));
+        }
+
+        const dealRows = mapped.map((r) => {
+          const heading = (r.heading as string | null) ?? null;
+          const buyer = (r.buyer as string | null) ?? null;
+          const target = (r.target as string | null) ?? null;
+          const sector = (r.sector as string | null) ?? null;
+          const country = (r.country as string | null) ?? null;
+          const deal_type = (r.deal_type as string | null) ?? null;
+          const value_raw = (r.value_raw as string | null) ?? null;
+          const stake_percent = (r.stake_percent as number | null) ?? null;
+          const status = (r.status as string | null) ?? "announced";
+          const notes = (r.notes as string | null) ?? null;
+          const deal_date = (r.deal_date as string | null) ?? null;
+
+          // Run the scoring pipeline so we still get priority/advisory/risk scores,
+          // but we feed it the ALREADY-CLEAN buyer/target so it can't re-corrupt them.
           const normalized = normalizeSourceRow({
-            Date: r.cleaned.deal_date ?? undefined,
-            Bidders: r.cleaned.buyer ?? undefined,
-            Targets: r.cleaned.target ?? undefined,
-            "Dominant Sector": r.cleaned.sector ?? undefined,
-            "Dominant Geography": r.cleaned.country ?? undefined,
-            Geography: r.cleaned.country ?? undefined,
-            "Intelligence Type": r.cleaned.deal_type ?? undefined,
-            "Stake Value": r.cleaned.stake_percent != null ? String(r.cleaned.stake_percent) : undefined,
-            "Intelligence Size": r.cleaned.value_raw ?? undefined,
-             Opportunity: r.cleaned.notes ?? undefined,
-            Heading: (r.cleaned as Record<string, unknown>).heading as string ?? undefined,
+            Date: deal_date ?? undefined,
+            Bidders: buyer ?? undefined,
+            Targets: target ?? undefined,
+            "Dominant Sector": sector ?? undefined,
+            "Dominant Geography": country ?? undefined,
+            Geography: country ?? undefined,
+            "Intelligence Type": deal_type ?? undefined,
+            "Stake Value": stake_percent != null ? String(stake_percent) : undefined,
+            "Intelligence Size": value_raw ?? undefined,
+            Opportunity: notes ?? undefined,
+            Heading: heading ?? undefined,
           });
 
           return {
             created_by: u.user!.id,
             source_upload_id: f.uploadId,
-            deal_date: orNull(normalized.date ?? r.cleaned.deal_date),
-            buyer: orNull(r.cleaned.buyer),
-            target: orNull(r.cleaned.target),
-            sector: orNull(normalized.sector ?? r.cleaned.sector),
-            country: orNull(normalized.country ?? r.cleaned.country),
-            deal_type: orNull(normalized.deal_type ?? r.cleaned.deal_type),
-            value_raw: orNull(r.cleaned.value_raw),
-            normalized_value_usd: r.cleaned.normalized_value_usd,
-            stake_percent: r.cleaned.stake_percent,
-            status: r.cleaned.status ?? "announced",
-           notes: orNull(r.cleaned.notes),
-           heading: orNull((r.cleaned as Record<string, unknown>).heading as string | null),
-        source_file: f.fileName,
-            confidence_score: r.cleaned.confidence_score,
-            data_quality_score: r.cleaned.data_quality_score,
+            deal_date: orNull(deal_date),
+            buyer: orNull(buyer),
+            target: orNull(target),
+            sector: orNull(sector),
+            country: orNull(country),
+            deal_type: orNull(deal_type),
+            value_raw: orNull(value_raw),
+            normalized_value_usd: (r.deal_value_usd_m as number | null) ?? null,
+            stake_percent,
+            status,
+            notes: orNull(notes),
+            heading: orNull(heading),
+            source_file: f.fileName,
+            confidence_score: (r.parse_confidence as number | null) ?? null,
+            data_quality_score: (r.parse_confidence as number | null) ?? null,
             geographies_involved: normalized.geographies_involved,
             india_flow: normalized.india_flow,
             deal_value_inr_range: normalized.deal_value_inr_range,
@@ -234,6 +301,10 @@ export default function MappingPage() {
             deal_takeaway: normalized.deal_takeaway,
             targeting_recommendation: normalized.targeting_recommendation,
             confidence_level: normalized.confidence_level,
+            parse_pattern: (r.parse_path as string | null) ?? null,
+            parse_confidence: (r.parse_confidence as number | null) ?? null,
+            is_digest: (r.is_digest as boolean | undefined) ?? false,
+            needs_review: (r.needs_review as boolean | undefined) ?? false,
           };
         });
 
@@ -249,28 +320,77 @@ export default function MappingPage() {
             error = res.error ? { message: res.error.message } : null;
           }
 
+          // Progressive fallback: when Supabase rejects a column, drop ONLY the
+          // missing columns (one at a time if needed) rather than reverting to a
+          // stripped-down 14-column legacy chunk that loses heading. This protects
+          // the heading column even when other optional columns (parse_confidence,
+          // is_digest, etc.) don't exist on the target table.
           if (error && /column|schema cache|does not exist/i.test(error.message)) {
-            const legacyChunk = chunk.map((r) => ({
-              created_by: r.created_by,
-              source_upload_id: r.source_upload_id,
-              deal_date: r.deal_date,
-              buyer: r.buyer,
-              target: r.target,
-              sector: r.sector,
-              country: r.country,
-              deal_type: r.deal_type,
-              value_raw: r.value_raw,
-              normalized_value_usd: r.normalized_value_usd,
-              stake_percent: r.stake_percent,
-              status: r.status,
-              notes: r.notes,
-              source_file: r.source_file,
-              confidence_score: r.confidence_score,
-              data_quality_score: r.data_quality_score,
-            }));
-            const retry = await supabase.from("deals").insert(legacyChunk).select("id");
-            inserted = retry.data as Array<{ id: string }> | null;
-            error = retry.error ? { message: retry.error.message } : null;
+            // Pull the missing column name out of the error if present
+            const colMatch = /column.*?["']([\w_]+)["']/i.exec(error.message)
+                          || /could not find.*?["']([\w_]+)["']/i.exec(error.message);
+            const missingCol = colMatch?.[1];
+
+            if (missingCol) {
+              const trimmedChunk = chunk.map((r) => {
+                const copy: Record<string, unknown> = { ...r };
+                delete copy[missingCol];
+                return copy;
+              });
+              const retry = await supabase.from("deals").insert(trimmedChunk).select("id");
+              if (!retry.error) {
+                inserted = retry.data as Array<{ id: string }> | null;
+                error = null;
+              } else {
+                // Last-resort fallback: try the legacy minimal column set BUT keep heading
+                const minimalChunk = chunk.map((r) => ({
+                  created_by: r.created_by,
+                  source_upload_id: r.source_upload_id,
+                  deal_date: r.deal_date,
+                  heading: r.heading,        // ← preserved even in minimal fallback
+                  buyer: r.buyer,
+                  target: r.target,
+                  sector: r.sector,
+                  country: r.country,
+                  deal_type: r.deal_type,
+                  value_raw: r.value_raw,
+                  normalized_value_usd: r.normalized_value_usd,
+                  stake_percent: r.stake_percent,
+                  status: r.status,
+                  notes: r.notes,
+                  source_file: r.source_file,
+                  confidence_score: r.confidence_score,
+                  data_quality_score: r.data_quality_score,
+                }));
+                const fallback = await supabase.from("deals").insert(minimalChunk).select("id");
+                inserted = fallback.data as Array<{ id: string }> | null;
+                error = fallback.error ? { message: fallback.error.message } : null;
+              }
+            } else {
+              // Couldn't identify a specific missing column — fall back to minimal-with-heading
+              const minimalChunk = chunk.map((r) => ({
+                created_by: r.created_by,
+                source_upload_id: r.source_upload_id,
+                deal_date: r.deal_date,
+                heading: r.heading,
+                buyer: r.buyer,
+                target: r.target,
+                sector: r.sector,
+                country: r.country,
+                deal_type: r.deal_type,
+                value_raw: r.value_raw,
+                normalized_value_usd: r.normalized_value_usd,
+                stake_percent: r.stake_percent,
+                status: r.status,
+                notes: r.notes,
+                source_file: r.source_file,
+                confidence_score: r.confidence_score,
+                data_quality_score: r.data_quality_score,
+              }));
+              const fallback = await supabase.from("deals").insert(minimalChunk).select("id");
+              inserted = fallback.data as Array<{ id: string }> | null;
+              error = fallback.error ? { message: fallback.error.message } : null;
+            }
           }
 
           if (error) {
@@ -293,21 +413,26 @@ export default function MappingPage() {
           suggested_value: string | null;
         }> = [];
 
-        results.forEach((res, idx) => {
-          const dealId = insertedIds[idx];
-          if (!dealId) return;
-          res.exceptions.forEach((ex) => {
-            exRows.push({
-              created_by: u.user!.id,
-              deal_id: dealId,
-              field: ex.field,
-              severity: ex.severity,
-              message: ex.message,
-              raw_value: ex.rawValue ?? null,
-              suggested_value: ex.suggestedValue ?? null,
+        // Exception writeback only applies to the legacy column-mapping path.
+        // The orchestrator path tracks exceptions inline via parse_confidence / needs_review,
+        // so we skip writeback when feed_mode was used.
+        if (legacyResults) {
+          legacyResults.forEach((res, idx) => {
+            const dealId = insertedIds[idx];
+            if (!dealId) return;
+            res.exceptions.forEach((ex) => {
+              exRows.push({
+                created_by: u.user!.id,
+                deal_id: dealId,
+                field: ex.field,
+                severity: ex.severity,
+                message: ex.message,
+                raw_value: ex.rawValue ?? null,
+                suggested_value: ex.suggestedValue ?? null,
+              });
             });
           });
-        });
+        }
 
         for (let i = 0; i < exRows.length; i += 500) {
           const chunk = exRows.slice(i, i + 500);
