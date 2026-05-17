@@ -1,18 +1,23 @@
+
+
 /**
  * Deal IQ AI — Ingestion v2 — AI fallback.
  *
- * Called only for rows where deterministic extraction left fields unresolved
- * (low row_confidence or missing buyer/target). NEVER invents values — if
- * the AI can't determine a field, it MUST return null.
+ * Called only for rows where deterministic extraction left fields unresolved.
+ * NEVER invents values — null when uncertain. Strict JSON output, no markdown.
  *
- * Output is strict JSON, no markdown, no conversation. Failure to parse →
- * fall back to deterministic result unchanged.
+ * Provider-agnostic: works with any provider the platform supports
+ * (OpenAI, Anthropic, Google/Gemini, Mistral, DeepSeek, Alibaba, xAI, Cohere,
+ * Groq, NVIDIA, OpenRouter, Together, HuggingFace, Replicate). The
+ * provider/model/key are supplied by the caller via the platform's standard
+ * `resolveKey()` flow.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ExtractionResult, type FieldEvidence } from "./types";
 import { readMergermarket } from "./columns";
 import { getFewShotExamples, formatExamplesForPrompt } from "./few-shot";
+import { callProvider, type ProviderId, type ChatMessage } from "@/lib/ai/providers";
 
 const SYSTEM_PROMPT = `You are an M&A data extraction engine. Read the row and return a STRICT JSON object.
 
@@ -60,6 +65,13 @@ type AIPayload = {
   reasoning: string;
 };
 
+/** What the caller supplies. Provider-agnostic. */
+export type AIFallbackOptions = {
+  provider: ProviderId;
+  model: string;
+  apiKey: string;
+};
+
 function userPromptFor(row: Record<string, unknown>): string {
   const m = readMergermarket(row);
   const lines: string[] = ["INPUT ROW:"];
@@ -82,10 +94,8 @@ function userPromptFor(row: Record<string, unknown>): string {
 }
 
 function safeJsonParse(text: string): AIPayload | null {
-  // Strip code fences if any
   let s = text.trim();
   s = s.replace(/^```(?:json)?\s*/, "").replace(/```\s*$/, "");
-  // Find first { and last }
   const start = s.indexOf("{");
   const end = s.lastIndexOf("}");
   if (start < 0 || end < 0) return null;
@@ -96,62 +106,6 @@ function safeJsonParse(text: string): AIPayload | null {
   }
 }
 
-function callOpenAI(systemPrompt: string, userPrompt: string, apiKey: string, model: string): Promise<string> {
-  return fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0,
-    }),
-  })
-    .then(async (r) => {
-      if (!r.ok) throw new Error(`OpenAI ${r.status}`);
-      const j = await r.json();
-      return j.choices?.[0]?.message?.content ?? "";
-    });
-}
-
-function callAnthropic(systemPrompt: string, userPrompt: string, apiKey: string, model: string): Promise<string> {
-  return fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 800,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt + "\n\nReturn JSON only, no surrounding text." }],
-    }),
-  })
-    .then(async (r) => {
-      if (!r.ok) throw new Error(`Anthropic ${r.status}`);
-      const j = await r.json();
-      return j.content?.[0]?.text ?? "";
-    });
-}
-
-export type AIProvider = "openai" | "anthropic";
-
-export type AIFallbackOptions = {
-  provider: AIProvider;
-  apiKey: string;
-  model: string;
-};
-
-/**
- * Run the AI fallback. Merges AI suggestions into the existing extraction
- * result for fields that the deterministic pass left null OR low-confidence.
- * Returns the merged result + the raw AI payload (for audit).
- */
 export async function runAIFallback(
   sb: SupabaseClient,
   row: Record<string, unknown>,
@@ -160,16 +114,17 @@ export async function runAIFallback(
 ): Promise<{ result: ExtractionResult; ai_payload: AIPayload | null }> {
   const examples = await getFewShotExamples(sb, base.intent_tags);
   const exampleBlock = formatExamplesForPrompt(examples);
-  const sys = exampleBlock ? `${SYSTEM_PROMPT}\n\n${exampleBlock}` : SYSTEM_PROMPT;
-  const user = userPromptFor(row);
+  const systemContent = exampleBlock ? `${SYSTEM_PROMPT}\n\n${exampleBlock}` : SYSTEM_PROMPT;
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemContent, stable: true },
+    { role: "user",   content: userPromptFor(row) },
+  ];
 
   let text: string;
   try {
-    if (opts.provider === "anthropic") {
-      text = await callAnthropic(sys, user, opts.apiKey, opts.model);
-    } else {
-      text = await callOpenAI(sys, user, opts.apiKey, opts.model);
-    }
+    const result = await callProvider(opts.provider, opts.model, opts.apiKey, messages, 800);
+    text = result.text;
   } catch {
     return { result: base, ai_payload: null };
   }
@@ -177,7 +132,6 @@ export async function runAIFallback(
   const payload = safeJsonParse(text);
   if (!payload) return { result: base, ai_payload: null };
 
-  // Merge: only fill fields the deterministic pass left empty OR mark with low conf.
   const merged: ExtractionResult = { ...base };
   const ev = (value: string | null, conf: number, reason: string): FieldEvidence => ({
     value, confidence: conf, source: "ai_fallback", reasoning: reason,
@@ -211,13 +165,11 @@ export async function runAIFallback(
   if (!merged.deal_status.value && payload.deal_status) {
     merged.deal_status = ev(payload.deal_status, Math.min(0.85, fc.deal_status ?? 0.65), "AI fallback");
   }
-
   if (payload.is_digest && !merged.is_digest) {
     merged.is_digest = true;
     merged.digest_reason = "AI classified as digest";
   }
 
-  // Re-aggregate row confidence after the merge
   const w = { buyer: 0.20, target: 0.20, dominant_sector: 0.10, dominant_geography: 0.10,
               intelligence_size: 0.08, intelligence_grade: 0.05, stake_value: 0.07,
               deal_type: 0.10, deal_status: 0.10 } as const;
@@ -228,7 +180,6 @@ export async function runAIFallback(
   }
   merged.row_confidence = Math.max(merged.row_confidence, Math.min(1, conf));
 
-  // Re-compute uncertainty
   const u: string[] = [];
   if (!merged.buyer.value) u.push("buyer unresolved");
   if (!merged.target.value) u.push("target unresolved");
@@ -240,6 +191,8 @@ export async function runAIFallback(
   merged.evidence_json = {
     ...(merged.evidence_json as object),
     ai_fallback: payload,
+    ai_provider: opts.provider,
+    ai_model: opts.model,
     ai_examples_used: examples.length,
   };
 
