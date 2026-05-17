@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -9,6 +11,7 @@ import { CheckCircle2, XCircle, AlertCircle, Trash2, Key, Settings as SettingsIc
 import { Sliders } from "lucide-react";
 import { scoreModels, DEFAULT_WEIGHTS_BY_MODULE, type RubricWeights } from "@/lib/ai/rubric";
 import KeyLibraryManager from "@/components/KeyLibraryManager";
+import MigrationHealthCard from "@/components/ingestion/MigrationHealthCard";
 import { getModelsForTier } from "@/lib/ai/providers";
 
 type Tier = "fast" | "smart" | "economic";
@@ -170,6 +173,8 @@ async function saveProvider(tier: Tier, p: ProviderId) {
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">AI Settings</h1>
         <p className="mt-1 text-sm text-slate-500">Manage AI providers, API keys, and research tools.</p>
       </div>
+
+      <MigrationHealthCard />
 
       {/* SECTION 1: KEYS STATUS DASHBOARD */}
       <section className="card p-5 border-l-4 border-l-emerald-500">
