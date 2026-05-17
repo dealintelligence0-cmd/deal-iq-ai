@@ -284,6 +284,7 @@ export default function PipelinePage() {
                 <th className="px-3 py-3">INR Range</th>
                 <th className="px-3 py-3">Stake</th>
                 <th className="px-3 py-3 min-w-[220px]">Heading</th>
+                <th className="px-3 py-3 text-center" title="Parse confidence from v2 ingestion pipeline. ≥75% = canonical, &lt;75% = needs review.">Quality</th>
                 <th className="px-3 py-3 text-center">Priority</th>
                 <th className="px-3 py-3 text-center">Advisory</th>
                 <th className="px-3 py-3 text-center">Risk</th>
@@ -292,7 +293,7 @@ export default function PipelinePage() {
             </thead>
             <tbody>
               {pageRows.length === 0 ? (
-               <tr><td colSpan={16} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
+               <tr><td colSpan={17} className="px-4 py-16 text-center text-sm text-slate-400">No deals match your filters.</td></tr>
               ) : pageRows.map((d) => (
                 <React.Fragment key={d.id}>
                 <tr className={`border-t border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 ${selected.has(d.id) ? "bg-indigo-50/40 dark:bg-indigo-950/20" : ""} cursor-pointer`}
@@ -340,6 +341,21 @@ export default function PipelinePage() {
                   <td className="px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300 max-w-[260px]" title={d.heading || "—"}>
                     <div className="truncate font-medium">{d.heading || "—"}</div>
                   </td>
+                  <td className="px-3 py-3 text-center" title={d.parse_pattern ? `Parse path: ${d.parse_pattern}` : "No v2 parse data"}>
+                    {d.parse_confidence != null ? (
+                      <span className={
+                        d.parse_confidence >= 0.85
+                          ? "inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                          : d.parse_confidence >= 0.6
+                            ? "inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                            : "inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 dark:bg-red-950 dark:text-red-300"
+                      }>
+                        {Math.round(d.parse_confidence * 100)}%
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">legacy</span>
+                    )}
+                  </td>
                   <td className="px-3 py-3 text-center text-xs font-mono" title={d.priority_reason ?? ""}>
                     {d.priority_score != null ? <ScoreBadge score={d.priority_score} /> : "—"}
                   </td>
@@ -357,7 +373,7 @@ export default function PipelinePage() {
                 </tr>
                 {expanded === d.id && (
                   <tr className="bg-slate-50/70 dark:bg-white/5">
-                    <td colSpan={16} className="px-6 py-4">
+                    <td colSpan={17} className="px-6 py-4">
                       <DealInsight deal={d} />
                     </td>
                   </tr>

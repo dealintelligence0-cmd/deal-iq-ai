@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import RecentDealsTable from "@/components/dashboard/RecentDealsTable";
+import StrategicCallout from "@/components/dashboard/StrategicCallout";
+import DataQualityStrip from "@/components/dashboard/DataQualityStrip";
 import {
   MonthlyTrend, HorizontalBars, DealTypePie,
 } from "@/components/dashboard/Charts";
@@ -174,6 +176,12 @@ return (
           Showing {filteredDeals.length.toLocaleString()} of {deals.length.toLocaleString()} deals
         </p>
       </div>
+
+      {/* Data Quality indicator — v2 ingestion health */}
+      <DataQualityStrip />
+
+      {/* Strategic Callout — top deals to pursue this week */}
+      <StrategicCallout deals={filteredDeals} />
 
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
