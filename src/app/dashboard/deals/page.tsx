@@ -15,6 +15,8 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import { downloadCsv } from "@/lib/csv";
 import { displayCompanyName } from "@/lib/display-company";
+import { scorePriority, scoreAdvisory, scoreRisk } from "@/lib/scoring/mbb-rubric";
+import ScorePill from "@/components/dashboard/ScorePill";
 import FilterBar, { EMPTY_FILTERS, type Filters } from "@/components/pipeline/FilterBar";
 
 type SortKey = "deal_date" | "buyer" | "target" | "sector" | "country" | "normalized_value_usd" | "status";
@@ -356,14 +358,20 @@ export default function PipelinePage() {
                       <span className="text-[10px] text-slate-400">legacy</span>
                     )}
                   </td>
-                  <td className="px-3 py-3 text-center text-xs font-mono" title={d.priority_reason ?? ""}>
-                    {d.priority_score != null ? <ScoreBadge score={d.priority_score} /> : "—"}
+                  <td className="px-3 py-3 text-center text-xs">
+                    {d.priority_score != null ? (
+                      <ScorePill score={d.priority_score} kind="priority" breakdown={scorePriority(d)} />
+                    ) : "—"}
                   </td>
-                  <td className="px-3 py-3 text-center text-xs font-mono" title={d.advisory_reason ?? ""}>
-                    {d.advisory_score != null ? <ScoreBadge score={d.advisory_score} /> : "—"}
+                  <td className="px-3 py-3 text-center text-xs">
+                    {d.advisory_score != null ? (
+                      <ScorePill score={d.advisory_score} kind="advisory" breakdown={scoreAdvisory(d)} />
+                    ) : "—"}
                   </td>
-                  <td className="px-3 py-3 text-center text-xs font-mono" title={d.risk_reason ?? ""}>
-                    {d.risk_score != null ? <ScoreBadge score={d.risk_score} /> : "—"}
+                  <td className="px-3 py-3 text-center text-xs">
+                    {d.risk_score != null ? (
+                      <ScorePill score={d.risk_score} kind="risk" breakdown={scoreRisk(d)} />
+                    ) : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${statusStyle[d.status ?? ""] ?? "bg-slate-100 text-slate-700"}`}>

@@ -54,6 +54,8 @@ export default function ResolutionTasksPage() {
   const [active, setActive] = useState<Task | null>(null);
   const [draft, setDraft] = useState<CorrectionDraft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [askingAi, setAskingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -265,34 +267,67 @@ export default function ResolutionTasksPage() {
                 </div>
               )}
 
-              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
-                <p className="text-[11px] text-emerald-900 dark:text-emerald-200">
-                  <b>Tip:</b> click <em>Accept all AI suggestions</em> to fill every field in one click,
-                  then edit only what looks wrong before saving.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const s = active.ai_suggestions ?? {};
-                    setDraft((p) => ({
-                      ...p,
-                      buyer: String(s.buyer ?? p.buyer ?? ""),
-                      target: String(s.target ?? p.target ?? ""),
-                      vendor: String(s.vendor ?? p.vendor ?? ""),
-                      dominant_sector: String(s.dominant_sector ?? p.dominant_sector ?? ""),
-                      dominant_geography: String(s.dominant_geography ?? p.dominant_geography ?? ""),
-                      intelligence_size: String(s.intelligence_size ?? p.intelligence_size ?? ""),
-                      intelligence_grade: String(s.intelligence_grade ?? p.intelligence_grade ?? ""),
-                      stake_value: String(s.stake_value ?? p.stake_value ?? ""),
-                      deal_type: String(s.deal_type ?? p.deal_type ?? ""),
-                      deal_status: String(s.deal_status ?? p.deal_status ?? ""),
-                    }));
-                  }}
-                  className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-500"
-                >
-                  ⚡ Accept all AI suggestions
-                </button>
-              </div>
+              {(() => {
+                const s = active.ai_suggestions ?? {};
+                const hasAny = Boolean(s.buyer || s.target || s.dominant_sector || s.deal_type);
+                if (hasAny) {
+                  return (
+                    <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
+                      <p className="text-[11px] text-emerald-900 dark:text-emerald-200">
+                        <b>✓ AI has pre-filled the fields below.</b> Review them and edit only what looks wrong, then click <b>Save Correction</b>. Hover any field's <em>conf %</em> to see how confident the extractor was.
+                      </p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/30">
+                    <p className="flex-1 text-[11px] text-amber-900 dark:text-amber-200">
+                      <b>⚠️ No AI suggestions yet.</b> The deterministic extractor couldn&apos;t parse this row. You can fill the fields manually OR ask AI to take a shot using your saved <em>Economic-tier</em> key.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={askingAi}
+                      onClick={async () => {
+                        setAskingAi(true);
+                        setAiError(null);
+                        try {
+                          const r = await fetch(`/api/ingestion/resolution-tasks/${active.id}/ask-ai`, { method: "POST" });
+                          const j = await r.json();
+                          if (!r.ok) throw new Error(j.error ?? "ask-ai failed");
+                          // Refresh the active task with new AI suggestions
+                          setActive({ ...active, ai_suggestions: j.ai_suggestions, field_confidence: j.field_confidence });
+                          // Pre-fill draft with what AI returned
+                          setDraft((p) => ({
+                            ...p,
+                            buyer: String(j.ai_suggestions.buyer ?? p.buyer ?? ""),
+                            target: String(j.ai_suggestions.target ?? p.target ?? ""),
+                            vendor: String(j.ai_suggestions.vendor ?? p.vendor ?? ""),
+                            dominant_sector: String(j.ai_suggestions.dominant_sector ?? p.dominant_sector ?? ""),
+                            dominant_geography: String(j.ai_suggestions.dominant_geography ?? p.dominant_geography ?? ""),
+                            intelligence_size: String(j.ai_suggestions.intelligence_size ?? p.intelligence_size ?? ""),
+                            intelligence_grade: String(j.ai_suggestions.intelligence_grade ?? p.intelligence_grade ?? ""),
+                            stake_value: String(j.ai_suggestions.stake_value ?? p.stake_value ?? ""),
+                            deal_type: String(j.ai_suggestions.deal_type ?? p.deal_type ?? ""),
+                            deal_status: String(j.ai_suggestions.deal_status ?? p.deal_status ?? ""),
+                          }));
+                        } catch (e: any) {
+                          setAiError(e?.message ?? "AI call failed");
+                        } finally {
+                          setAskingAi(false);
+                        }
+                      }}
+                      className="flex-shrink-0 rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-500 disabled:opacity-50"
+                    >
+                      {askingAi ? "🤖 Asking AI…" : "🤖 Ask AI to extract"}
+                    </button>
+                  </div>
+                );
+              })()}
+              {aiError && (
+                <div className="mb-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-900 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200">
+                  {aiError}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 {([

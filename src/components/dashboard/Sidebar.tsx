@@ -21,6 +21,7 @@ const NAV_GROUPS = [
     label: "Deal Data", items: [
       { label: "Import Deals",     href: "/dashboard/uploads",          icon: CloudUpload },
       { label: "Deal Pipeline",    href: "/dashboard/deals",            icon: Briefcase },
+      { label: "Prioritization",   href: "/dashboard/prioritization",   icon: Target },
       { label: "Triage Queue",     href: "/dashboard/resolution-tasks", icon: ClipboardCheck },
     ],
   },
