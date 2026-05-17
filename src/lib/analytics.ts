@@ -41,7 +41,12 @@ export type Deal = {
   action_verb: string | null;
   heading: string | null;
   opportunity: string | null;
- 
+  // v2 ingestion quality signals — populated by the mirror trigger
+  parse_confidence?: number | null;
+  parse_pattern?: string | null;
+  is_digest?: boolean | null;
+  needs_review?: boolean | null;
+  canonical_id?: string | null;
 };
 
 export type Kpis = {
