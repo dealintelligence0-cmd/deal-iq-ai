@@ -47,10 +47,11 @@ function clamp01(n: number): number {
 }
 
 function computePursueScore(deal: Deal, weights: Weights, maxSize: number): number {
-  const priority = clamp01((deal.priority_score ?? 0) / 10);
-  const advisory = clamp01((deal.advisory_score ?? 0) / 10);
+  // All three input scores are on a 0-100 scale (verified in production data).
+  const priority = clamp01((deal.priority_score ?? 0) / 100);
+  const advisory = clamp01((deal.advisory_score ?? 0) / 100);
   const size = maxSize > 0 ? clamp01((deal.normalized_value_usd ?? 0) / maxSize) : 0;
-  const risk = clamp01((deal.risk_score ?? 0) / 10);
+  const risk = clamp01((deal.risk_score ?? 0) / 100);
 
   const score =
     weights.priority * priority +
@@ -58,16 +59,16 @@ function computePursueScore(deal: Deal, weights: Weights, maxSize: number): numb
     weights.size * size -
     weights.risk * risk;
 
-  // Normalize to 0-100 — total positive weights cap us at 1.0, negative at -risk_weight.
-  // We rebase so a deal with all-max positive and zero risk reaches 100.
   const positiveTotal = weights.priority + weights.advisory + weights.size;
   const normalized = positiveTotal > 0 ? (score / positiveTotal) * 100 : 0;
   return Math.max(0, Math.min(100, normalized));
 }
 
 function recommendationFor(score: number): { label: string; color: string } {
-  if (score >= 75) return { label: "PURSUE", color: "bg-emerald-100 text-emerald-700 border-emerald-200" };
-  if (score >= 55) return { label: "HOLD", color: "bg-amber-100 text-amber-700 border-amber-200" };
+  // Tuned to the actual MBB-grade distribution: top ~5% of deals are PURSUE,
+  // next ~25% are HOLD (watch-list), rest is REJECT.
+  if (score >= 60) return { label: "PURSUE", color: "bg-emerald-100 text-emerald-700 border-emerald-200" };
+  if (score >= 40) return { label: "HOLD", color: "bg-amber-100 text-amber-700 border-amber-200" };
   return { label: "REJECT", color: "bg-slate-100 text-slate-600 border-slate-200" };
 }
 
@@ -185,11 +186,40 @@ export default function PrioritizationPage() {
         </h1>
         <p className="mt-1 text-sm text-slate-500">
           Composite Pursue Score blends partner-defined priority, advisory potential, deal size, and risk.
-          {unscored > 0 && (
-            <> · <Link href="/dashboard/insights" className="text-indigo-600 underline">{unscored} unscored deals</Link> awaiting enrichment.</>
-          )}
         </p>
       </div>
+
+      <details className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-900 dark:bg-indigo-950/30">
+        <summary className="cursor-pointer text-sm font-semibold text-indigo-900 dark:text-indigo-200">
+          How the Pursue Score works (tap to expand)
+        </summary>
+        <div className="mt-3 grid gap-3 text-[12px] text-indigo-900 dark:text-indigo-200 sm:grid-cols-2">
+          <div>
+            <div className="font-semibold mb-1">Formula</div>
+            <div className="font-mono text-[11px]">
+              Pursue ={" "}
+              <span className="text-indigo-600">0.50·priority</span> +{" "}
+              <span className="text-indigo-600">0.30·advisory</span> +{" "}
+              <span className="text-indigo-600">0.20·size</span> −{" "}
+              <span className="text-rose-600">0.15·risk</span>
+            </div>
+            <p className="mt-2 text-[11px] text-indigo-700 dark:text-indigo-300">
+              All inputs normalized to 0–1. Output rebased to 0–100.
+            </p>
+          </div>
+          <div>
+            <div className="font-semibold mb-1">Thresholds</div>
+            <ul className="space-y-1 text-[11px]">
+              <li>🟢 <b>PURSUE</b> ≥ 60 — actively work this deal</li>
+              <li>🟡 <b>HOLD</b> 40–59 — watch-list, revisit weekly</li>
+              <li>⚪ <b>REJECT</b> &lt; 40 — pass</li>
+            </ul>
+            <p className="mt-2 text-[11px] text-indigo-700 dark:text-indigo-300">
+              Weights are partner-tunable below — drag the sliders to re-rank in real time.
+            </p>
+          </div>
+        </div>
+      </details>
 
       {/* TOP KPI STRIP */}
       <div className="grid gap-3 sm:grid-cols-4">

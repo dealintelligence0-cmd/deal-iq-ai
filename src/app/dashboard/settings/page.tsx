@@ -429,7 +429,13 @@ function AdminDangerZone({ setStatus }: { setStatus: (s: string) => void }) {
     const tables = ["deals", "proposals", "uploads"];
     const c: Record<string, number> = {};
     for (const t of tables) {
-      const { count } = await sb.from(t).select("*", { count: "exact", head: true }).eq("user_id", u.user.id);
+      // The deal-data tables use `created_by`. Other tables use `user_id`.
+      // Try created_by first; fall back to user_id (legacy schemas).
+      let { count, error } = await sb.from(t).select("*", { count: "exact", head: true }).eq("created_by", u.user.id);
+      if (error) {
+        const r = await sb.from(t).select("*", { count: "exact", head: true }).eq("user_id", u.user.id);
+        count = r.count;
+      }
       c[t] = count ?? 0;
     }
     setCounts(c);
@@ -447,11 +453,12 @@ function AdminDangerZone({ setStatus }: { setStatus: (s: string) => void }) {
     setLoading(true);
     const { data: u } = await sb.auth.getUser();
     if (!u.user) { setLoading(false); return; }
-    const { error } = await sb.rpc("purge_user_data", { p_uid: u.user.id, p_table: table });
+    // RPC parameter is named `p_scope` in the v3 ingestion migration.
+    const { error } = await sb.rpc("purge_user_data", { p_uid: u.user.id, p_scope: table });
     setLoading(false);
     setConfirming(null);
     if (error) { setStatus("Error: " + error.message); return; }
-    setStatus(`✓ ${table === "all" ? "All data" : table} cleared.`);
+    setStatus(`✓ ${table === "all" ? "All data" : table} cleared. Includes v2 raw/canonical/resolution/digest rows.`);
     loadCounts();
   }
 

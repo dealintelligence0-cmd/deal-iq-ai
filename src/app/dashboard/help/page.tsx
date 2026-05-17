@@ -39,27 +39,31 @@ const SECTIONS: Section[] = [
   {
     id: "uploads", title: "Uploading Data", icon: Upload,
     content: [
-      { heading: "Supported formats", body: "CSV, XLSX, XLS, TXT, JSON. Max 50 MB per file. Multiple files at once." },
-      { heading: "How to upload", body: "", steps: [
-        "Sidebar → Uploads",
-        "Drag files onto the drop zone, or click to browse",
-        "Each file shows row count + preview",
-        "Click Import — file is saved to private Supabase storage",
+      { heading: "Supported formats", body: "CSV, XLSX, XLS, TXT, JSON. Max 50 MB per file. The v2 pipeline is purpose-built for Mergermarket-style intelligence feeds but accepts any of these formats." },
+      { heading: "How to upload (one-step v2 path)", body: "", steps: [
+        "Sidebar → Import Deals",
+        "In the indigo 'v2 Ingestion Pipeline' card, drop your file",
+        "Optionally enable AI fallback and choose a saved key (tier or specific key)",
+        "Click 'Import via v2 pipeline'",
+        "Read the result panel — e.g. 300 rows · 179 canonical · 38 digests · 83 review",
       ]},
+      { heading: "What happens under the hood", body: "Every row is preserved verbatim. A pattern + structured-column extractor produces canonical fields with per-field confidence. High-confidence rows flow straight to the pipeline. Multi-deal digest articles (Weekly Wrap, M&A Monitor) are routed to a separate lane. Low-confidence rows go to the Triage Queue for your review." },
+      { heading: "Re-uploading the same file", body: "Safe. Dedup is automatic at canonical (buyer, target, date) so duplicates don't accumulate. Raw rows are still preserved for audit." },
     ],
   },
   {
-    id: "mapping", title: "Column Mapping", icon: GitMerge,
+    id: "resolution", title: "Triage Queue (Resolution Tasks)", icon: AlertTriangle,
     content: [
-      { heading: "Why this exists", body: "Different data sources use different headers — Buyer vs Acquirer vs Purchaser. Mapping translates source columns into Deal IQ's standard fields." },
-      { heading: "How to map", body: "", steps: [
-        "Sidebar → Mapping",
-        "Tick the files to merge → Load",
-        "Auto-detected fields show green checkmarks",
-        "Fix any required fields flagged red (Date, Buyer, Target)",
-        "Save as a template for future identical files",
-        "Import — cleansing engine runs automatically",
+      { heading: "What lands here", body: "Rows the v2 pipeline could not extract with ≥75% confidence, AND multi-source ambiguity. Typical: ~25% of a weekly Mergermarket upload. Everything else goes straight to the pipeline." },
+      { heading: "Fastest workflow", body: "", steps: [
+        "Open the queue → click the first task",
+        "Read the heading + opportunity excerpt",
+        "Click ⚡ Accept all AI suggestions (one-click pre-fill)",
+        "Override only the fields that look wrong (or use the 'use →' link next to any single field)",
+        "Click Save Correction — the row promotes to the live pipeline AND saves as a few-shot example for next week's similar rows",
       ]},
+      { heading: "Dismiss option", body: "If a row is genuinely not actionable (corrupted, off-topic), click Dismiss. The canonical row stays in the audit lane but won't flow downstream." },
+      { heading: "Learning loop", body: "Every correction you save becomes a few-shot example for the AI fallback. Similar headings next week parse correctly without your intervention." },
     ],
   },
   {
@@ -305,9 +309,9 @@ const ALL = [...SECTIONS, ...MORE_SECTIONS];
 
 const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
-  { label: "Deal Data", ids: ["uploads", "mapping", "exceptions", "value-tests", "pipeline", "enrich"] },
+  { label: "Deal Data", ids: ["uploads", "pipeline", "resolution", "enrich"] },
   { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
-  { label: "System", ids: ["exports", "settings", "activity", "faq"] },
+  { label: "System", ids: ["exports", "settings", "faq"] },
 ];
 
 export default function HelpPage() {

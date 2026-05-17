@@ -19,13 +19,9 @@ const NAV_GROUPS = [
   { items: [{ label: "Executive Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
   {
     label: "Deal Data", items: [
-      { label: "Import Deals",    href: "/dashboard/uploads",    icon: CloudUpload },
-      { label: "Field Mapping",   href: "/dashboard/mapping",    icon: GitMerge },
-      { label: "Deal Pipeline",   href: "/dashboard/deals",      icon: Briefcase },
-      { label: "Prioritization",  href: "/dashboard/prioritization", icon: Target },
-      { label: "Data Quality",    href: "/dashboard/exceptions", icon: AlertTriangle },
-      { label: "Resolution Tasks", href: "/dashboard/resolution-tasks", icon: ClipboardCheck },
-      { label: "AI Insights",     href: "/dashboard/insights",   icon: Lightbulb },
+      { label: "Import Deals",     href: "/dashboard/uploads",          icon: CloudUpload },
+      { label: "Deal Pipeline",    href: "/dashboard/deals",            icon: Briefcase },
+      { label: "Triage Queue",     href: "/dashboard/resolution-tasks", icon: ClipboardCheck },
     ],
   },
   {
@@ -39,7 +35,6 @@ const NAV_GROUPS = [
   {
     label: "System", items: [
       { label: "Exports",      href: "/dashboard/exports",  icon: Download },
-      { label: "Activity Log", href: "/dashboard/activity", icon: Shield },
       { label: "Help",         href: "/dashboard/help",     icon: BookOpen },
       { label: "Settings",     href: "/dashboard/settings", icon: Settings },
     ],

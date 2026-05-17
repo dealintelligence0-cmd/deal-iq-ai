@@ -265,6 +265,35 @@ export default function ResolutionTasksPage() {
                 </div>
               )}
 
+              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
+                <p className="text-[11px] text-emerald-900 dark:text-emerald-200">
+                  <b>Tip:</b> click <em>Accept all AI suggestions</em> to fill every field in one click,
+                  then edit only what looks wrong before saving.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const s = active.ai_suggestions ?? {};
+                    setDraft((p) => ({
+                      ...p,
+                      buyer: String(s.buyer ?? p.buyer ?? ""),
+                      target: String(s.target ?? p.target ?? ""),
+                      vendor: String(s.vendor ?? p.vendor ?? ""),
+                      dominant_sector: String(s.dominant_sector ?? p.dominant_sector ?? ""),
+                      dominant_geography: String(s.dominant_geography ?? p.dominant_geography ?? ""),
+                      intelligence_size: String(s.intelligence_size ?? p.intelligence_size ?? ""),
+                      intelligence_grade: String(s.intelligence_grade ?? p.intelligence_grade ?? ""),
+                      stake_value: String(s.stake_value ?? p.stake_value ?? ""),
+                      deal_type: String(s.deal_type ?? p.deal_type ?? ""),
+                      deal_status: String(s.deal_status ?? p.deal_status ?? ""),
+                    }));
+                  }}
+                  className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-500"
+                >
+                  ⚡ Accept all AI suggestions
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 {([
                   ["buyer", "Buyer"],
@@ -279,20 +308,34 @@ export default function ResolutionTasksPage() {
                   ["deal_status", "Deal Status"],
                 ] as const).map(([key, label]) => {
                   const conf = active.field_confidence?.[key];
+                  const suggestion = active.ai_suggestions?.[key];
                   return (
                     <div key={key}>
-                      <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                        {label}
-                        {typeof conf === "number" && (
-                          <span className="ml-2 font-normal text-slate-400">
-                            (suggested conf {(conf * 100).toFixed(0)}%)
-                          </span>
+                      <label className="flex items-center justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                        <span>
+                          {label}
+                          {typeof conf === "number" && (
+                            <span className="ml-2 font-normal text-slate-400">
+                              ({(conf * 100).toFixed(0)}% conf)
+                            </span>
+                          )}
+                        </span>
+                        {suggestion != null && String(suggestion).trim() !== "" && String(suggestion) !== draft[key] && (
+                          <button
+                            type="button"
+                            onClick={() => setDraft((p) => ({ ...p, [key]: String(suggestion) }))}
+                            className="text-[10px] text-indigo-600 hover:underline"
+                            title={`Use AI suggestion: "${suggestion}"`}
+                          >
+                            use →
+                          </button>
                         )}
                       </label>
                       <input
                         type="text"
                         value={draft[key]}
                         onChange={(e) => setDraft((p) => ({ ...p, [key]: e.target.value }))}
+                        placeholder={suggestion != null ? `e.g. ${suggestion}` : ""}
                         className="mt-0.5 w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                       />
                     </div>
