@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useState } from "react";
@@ -9,6 +11,7 @@ import { parseFile, isSupported, type ParsedFile } from "@/lib/parsers";
 import Dropzone from "@/components/upload/Dropzone";
 import FileCard, { type FileItem } from "@/components/upload/FileCard";
 import PreviewModal from "@/components/upload/PreviewModal";
+import IngestionV2Launcher from "@/components/ingestion/IngestionV2Launcher";
 
 const MAX_SIZE = 50 * 1024 * 1024;
 
@@ -176,6 +179,10 @@ export default function UploadsPage() {
               : `Import ${pendingCount} file${pendingCount === 1 ? "" : "s"}`}
           </button>
         )}
+      </div>
+
+      <div className="mb-6">
+        <IngestionV2Launcher />
       </div>
 
       <Dropzone onFiles={addFiles} />
