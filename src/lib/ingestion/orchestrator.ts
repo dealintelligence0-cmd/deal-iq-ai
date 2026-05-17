@@ -187,6 +187,22 @@ async function processRow(
   // 3. Route
   const decision = routeRow(result);
 
+  // 3b. Dedup: if a LIVE canonical row already exists for (buyer, target, date) for this user,
+  // skip the canonical insert (raw record is still preserved for audit).
+  if (decision.kind !== "digest" && decision.result.buyer.value && decision.result.target.value) {
+    const { data: existing } = await sb
+      .from("canonical_deals")
+      .select("id")
+      .eq("created_by", opts.userId)
+      .eq("buyer", decision.result.buyer.value)
+      .eq("target", decision.result.target.value)
+      .is("superseded_by", null)
+      .maybeSingle();
+    if (existing) {
+      return { lane: "blank" };  // count as "skipped duplicate"
+    }
+  }
+
   // 4. Persist by lane
   if (decision.kind === "digest") {
     await persistDigest(sb, rawId, batchId, opts.userId, decision.result, m);
