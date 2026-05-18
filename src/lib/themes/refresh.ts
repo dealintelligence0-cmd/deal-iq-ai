@@ -24,6 +24,7 @@ export type RefreshResult = {
   clusters_updated: int;
   total_themes: int;
   cost_usd: number;
+  diagnostic?: string;
 };
 type int = number;
 
@@ -127,10 +128,13 @@ export async function refreshThemes(
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
   // ---- 3. Cluster ----
-  const clusters = clusterDeals(dealsForClustering);
+  const { clusters, diagnostic } = clusterDeals(dealsForClustering);
+
+  // Log the diagnostic into the refresh run for debugging
+  const diagSummary = `Pairs: ${diagnostic.totalPairs} · sim range [${diagnostic.similarityMin.toFixed(3)} – ${diagnostic.similarityMax.toFixed(3)}] · p50 ${diagnostic.similarityP50.toFixed(3)} · p90 ${diagnostic.similarityP90.toFixed(3)} · threshold ${diagnostic.thresholdUsed.toFixed(3)} · pairs ≥ threshold ${diagnostic.pairsAboveThreshold} · clusters ${diagnostic.clustersFound}`;
+  console.log("[ThemeRefresh] cluster diagnostic:", diagSummary);
 
   // ---- 4. Archive existing themes (we re-create fresh each refresh) ----
-  //         Conservative: only archive if we're producing new clusters this run.
   if (clusters.length > 0) {
     await sb.from("themes").update({ status: "archived" })
       .eq("created_by", opts.userId).eq("status", "active");
@@ -211,14 +215,20 @@ export async function refreshThemes(
     }
   }
 
+  // If we got 0 clusters, attach the diagnostic so user sees WHY
+  const finalError = clusters_created === 0
+    ? `Embedded ${embeddings_added} new deals but produced 0 themes. ${diagSummary}. Your embeddings may be too diverse — try uploading more deals in the same sector, or lower the threshold.`
+    : null;
+
   await sb.from("theme_refresh_runs").update({
     status: "completed",
     embeddings_added, clusters_created, clusters_updated,
     cost_usd: Math.round(cost_usd * 10000) / 10000,
+    error: finalError,
     completed_at: new Date().toISOString(),
   }).eq("id", runId!);
 
-  return { embeddings_added, clusters_created, clusters_updated, total_themes: clusters_created, cost_usd };
+  return { embeddings_added, clusters_created, clusters_updated, total_themes: clusters_created, cost_usd, diagnostic: diagSummary };
 }
 
 function buildEmbeddingText(d: { heading: string | null; buyer: string | null; target: string | null; dominant_sector: string | null; dominant_geography: string | null; deal_type: string | null }): string {
