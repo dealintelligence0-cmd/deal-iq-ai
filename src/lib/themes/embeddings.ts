@@ -33,23 +33,26 @@ function normalizeVector(v: number[]): number[] {
 export async function embedTexts(
   texts: string[],
   cfg: EmbedConfig
-): Promise<(number[] | null)[]> {
-  if (texts.length === 0) return [];
+): Promise<{ vectors: (number[] | null)[]; lastError: string | null; modelUsed: string }> {
+  if (texts.length === 0) return { vectors: [], lastError: null, modelUsed: "" };
   const model = cfg.model ?? DEFAULT_MODELS[cfg.provider];
 
   const out: (number[] | null)[] = [];
+  let lastError: string | null = null;
   const BATCH = 96;
   for (let i = 0; i < texts.length; i += BATCH) {
     const batch = texts.slice(i, i + BATCH).map((t) => t.slice(0, 6000));
     try {
       const vectors = await callEmbed(cfg.provider, batch, cfg.apiKey, model);
       out.push(...vectors.map((v) => v ? normalizeVector(v) : null));
-    } catch (e) {
-      console.error(`Embed batch failed (${cfg.provider} ${model}):`, e);
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      console.error(`Embed batch failed (${cfg.provider} ${model}): ${msg}`);
+      lastError = msg.slice(0, 300);
       for (let j = 0; j < batch.length; j++) out.push(null);
     }
   }
-  return out;
+  return { vectors: out, lastError, modelUsed: model };
 }
 
 async function callEmbed(

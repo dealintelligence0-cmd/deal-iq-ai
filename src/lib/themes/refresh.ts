@@ -65,7 +65,7 @@ export async function refreshThemes(
   const embed_errors: string[] = [];
   if (pending && pending.length > 0) {
     const texts = pending.map((d) => buildEmbeddingText(d));
-    const vectors = await embedTexts(texts, opts.embedConfig);
+    const { vectors, lastError, modelUsed } = await embedTexts(texts, opts.embedConfig);
     cost_usd += pending.length * 0.00002;
 
     let nullCount = 0;
@@ -78,9 +78,10 @@ export async function refreshThemes(
       embeddings_added++;
     }
     if (nullCount === pending.length && pending.length > 0) {
-      embed_errors.push(`All ${pending.length} embedding calls returned null. Check the ${opts.embedConfig.provider} API key and that the provider supports the model.`);
+      const actualErr = lastError ? ` Provider said: "${lastError}"` : "";
+      embed_errors.push(`All ${pending.length} embedding calls failed via ${opts.embedConfig.provider} (model: ${modelUsed}).${actualErr}`);
     } else if (nullCount > 0) {
-      embed_errors.push(`${nullCount}/${pending.length} embedding calls failed.`);
+      embed_errors.push(`${nullCount}/${pending.length} embedding calls failed via ${opts.embedConfig.provider}.${lastError ? ` Last error: ${lastError}` : ""}`);
     }
   }
 

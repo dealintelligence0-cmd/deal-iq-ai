@@ -26,7 +26,7 @@ export type ThemeLabel = {
 const SYSTEM_PROMPT = `You are an MBB partner synthesizing emerging M&A themes from a cluster of similar deals.
 
 Given a list of related deals, identify the strategic theme connecting them and produce:
-- a concise theme name (3-6 words, Goldman Sachs / McKinsey research-note style)
+- a concise theme name (3-6 words, research-note style)
 - why it matters NOW (1-2 sentences, partner-grade reasoning)
 - 3-5 drivers behind the consolidation
 - 3-5 likely next acquisition targets (company types or actual company names mentioned in the data)
