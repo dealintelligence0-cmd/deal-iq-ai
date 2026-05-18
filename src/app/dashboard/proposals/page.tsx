@@ -504,12 +504,12 @@ async function promoteToPartnerGrade() {
   }
 
   const [exportingPptx, setExportingPptx] = useState(false);
+  const [storylineId, setStorylineId] = useState<string>("executive_summary");
 
   async function downloadPptx() {
     if (!content) return;
     setExportingPptx(true);
     try {
-      // Dynamic import keeps pptxgenjs out of the initial page bundle (it's ~700KB)
       const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
       await exportProposalToPptx(
         content,
@@ -518,6 +518,8 @@ async function promoteToPartnerGrade() {
           dealSize, clientName,
         },
         researchBrief || undefined,
+        undefined,
+        storylineId,
       );
     } catch (e) {
       alert(`PPTX export failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -969,6 +971,19 @@ async function promoteToPartnerGrade() {
                   className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
                   <Printer className="h-3.5 w-3.5" /> Print / Save PDF
                 </button>
+                <select
+                  value={storylineId}
+                  onChange={(e) => setStorylineId(e.target.value)}
+                  title="Storyline template — slide ordering for the PPTX export"
+                  className="rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                >
+                  <option value="executive_summary">📊 Executive Summary (6 slides)</option>
+                  <option value="strategic_case">🎯 Strategic Case (10 slides)</option>
+                  <option value="operating_transformation">⚙️ Operating Transformation (8 slides)</option>
+                  <option value="synergy_bridge_pitch">💰 Synergy Bridge (6 slides)</option>
+                  <option value="investment_committee">📋 IC Pack (12 slides)</option>
+                  <option value="board_narrative">📈 Board Narrative (7 slides)</option>
+                </select>
                 <button onClick={downloadPptx} disabled={exportingPptx}
                   className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
                   title="Download as branded PowerPoint deck">

@@ -39,8 +39,10 @@ export async function POST(req: NextRequest) {
   if (!proposal) return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
 
   const admin = createAdminClient();
-  const resolved = await resolveKey(admin, user.id, "smart");
-  if (!resolved?.apiKey) return NextResponse.json({ error: "No smart-tier AI key" }, { status: 400 });
+  let resolved = await resolveKey(admin, user.id, "smart");
+  if (!resolved?.apiKey) resolved = await resolveKey(admin, user.id, "economic");
+  if (!resolved?.apiKey) resolved = await resolveKey(admin, user.id, "fast");
+  if (!resolved?.apiKey) return NextResponse.json({ error: "No AI key configured. Add one in Settings → API Key Library." }, { status: 400 });
 
   const routeCfg = {
     tier: "smart" as const,

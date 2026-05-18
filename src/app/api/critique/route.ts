@@ -48,19 +48,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, cached: true, critique: cached });
   }
 
-  // Resolve smart-tier key for the highest-quality critique
-  const tier = body.tier ?? "smart";
+  // Resolve key — try smart, then economic, then fast
+  const requestedTier = body.tier ?? "smart";
   const admin = createAdminClient();
-  const resolved = await resolveKey(admin, user.id, tier);
-  if (!resolved?.apiKey || !resolved.provider || !resolved.model) {
+  let resolved = await resolveKey(admin, user.id, requestedTier);
+  let actualTier = requestedTier;
+  if (!resolved?.apiKey) { resolved = await resolveKey(admin, user.id, "economic"); actualTier = "economic"; }
+  if (!resolved?.apiKey) { resolved = await resolveKey(admin, user.id, "fast"); actualTier = "fast"; }
+  if (!resolved?.apiKey || !resolved.provider) {
     return NextResponse.json({
-      error: `No ${tier}-tier AI key configured. Add one in Settings → API Key Library.`,
+      error: "No AI key configured. Add one in Settings → API Key Library (any tier works).",
     }, { status: 400 });
   }
 
   const routeCfg = {
-    tier, primaryProvider: resolved.provider as ProviderId,
-    primaryKey: resolved.apiKey, primaryModel: resolved.model,
+    tier: actualTier, primaryProvider: resolved.provider as ProviderId,
+    primaryKey: resolved.apiKey, primaryModel: resolved.model ?? undefined,
   };
 
   let result;

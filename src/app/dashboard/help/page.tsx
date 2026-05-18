@@ -98,6 +98,27 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: "storylines", title: "Storyline Templates (PPTX slide intelligence)", icon: FileText,
+    content: [
+      { heading: "What it does", body: "Before exporting a proposal to PPTX, pick one of 6 MBB storyline templates. Each template reorders slides to match a specific narrative arc — Pyramid Principle, Strategic Case, Operating Transformation, Synergy Bridge, IC Pack, or Board Narrative. The deck reflects how senior partners actually present, not just what the AI wrote." },
+      { heading: "When to use which", body: "", steps: [
+        "📊 Executive Summary (6 slides) — partner-internal brief, CEO update, quick committee read",
+        "🎯 Strategic Case (10 slides) — IC submission, board approval pack",
+        "⚙️ Operating Transformation (8 slides) — post-LOI value creation pitch, operating partner brief",
+        "💰 Synergy Bridge (6 slides) — finance-led review, CFO conversation",
+        "📋 IC Pack (12 slides) — full investment committee submission, most rigorous format",
+        "📈 Board Narrative (7 slides) — board meeting, CEO presentation, external pitch",
+      ]},
+      { heading: "How to use", body: "", steps: [
+        "Generate a proposal as usual",
+        "On the Proposals page, look at the toolbar next to Download PPTX",
+        "Use the storyline dropdown to pick the narrative arc",
+        "Click Download PPTX — slides are reordered per the template",
+      ]},
+      { heading: "What gets reordered", body: "The exporter matches your proposal's sections (Executive Summary, Risk, Synergy, etc.) to template slots. Matched sections are placed in template order. Unmatched sections are appended at the end as Appendix slides. Nothing is dropped." },
+    ],
+  },
+  {
     id: "exceptions", title: "Exceptions", icon: AlertTriangle,
     content: [
       { heading: "What is the Exceptions page?", body: "Every imported row passes through 8 cleansing rules. Any rule that fires logs an exception. Use this page to audit data quality before relying on it for proposals." },
@@ -341,7 +362,7 @@ const ALL = [...SECTIONS, ...MORE_SECTIONS];
 const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
   { label: "Deal Data", ids: ["uploads", "pipeline", "resolution", "enrich"] },
-  { label: "Intelligence", ids: ["themes", "critique"] },
+  { label: "Intelligence", ids: ["themes", "critique", "storylines"] },
   { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
   { label: "System", ids: ["exports", "settings", "faq"] },
 ];

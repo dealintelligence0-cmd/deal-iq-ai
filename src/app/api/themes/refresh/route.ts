@@ -19,7 +19,7 @@ import type { ProviderId } from "@/lib/ai/providers";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const EMBED_PROVIDERS = ["openai", "google", "cohere", "openrouter"] as const;
+const EMBED_PROVIDERS = ["openai", "google", "cohere", "openrouter", "nvidia", "together"] as const;
 type EmbedProvider = typeof EMBED_PROVIDERS[number];
 
 export async function POST(_req: NextRequest) {
@@ -47,15 +47,17 @@ export async function POST(_req: NextRequest) {
 
   if (!embedConfig) {
     return NextResponse.json({
-      error: "No embedding-capable key found. Save an OpenAI, Google, Cohere, or OpenRouter key in Settings → API Key Library.",
+      error: "No embedding-capable key found. Save an OpenAI, Google, Cohere, OpenRouter, NVIDIA NIM, or Together AI key in Settings → API Key Library.",
     }, { status: 400 });
   }
 
-  // 2. Smart-tier key for labeling
-  const labelKey = await resolveKey(admin, user.id, "smart");
+  // 2. Smart-tier key for labeling — fall back gracefully through smart → economic → fast
+  let labelKey = await resolveKey(admin, user.id, "smart");
+  if (!labelKey?.apiKey) labelKey = await resolveKey(admin, user.id, "economic");
+  if (!labelKey?.apiKey) labelKey = await resolveKey(admin, user.id, "fast");
   if (!labelKey?.apiKey) {
     return NextResponse.json({
-      error: "No smart-tier AI key configured. Add one in Settings → API Key Library.",
+      error: "No AI text-generation key found. Add one in Settings → API Key Library.",
     }, { status: 400 });
   }
 
@@ -72,7 +74,12 @@ export async function POST(_req: NextRequest) {
       embedConfig,
       labelRouteConfig,
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({
+      ok: true,
+      embed_provider: embedConfig.provider,
+      label_provider: labelKey.provider,
+      ...result,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Refresh failed" }, { status: 500 });
   }

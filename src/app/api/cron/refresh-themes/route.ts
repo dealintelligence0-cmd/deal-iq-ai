@@ -18,7 +18,7 @@ import type { ProviderId } from "@/lib/ai/providers";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const EMBED_PROVIDERS = ["openai", "google", "cohere", "openrouter"] as const;
+const EMBED_PROVIDERS = ["openai", "google", "cohere", "openrouter", "nvidia", "together"] as const;
 
 export async function GET(req: NextRequest) {
   // Auth: Vercel sends CRON_SECRET; in dev allow without
@@ -58,9 +58,11 @@ export async function GET(req: NextRequest) {
         summary.push({ user: userId, status: "embed_decrypt_failed" });
         continue;
       }
-      const smartKey = await resolveKey(admin, userId, "smart");
+      let smartKey = await resolveKey(admin, userId, "smart");
+      if (!smartKey?.apiKey) smartKey = await resolveKey(admin, userId, "economic");
+      if (!smartKey?.apiKey) smartKey = await resolveKey(admin, userId, "fast");
       if (!smartKey?.apiKey) {
-        summary.push({ user: userId, status: "no_smart_key" });
+        summary.push({ user: userId, status: "no_label_key" });
         continue;
       }
 
