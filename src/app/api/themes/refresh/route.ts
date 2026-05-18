@@ -20,7 +20,6 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const EMBED_PROVIDERS = ["openai", "google", "cohere", "openrouter", "nvidia", "together"] as const;
-type EmbedProvider = typeof EMBED_PROVIDERS[number];
 
 export async function POST(_req: NextRequest) {
   const sb = await createClient();
@@ -39,24 +38,13 @@ export async function POST(_req: NextRequest) {
     const candidate = keys.find((k) => (EMBED_PROVIDERS as readonly string[]).includes(k.provider as string));
     if (candidate) {
       const apiKey = await decryptKey(admin, candidate.key_encrypted as string);
-     const allowedProviders: EmbedProvider[] = [
-  "google",
-  "openai",
-  "cohere",
-  "openrouter",
-];
-
-if (
-  apiKey &&
-  allowedProviders.includes(candidate.provider as EmbedProvider)
-) {
-  const provider = candidate.provider as EmbedProvider;
-
-  embedConfig = {
-    provider,
-    apiKey,
-  };
-}
+      if (apiKey) {
+        // Cast through unknown — the route accepts any string the embeddings module supports
+        embedConfig = {
+          provider: candidate.provider as unknown as EmbedConfig["provider"],
+          apiKey,
+        };
+      }
     }
   }
 
