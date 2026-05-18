@@ -10,8 +10,9 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   FileText, Sparkles, Loader2, Copy, Printer,
-  CheckCircle2, ChevronDown, History, Trash2, Plus, X, Download,
+  CheckCircle2, ChevronDown, History, Trash2, Plus, X, Download, Target,
 } from "lucide-react";
+import CritiquePanel from "@/components/critique/CritiquePanel";
 import { renderVisualProposal, renderCitations } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import { generateOfflineProposal } from "@/lib/proposal/offline-engine";
@@ -116,6 +117,8 @@ function ProposalsPageInner() {
   } | null>(null);
   const [evidenceCoverage, setEvidenceCoverage] = useState<number | null>(null);
   const [scenarioCount, setScenarioCount] = useState<number>(0);
+  const [lastSavedProposalId, setLastSavedProposalId] = useState<string | null>(null);
+  const [critiqueOpen, setCritiqueOpen] = useState(false);
 
   const [history, setHistory] = useState<SavedProposal[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -367,6 +370,7 @@ model_override: modelOverride,
         setQualityBreakdown(data.qualityBreakdown ?? null);
         setEvidenceCoverage(data.evidenceCoverage ?? null);
         setScenarioCount(Array.isArray(data.scenarios) ? data.scenarios.length : 0);
+        setLastSavedProposalId(data.proposalId ?? null);
 
         const label = PROPOSAL_OPTIONS.find((o) => o.value === proposalType)?.label ?? proposalType;
         setHistory((prev) => [{
@@ -972,6 +976,14 @@ async function promoteToPartnerGrade() {
                     ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Building...</>
                     : <><Download className="h-3.5 w-3.5" /> Download PPTX</>}
                 </button>
+                <button
+                  onClick={() => setCritiqueOpen(true)}
+                  disabled={!lastSavedProposalId}
+                  title={lastSavedProposalId ? "Pressure-test through 5 hostile personas" : "Generate a proposal first"}
+                  className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+                >
+                  <Target className="h-3.5 w-3.5" /> Critique This Pitch
+                </button>
                <button onClick={() => { setContent(null); clearOutput("proposal"); }}
   className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100">
   <Trash2 className="h-3.5 w-3.5" /> Clear
@@ -1071,6 +1083,14 @@ async function promoteToPartnerGrade() {
         hasOfflineFallback={true}
         userWeights={userWeights ?? undefined}
       />
+      {lastSavedProposalId && (
+        <CritiquePanel
+          proposalId={lastSavedProposalId}
+          proposalLabel={`${PROPOSAL_OPTIONS.find((o) => o.value === proposalType)?.label ?? "Proposal"} — ${target || buyer || clientName || "Unnamed"}`}
+          open={critiqueOpen}
+          onClose={() => setCritiqueOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -26,6 +26,11 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: "Intelligence", items: [
+      { label: "Themes Radar",     href: "/dashboard/themes",           icon: Sparkles },
+    ],
+  },
+  {
     label: "Advisory Intelligence", items: [
       { label: "M&A Proposals",  href: "/dashboard/proposals", icon: FileText },
       { label: "PMI Planner",    href: "/dashboard/pmi",       icon: Layers },

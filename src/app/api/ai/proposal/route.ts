@@ -466,14 +466,15 @@ ${fullContext}` },
       }, { status: 500 });
     }
 
-    await admin.from("proposals").insert({
+    const { data: insertedRow } = await admin.from("proposals").insert({
       user_id: user.id, proposal_type, client_name, buyer, target,
       sector, geography, deal_size, notes,
       content: result.text, provider: result.provider,
       model: result.model, via_fallback: result.viaFallback,
-    });
+    }).select("id").single();
     await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
     return NextResponse.json({
+      proposalId: insertedRow?.id,
       content: result.text,
       provider: result.provider,
       model: result.model,

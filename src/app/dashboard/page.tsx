@@ -8,6 +8,7 @@ import KpiCard from "@/components/dashboard/KpiCard";
 import RecentDealsTable from "@/components/dashboard/RecentDealsTable";
 import StrategicCallout from "@/components/dashboard/StrategicCallout";
 import DataQualityStrip from "@/components/dashboard/DataQualityStrip";
+import TopThemesStrip from "@/components/dashboard/TopThemesStrip";
 import {
   MonthlyTrend, HorizontalBars, DealTypePie,
 } from "@/components/dashboard/Charts";
@@ -179,6 +180,9 @@ return (
 
       {/* Data Quality indicator — v2 ingestion health */}
       <DataQualityStrip />
+
+      {/* Top Themes — AI-clustered strategic themes */}
+      <TopThemesStrip />
 
       {/* Strategic Callout — top deals to pursue this week */}
       <StrategicCallout deals={filteredDeals} />

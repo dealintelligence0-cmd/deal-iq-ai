@@ -67,6 +67,37 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: "themes", title: "Themes Radar — strategic intelligence", icon: Sparkles,
+    content: [
+      { heading: "What it does", body: "Continuously clusters your deal pipeline into emerging strategic themes (Indian consumer roll-ups, APAC fintech consolidation, energy transition, etc). Goldman Sachs-grade thematic synthesis. The system labels every cluster with: strategic summary, drivers, likely next acquisition targets, pitch hypothesis, and consulting angle." },
+      { heading: "When to use it", body: "Monday morning briefing. Senior partners don't browse 200 individual deals — they ask 'what's hot in APAC fintech?' Themes Radar gives that answer in 30 seconds." },
+      { heading: "How it works", body: "", steps: [
+        "Embeds each canonical deal using your saved OpenAI/Google/Cohere/OpenRouter key",
+        "Groups similar deals using cosine similarity (threshold 0.55, min cluster 3)",
+        "AI labels each cluster with name, summary, drivers, pitch hypothesis",
+        "Refreshes nightly automatically via Vercel cron; click Refresh for on-demand",
+      ]},
+      { heading: "Where to access", body: "Sidebar → Intelligence → Themes Radar. Top 5 themes also surface on the Executive Dashboard as a strip below Data Quality." },
+      { heading: "Cost", body: "Embedding ~$0.00002 per deal. Labeling ~$0.003 per cluster (smart-tier key). 200 deals + 10 clusters = ~$0.04 per refresh." },
+    ],
+  },
+  {
+    id: "critique", title: "Critique This Pitch", icon: AlertTriangle,
+    content: [
+      { heading: "What it does", body: "Pressure-tests any generated proposal through 5 hostile personas (Skeptical PE Partner, Fortune 500 CFO, Investment Committee Member, Activist Investor, PE Operating Partner). Returns scores on 4 axes (Credibility, Differentiation, Executive Relevance, Strategic Sharpness) plus specific weakness flags and sharpened revisions." },
+      { heading: "When to use it", body: "Before sending any client-facing proposal. The personas attack weak commercial logic, generic transformation narratives, unsupported assumptions, and consulting jargon — the things that get a pitch killed in the first 30 seconds of a partner review." },
+      { heading: "How to run", body: "", steps: [
+        "Generate a proposal as usual (Proposals page)",
+        "Click the rose-colored 'Critique This Pitch' button next to Copy/Print/PPTX",
+        "Wait ~30 seconds for 5 personas to run in parallel",
+        "Read overall score (PURSUE ≥70 / REVISE 50-69 / REWORK <50)",
+        "Drill into each persona for specific flags and suggestions",
+        "Click 'Generate sharpened version' for an AI rewrite addressing every weakness",
+      ]},
+      { heading: "Cost", body: "~$0.02 per critique run (5 persona calls in parallel, smart-tier key). Caching: re-critiquing the same proposal version returns the cached result for free." },
+    ],
+  },
+  {
     id: "exceptions", title: "Exceptions", icon: AlertTriangle,
     content: [
       { heading: "What is the Exceptions page?", body: "Every imported row passes through 8 cleansing rules. Any rule that fires logs an exception. Use this page to audit data quality before relying on it for proposals." },
@@ -310,6 +341,7 @@ const ALL = [...SECTIONS, ...MORE_SECTIONS];
 const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
   { label: "Deal Data", ids: ["uploads", "pipeline", "resolution", "enrich"] },
+  { label: "Intelligence", ids: ["themes", "critique"] },
   { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
   { label: "System", ids: ["exports", "settings", "faq"] },
 ];
