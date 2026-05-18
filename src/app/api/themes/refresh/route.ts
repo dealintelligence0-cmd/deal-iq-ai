@@ -39,12 +39,21 @@ export async function POST(_req: NextRequest) {
     const candidate = keys.find((k) => (EMBED_PROVIDERS as readonly string[]).includes(k.provider as string));
     if (candidate) {
       const apiKey = await decryptKey(admin, candidate.key_encrypted as string);
-     if (
+     const allowedProviders: EmbedProvider[] = [
+  "google",
+  "openai",
+  "cohere",
+  "openrouter",
+];
+
+if (
   apiKey &&
-  ["google", "openai", "cohere", "openrouter"].includes(candidate.provider)
+  allowedProviders.includes(candidate.provider as EmbedProvider)
 ) {
+  const provider = candidate.provider as EmbedProvider;
+
   embedConfig = {
-    provider: candidate.provider as EmbedProvider,
+    provider,
     apiKey,
   };
 }
