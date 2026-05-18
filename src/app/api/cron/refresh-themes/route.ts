@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
       }
 
       const embedConfig: EmbedConfig = {
-        provider: embedKeyRow.provider as EmbedConfig["provider"],
+        provider: embedKeyRow.provider as unknown as EmbedConfig["provider"],
         apiKey: embedApiKey,
       };
       const labelRouteConfig = {
