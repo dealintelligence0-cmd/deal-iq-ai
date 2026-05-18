@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
   // Optional: user picked a specific key from the dropdown
-  let body: { embed_key_id?: string; label_key_id?: string } = {};
+  let body: { embed_key_id?: string; label_key_id?: string; embed_model?: string } = {};
   try { body = await req.json(); } catch {}
 
   // 1. Find an embedding-capable key — user-chosen first, then auto-pick by preference order
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
         embedConfig = {
           provider: candidate.provider as unknown as EmbedConfig["provider"],
           apiKey,
+          model: body.embed_model || (candidate.default_model as string | null) || undefined,
         };
         embedKeyLabel = (candidate.label as string) || candidate.provider as string;
       }

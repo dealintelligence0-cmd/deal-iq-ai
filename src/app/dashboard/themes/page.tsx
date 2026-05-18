@@ -36,6 +36,35 @@ type SavedKey = {
 // Providers that expose an /v1/embeddings endpoint
 const EMBED_PROVIDERS = ["nvidia", "openai", "google", "cohere", "together", "openrouter"];
 
+// Per-provider known embedding models. First entry is the most reliable default.
+const MODEL_OPTIONS_BY_PROVIDER: Record<string, string[]> = {
+  nvidia: [
+    "nvidia/nv-embedqa-e5-v5",
+    "nvidia/nv-embedqa-mistral-7b-v2",
+    "baai/bge-m3",
+    "snowflake/arctic-embed-l",
+  ],
+  openai: [
+    "text-embedding-3-small",
+    "text-embedding-3-large",
+  ],
+  google: [
+    "text-embedding-004",
+    "text-embedding-005",
+  ],
+  cohere: [
+    "embed-english-v3.0",
+    "embed-multilingual-v3.0",
+  ],
+  together: [
+    "togethercomputer/m2-bert-80M-8k-retrieval",
+    "BAAI/bge-large-en-v1.5",
+  ],
+  openrouter: [
+    "openai/text-embedding-3-small",
+  ],
+};
+
 export default function ThemesPage() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [lastRun, setLastRun] = useState<LastRun>(null);
@@ -46,6 +75,7 @@ export default function ThemesPage() {
   const [keys, setKeys] = useState<SavedKey[]>([]);
   const [embedKeyId, setEmbedKeyId] = useState<string>("");
   const [labelKeyId, setLabelKeyId] = useState<string>("");
+  const [embedModel, setEmbedModel] = useState<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,6 +101,7 @@ export default function ThemesPage() {
         body: JSON.stringify({
           embed_key_id: embedKeyId || undefined,
           label_key_id: labelKeyId || undefined,
+          embed_model: embedModel || undefined,
         }),
       });
       const j = await r.json();
@@ -124,18 +155,39 @@ export default function ThemesPage() {
                   No embedding-capable key saved. Add an NVIDIA NIM, OpenAI, Google, Cohere, OpenRouter, or Together AI key in Settings.
                 </div>
               ) : (
-                <select
-                  value={embedKeyId}
-                  onChange={(e) => setEmbedKeyId(e.target.value)}
-                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] dark:border-slate-700 dark:bg-slate-800"
-                >
-                  <option value="">Auto (prefer NVIDIA NIM &gt; OpenAI &gt; Google &gt; Cohere &gt; Together &gt; OpenRouter)</option>
-                  {embedKeys.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.provider.toUpperCase()} {k.label ? `· ${k.label}` : ""}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-1.5">
+                  <select
+                    value={embedKeyId}
+                    onChange={(e) => { setEmbedKeyId(e.target.value); setEmbedModel(""); }}
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] dark:border-slate-700 dark:bg-slate-800"
+                  >
+                    <option value="">Auto (prefer NVIDIA NIM &gt; OpenAI &gt; Google &gt; Cohere &gt; Together &gt; OpenRouter)</option>
+                    {embedKeys.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.provider.toUpperCase()} {k.label ? `· ${k.label}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Model override — only meaningful when a specific provider is selected */}
+                  {embedKeyId && (() => {
+                    const k = embedKeys.find((x) => x.id === embedKeyId);
+                    if (!k) return null;
+                    const modelOptions = MODEL_OPTIONS_BY_PROVIDER[k.provider] ?? [];
+                    if (modelOptions.length === 0) return null;
+                    return (
+                      <select
+                        value={embedModel}
+                        onChange={(e) => setEmbedModel(e.target.value)}
+                        className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                      >
+                        <option value="">Model: auto-pick recommended ({modelOptions[0]})</option>
+                        {modelOptions.map((m) => (
+                          <option key={m} value={m}>Model: {m}</option>
+                        ))}
+                      </select>
+                    );
+                  })()}
+                </div>
               )}
             </div>
             <div>
