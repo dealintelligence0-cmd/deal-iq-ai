@@ -62,19 +62,25 @@ export async function refreshThemes(
     .is("embedding", null)
     .limit(cap);
 
+  const embed_errors: string[] = [];
   if (pending && pending.length > 0) {
     const texts = pending.map((d) => buildEmbeddingText(d));
     const vectors = await embedTexts(texts, opts.embedConfig);
-    cost_usd += pending.length * 0.00002;  // ~$0.00002 per text on text-embedding-3-small
+    cost_usd += pending.length * 0.00002;
 
-    // Save embeddings one-by-one — small enough volume that it's fine
+    let nullCount = 0;
     for (let i = 0; i < pending.length; i++) {
       const v = vectors[i];
-      if (!v) continue;
+      if (!v) { nullCount++; continue; }
       await sb.from("canonical_deals")
         .update({ embedding: toPgVector(v), embedding_updated_at: new Date().toISOString() })
         .eq("id", pending[i].id);
       embeddings_added++;
+    }
+    if (nullCount === pending.length && pending.length > 0) {
+      embed_errors.push(`All ${pending.length} embedding calls returned null. Check the ${opts.embedConfig.provider} API key and that the provider supports the model.`);
+    } else if (nullCount > 0) {
+      embed_errors.push(`${nullCount}/${pending.length} embedding calls failed.`);
     }
   }
 
@@ -90,10 +96,15 @@ export async function refreshThemes(
     .limit(2000);
 
   if (!all || all.length < 6) {
+    const errMsg = embed_errors.length > 0
+      ? `Insufficient embedded deals (${all?.length ?? 0}). Errors: ${embed_errors.join(" | ")}`
+      : `Only ${all?.length ?? 0} embedded deals; need 6+ for clustering.`;
     await sb.from("theme_refresh_runs").update({
       status: "completed", embeddings_added, clusters_created: 0,
-      clusters_updated: 0, cost_usd, completed_at: new Date().toISOString(),
+      clusters_updated: 0, cost_usd, error: embed_errors.length > 0 ? errMsg : null,
+      completed_at: new Date().toISOString(),
     }).eq("id", runId!);
+    if (embed_errors.length > 0) throw new Error(errMsg);
     return { embeddings_added, clusters_created: 0, clusters_updated: 0, total_themes: 0, cost_usd };
   }
 

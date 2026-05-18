@@ -15,9 +15,10 @@
  */
 
 import pptxgen from "pptxgenjs";
-import { splitIntoSections } from "@/lib/proposal/visual-renderer";
+import { splitIntoSections, type ProposalSection } from "@/lib/proposal/visual-renderer";
 import { classifyHeading, type SectionKind } from "@/lib/proposal/mbb/section-classifier";
 import { MBB, FONT, SLIDE, BRAND } from "@/lib/proposal/mbb/theme";
+import { getStoryline, type StorylineTemplate } from "@/lib/proposal/storyline-templates";
 
 export type DealMeta = {
   buyer: string;
@@ -29,6 +30,29 @@ export type DealMeta = {
   moduleLabel?: string;
 };
 
+/**
+ * Reorder + filter the markdown sections to match a storyline template.
+ */
+function applyStorylineOrder(
+  sections: ProposalSection[],
+  storyline: StorylineTemplate
+): ProposalSection[] {
+  if (!storyline) return sections;
+  const used = new Set<number>();
+  const ordered: ProposalSection[] = [];
+  for (const slide of storyline.slides) {
+    if (!slide.source_section) continue;
+    const patterns = slide.source_section.split("|").map((p) => p.trim().toLowerCase());
+    const idx = sections.findIndex((s, i) => !used.has(i) && patterns.some((p) => s.heading.toLowerCase().includes(p)));
+    if (idx >= 0) {
+      ordered.push(sections[idx]);
+      used.add(idx);
+    }
+  }
+  for (let i = 0; i < sections.length; i++) if (!used.has(i)) ordered.push(sections[i]);
+  return ordered;
+}
+
 // ===========================================================================
 // Public entry
 // ===========================================================================
@@ -37,6 +61,7 @@ export async function exportProposalToPptx(
   meta: DealMeta,
   citationsMd?: string,
   filename?: string,
+  storylineId?: string,
 ): Promise<void> {
   const pptx = new pptxgen();
   pptx.layout = "LAYOUT_WIDE";
@@ -47,14 +72,15 @@ export async function exportProposalToPptx(
 
   defineMasters(pptx);
 
-  // 1) Cover
   addCoverSlide(pptx, meta);
 
-  // 2) Agenda / contents
-  const sections = splitIntoSections(proposalMd);
+  let sections = splitIntoSections(proposalMd);
+  if (storylineId) {
+    const storyline = getStoryline(storylineId);
+    sections = applyStorylineOrder(sections, storyline);
+  }
   if (sections.length > 1) addAgendaSlide(pptx, sections.map((s) => s.heading), meta);
 
-  // 3) For each section: divider + paginated content
   sections.forEach((section, idx) => {
     const num = String(idx + 1).padStart(2, "0");
     const kind = classifyHeading(section.heading);
@@ -62,10 +88,7 @@ export async function exportProposalToPptx(
     addPaginatedContent(pptx, section.heading, section.body, kind, meta);
   });
 
-  // 4) Sources
   if (citationsMd) addCitationsSlide(pptx, citationsMd, meta);
-
-  // 5) Back cover
   addClosingSlide(pptx, meta);
 
   await pptx.writeFile({
