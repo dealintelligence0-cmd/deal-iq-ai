@@ -24,6 +24,7 @@ type Theme = {
 type LastRun = {
   status: string; completed_at: string | null; started_at: string;
   clusters_created: number | null; embeddings_added: number | null;
+  error: string | null;
 } | null;
 
 type SavedKey = {
@@ -223,9 +224,17 @@ export default function ThemesPage() {
         </div>
       )}
 
+      {/* Show in-flight error if just triggered */}
       {error && (
         <div className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
           {error}
+        </div>
+      )}
+
+      {/* Show persisted info note from the last run when it produced 0 themes */}
+      {!error && lastRun?.error && (
+        <div className="rounded border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          <b>Last refresh note:</b> {lastRun.error}
         </div>
       )}
 

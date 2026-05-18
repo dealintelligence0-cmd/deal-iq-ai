@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest) {
 
   const { data: lastRun } = await sb
     .from("theme_refresh_runs")
-    .select("status, completed_at, started_at, clusters_created, embeddings_added")
+    .select("status, completed_at, started_at, clusters_created, embeddings_added, error")
     .eq("created_by", user.id)
     .order("started_at", { ascending: false })
     .limit(1)
