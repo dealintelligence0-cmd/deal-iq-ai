@@ -69,7 +69,7 @@ const SECTIONS: Section[] = [
   {
     id: "themes", title: "Themes Radar — strategic intelligence", icon: Sparkles,
     content: [
-      { heading: "What it does", body: "Continuously clusters your deal pipeline into emerging strategic themes (Indian consumer roll-ups, APAC fintech consolidation, energy transition, etc). Goldman Sachs-grade thematic synthesis. The system labels every cluster with: strategic summary, drivers, likely next acquisition targets, pitch hypothesis, and consulting angle." },
+      { heading: "What it does", body: "Continuously clusters your deal pipeline into emerging strategic themes (Indian consumer roll-ups, APAC fintech consolidation, energy transition, etc). The system labels every cluster with: strategic summary, drivers, likely next acquisition targets, pitch hypothesis, and consulting angle." },
       { heading: "When to use it", body: "Monday morning briefing. Senior partners don't browse 200 individual deals — they ask 'what's hot in APAC fintech?' Themes Radar gives that answer in 30 seconds." },
       { heading: "How it works", body: "", steps: [
         "Embeds each canonical deal using your saved OpenAI/Google/Cohere/OpenRouter key",

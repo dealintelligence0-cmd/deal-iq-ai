@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Compass, Flame, RefreshCw, ChevronRight, Loader2, Sparkles, TrendingUp } from "lucide-react";
+import { Compass, Flame, RefreshCw, ChevronRight, Loader2, Sparkles, TrendingUp, Key } from "lucide-react";
 
 type Theme = {
   id: string;
@@ -26,6 +26,16 @@ type LastRun = {
   clusters_created: number | null; embeddings_added: number | null;
 } | null;
 
+type SavedKey = {
+  id: string;
+  provider: string;
+  label: string | null;
+  default_model: string | null;
+};
+
+// Providers that expose an /v1/embeddings endpoint
+const EMBED_PROVIDERS = ["nvidia", "openai", "google", "cohere", "together", "openrouter"];
+
 export default function ThemesPage() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [lastRun, setLastRun] = useState<LastRun>(null);
@@ -33,13 +43,20 @@ export default function ThemesPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [keys, setKeys] = useState<SavedKey[]>([]);
+  const [embedKeyId, setEmbedKeyId] = useState<string>("");
+  const [labelKeyId, setLabelKeyId] = useState<string>("");
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/themes");
-      const j = await r.json();
-      setThemes(j.themes ?? []);
-      setLastRun(j.lastRun ?? null);
+      const [themesR, keysR] = await Promise.all([
+        fetch("/api/themes").then((r) => r.json()),
+        fetch("/api/keys").then((r) => r.ok ? r.json() : { keys: [] }),
+      ]);
+      setThemes(themesR.themes ?? []);
+      setLastRun(themesR.lastRun ?? null);
+      setKeys(keysR.keys ?? []);
     } finally { setLoading(false); }
   }, []);
 
@@ -48,7 +65,14 @@ export default function ThemesPage() {
   async function refresh() {
     setRefreshing(true); setError(null);
     try {
-      const r = await fetch("/api/themes/refresh", { method: "POST" });
+      const r = await fetch("/api/themes/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embed_key_id: embedKeyId || undefined,
+          label_key_id: labelKeyId || undefined,
+        }),
+      });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Refresh failed");
       await load();
@@ -60,6 +84,9 @@ export default function ThemesPage() {
   const warmThemes = themes.filter((t) => t.heat === "warm");
   const coolThemes = themes.filter((t) => t.heat === "cool");
 
+  const embedKeys = keys.filter((k) => EMBED_PROVIDERS.includes(k.provider));
+  const labelKeys = keys;  // any text-gen key works for labeling
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -69,7 +96,7 @@ export default function ThemesPage() {
             Thematic Intelligence
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            AI-clustered emerging M&A themes from your deal pipeline. Goldman Sachs–grade strategic synthesis.
+            AI-clustered emerging M&amp;A themes from your deal pipeline.
           </p>
         </div>
         <button
@@ -81,6 +108,60 @@ export default function ThemesPage() {
           {refreshing ? "Clustering deals…" : "Refresh themes"}
         </button>
       </div>
+
+      {keys.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <Key className="h-3 w-3" /> Choose which saved keys to use
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                Embedding key — must be an embeddings-capable provider
+              </label>
+              {embedKeys.length === 0 ? (
+                <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                  No embedding-capable key saved. Add an NVIDIA NIM, OpenAI, Google, Cohere, OpenRouter, or Together AI key in Settings.
+                </div>
+              ) : (
+                <select
+                  value={embedKeyId}
+                  onChange={(e) => setEmbedKeyId(e.target.value)}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] dark:border-slate-700 dark:bg-slate-800"
+                >
+                  <option value="">Auto (prefer NVIDIA NIM &gt; OpenAI &gt; Google &gt; Cohere &gt; Together &gt; OpenRouter)</option>
+                  {embedKeys.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.provider.toUpperCase()} {k.label ? `· ${k.label}` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                Labeling key — any text-gen provider
+              </label>
+              <select
+                value={labelKeyId}
+                onChange={(e) => setLabelKeyId(e.target.value)}
+                className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] dark:border-slate-700 dark:bg-slate-800"
+              >
+                <option value="">Auto (smart → economic → fast tier defaults)</option>
+                {labelKeys.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.provider.toUpperCase()} {k.label ? `· ${k.label}` : ""}
+                    {k.default_model ? ` (${k.default_model})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="mt-2 text-[10px] italic text-slate-500">
+            Tip: NVIDIA NIM&apos;s <code>baai/bge-m3</code> is the most reliable free-tier embedding option. OpenRouter&apos;s embedding routes are often rate-limited.
+          </p>
+        </div>
+      )}
 
       {lastRun && (
         <div className="flex items-center gap-3 text-[11px] text-slate-500">
