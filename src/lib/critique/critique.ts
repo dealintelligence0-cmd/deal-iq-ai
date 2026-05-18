@@ -81,11 +81,13 @@ RESPONSE FORMAT — STRICT JSON ONLY. No markdown, no commentary.
 }
 
 RULES:
-- 3-6 flags, ranked by severity (most damaging first)
-- 1-3 strengths (be honest — many pitches have few)
-- 2-4 sharpening suggestions
+- 3-5 flags, ranked by severity (most damaging first)
+- Each flag text must be ≤120 characters — concise, actionable
+- 1-3 strengths (be honest — many pitches have few). Each ≤80 chars.
+- 2-3 sharpening suggestions. Keep each suggestion ≤200 chars total.
 - Scores: 70+ means genuinely strong, 50-69 means acceptable but not partner-grade, <50 means problematic
 - NEVER use "transformational", "strategic value", "robust framework" or other consulting filler in your own response
+- Output MUST be valid JSON. Do not include trailing commas. Do not include comments.
 `.trim();
 
 function buildPersonaPrompt(personaPrompt: string, proposalContent: string, proposalMeta: {
@@ -109,11 +111,102 @@ Critique this pitch from your perspective. Return JSON only.`,
 // PARSING
 // ============================================================================
 
+/**
+ * Safely parse AI-returned JSON, including:
+ *  - stripping markdown code fences (``` or ```json) anywhere in the string
+ *  - finding the outermost { ... } block
+ *  - if the response was truncated, attempting to close it and retry
+ *  - last-resort: extract individual top-level numeric fields by regex
+ */
 function safeJsonParse(text: string): Record<string, unknown> | null {
-  let s = text.trim().replace(/^```(?:json)?\s*/, "").replace(/```\s*$/, "");
-  const a = s.indexOf("{"); const b = s.lastIndexOf("}");
-  if (a < 0 || b < 0) return null;
-  try { return JSON.parse(s.slice(a, b + 1)); } catch { return null; }
+  if (!text) return null;
+  // Strip code fences anywhere (some providers stream ```json then content then ``` at end)
+  let s = text.replace(/```(?:json)?/gi, "").trim();
+  const a = s.indexOf("{");
+  if (a < 0) return null;
+  // Try the full block from first { to last }
+  const lastBrace = s.lastIndexOf("}");
+  if (lastBrace > a) {
+    try { return JSON.parse(s.slice(a, lastBrace + 1)); } catch { /* fall through */ }
+  }
+  // The response was probably truncated. Try to repair it.
+  const body = s.slice(a);
+  const repaired = tryRepairTruncatedJson(body);
+  if (repaired) {
+    try { return JSON.parse(repaired); } catch { /* fall through */ }
+  }
+  // Last resort — pull individual numeric fields out by regex so we at least get scores
+  return extractScoresOnly(body);
+}
+
+/** Attempt to balance braces/brackets in truncated JSON. */
+function tryRepairTruncatedJson(s: string): string | null {
+  // Walk through the string tracking open structures, stop if we hit an unterminated string
+  let inString = false; let escape = false; const stack: string[] = [];
+  let lastCompleteValueEnd = -1;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (escape) { escape = false; continue; }
+    if (c === "\\") { escape = true; continue; }
+    if (inString) { if (c === '"') inString = false; continue; }
+    if (c === '"') { inString = true; continue; }
+    if (c === "{" || c === "[") stack.push(c);
+    else if (c === "}" || c === "]") {
+      stack.pop();
+      if (stack.length === 0) lastCompleteValueEnd = i;
+    }
+    else if (c === "," && stack.length === 1) {
+      // top-level field boundary — safe trim point
+      lastCompleteValueEnd = i - 1;
+    }
+  }
+  // If we're mid-string, close it
+  let repaired = s;
+  if (inString) repaired += '"';
+  // If we have a trailing partial value after the last safe comma, trim back
+  if (lastCompleteValueEnd > 0 && (stack.length > 0 || inString)) {
+    repaired = s.slice(0, lastCompleteValueEnd + 1);
+    // Recompute stack from the trimmed prefix
+    stack.length = 0; inString = false; escape = false;
+    for (let i = 0; i < repaired.length; i++) {
+      const c = repaired[i];
+      if (escape) { escape = false; continue; }
+      if (c === "\\") { escape = true; continue; }
+      if (inString) { if (c === '"') inString = false; continue; }
+      if (c === '"') { inString = true; continue; }
+      if (c === "{" || c === "[") stack.push(c);
+      else if (c === "}" || c === "]") stack.pop();
+    }
+  }
+  // Close every open structure
+  while (stack.length > 0) {
+    const top = stack.pop();
+    repaired += top === "{" ? "}" : "]";
+  }
+  return repaired;
+}
+
+/** Pull individual numeric fields out by regex — last-resort fallback. */
+function extractScoresOnly(s: string): Record<string, unknown> | null {
+  const num = (field: string): number | undefined => {
+    const m = s.match(new RegExp(`"${field}"\\s*:\\s*(\\d+)`));
+    return m ? parseInt(m[1], 10) : undefined;
+  };
+  const credibility         = num("credibility");
+  const differentiation     = num("differentiation");
+  const executive_relevance = num("executive_relevance");
+  const strategic_sharpness = num("strategic_sharpness");
+  if (credibility === undefined && differentiation === undefined &&
+      executive_relevance === undefined && strategic_sharpness === undefined) {
+    return null;
+  }
+  const verdictMatch = s.match(/"one_line_verdict"\s*:\s*"([^"]*)"/);
+  return {
+    credibility, differentiation, executive_relevance, strategic_sharpness,
+    flags: [], strengths: [], sharpening_suggestions: [],
+    one_line_verdict: verdictMatch ? verdictMatch[1] : "(response truncated — partial parse)",
+    _partial: true,
+  };
 }
 
 function clamp(n: unknown, lo = 0, hi = 100): number {
@@ -155,10 +248,14 @@ export async function critiquePitch(
       const res = await routedCall(routeCfg, [
         { role: "system", content: system, stable: true },
         { role: "user", content: user },
-      ], 1400);
+      ], 2500);
       const parsed = safeJsonParse(res.text);
       if (!parsed) {
-        personaErrors.push(`${p.display_name}: AI returned non-JSON. First 100 chars: "${res.text.slice(0, 100)}"`);
+        const preview = res.text.slice(0, 300).replace(/\n/g, " ");
+        const tokenHint = res.outputTokens >= 2400
+          ? " (response hit max-tokens limit — likely truncated)"
+          : "";
+        personaErrors.push(`${p.display_name}: could not parse AI response${tokenHint}. Preview: "${preview}…"`);
         return null;
       }
       lastProvider = res.provider; lastModel = res.model;
@@ -173,7 +270,8 @@ export async function critiquePitch(
         flags: Array.isArray(parsed.flags) ? (parsed.flags as PersonaCritique["flags"]).slice(0, 8) : [],
         strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]).slice(0, 5) : [],
         sharpening_suggestions: Array.isArray(parsed.sharpening_suggestions) ? (parsed.sharpening_suggestions as PersonaCritique["sharpening_suggestions"]).slice(0, 5) : [],
-        one_line_verdict: typeof parsed.one_line_verdict === "string" ? parsed.one_line_verdict : "",
+        one_line_verdict: typeof parsed.one_line_verdict === "string" ? parsed.one_line_verdict
+          : (parsed._partial ? "Partial parse — provider truncated the response. Try Sharpen for a smaller model or upgrade the smart-tier key." : ""),
       } as PersonaCritique;
     } catch (e: any) {
       personaErrors.push(`${p.display_name}: ${e?.message ?? String(e)}`);
