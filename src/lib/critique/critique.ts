@@ -142,6 +142,7 @@ export async function critiquePitch(
 
   // Run each persona in parallel
   const personaResults: PersonaCritique[] = [];
+  const personaErrors: string[] = [];
   let totalCost = 0; let lastProvider: ProviderId = routeCfg.primaryProvider; let lastModel = "";
 
   const promises = personas.map(async (p) => {
@@ -156,9 +157,11 @@ export async function critiquePitch(
         { role: "user", content: user },
       ], 1400);
       const parsed = safeJsonParse(res.text);
-      if (!parsed) return null;
+      if (!parsed) {
+        personaErrors.push(`${p.display_name}: AI returned non-JSON. First 100 chars: "${res.text.slice(0, 100)}"`);
+        return null;
+      }
       lastProvider = res.provider; lastModel = res.model;
-      // Naive cost estimate (per-1k tokens approximate; refined later)
       totalCost += ((res.inputTokens / 1000) * 0.0015) + ((res.outputTokens / 1000) * 0.006);
       return {
         persona_id: p.id,
@@ -172,12 +175,17 @@ export async function critiquePitch(
         sharpening_suggestions: Array.isArray(parsed.sharpening_suggestions) ? (parsed.sharpening_suggestions as PersonaCritique["sharpening_suggestions"]).slice(0, 5) : [],
         one_line_verdict: typeof parsed.one_line_verdict === "string" ? parsed.one_line_verdict : "",
       } as PersonaCritique;
-    } catch { return null; }
+    } catch (e: any) {
+      personaErrors.push(`${p.display_name}: ${e?.message ?? String(e)}`);
+      return null;
+    }
   });
   const results = await Promise.all(promises);
   for (const r of results) if (r) personaResults.push(r);
 
-  if (personaResults.length === 0) throw new Error("All persona critiques failed. Check your AI key configuration.");
+  if (personaResults.length === 0) {
+    throw new Error(`All persona critiques failed. Issues:\n${personaErrors.join("\n")}`);
+  }
 
   // Aggregate
   const avg = (key: keyof PersonaCritique): number => {
