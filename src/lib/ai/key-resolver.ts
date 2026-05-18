@@ -57,7 +57,7 @@ export async function resolveKey(
   return { provider: "free", model: null, apiKey: null, source: null };
 }
 
-async function decryptKey(admin: SupabaseClient, encrypted: string): Promise<string | null> {
+export async function decryptKey(admin: SupabaseClient, encrypted: string): Promise<string | null> {
   try { const { data } = await admin.rpc("decrypt_key", { cipher: encrypted }); return data as string | null; }
   catch { return null; }
 }
