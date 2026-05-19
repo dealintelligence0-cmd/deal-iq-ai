@@ -5,7 +5,7 @@
 import { useState } from "react";
 import {
   BookOpen, ChevronRight, Search, Rocket, Upload, GitMerge,
-  AlertTriangle, Briefcase, Sparkles, FileText, Download, Shield,
+  AlertTriangle, Briefcase, Sparkles, FileText, Download, Shield, Target,
   Settings as SettingsIcon, HelpCircle, Zap, FlaskConical, Globe, Trash2, History,
 } from "lucide-react";
 
@@ -111,6 +111,24 @@ const SECTIONS: Section[] = [
       ]},
       { heading: "Coverage", body: "Phase 4 v1 covers SEC EDGAR (US-listed). Non-US companies can be added to the watchlist for tracking, but full filing coverage requires Phase 5 (international filings via additional free sources)." },
       { heading: "Cost", body: "~$0.05 per filing scanned (smart-tier key). Typical company with 3 recent filings = $0.15. Cron runs daily at 03:00 UTC, scans 2 filings per company in 90-day lookback to minimise cost." },
+    ],
+  },
+  {
+    id: "boltons", title: "Bolt-on Engine — Buyer Acquisition Targets", icon: Target,
+    content: [
+      { heading: "What it does", body: "For any acquirer in your pipeline, generates a 6-10 target bolt-on shortlist with fit score, strategic rationale, synergy thesis, whitespace angle, outreach angle, and risk flags. The AI grounds recommendations in the buyer's actual M&A pattern (sectors, geographies, typical size) AND your emerging themes corpus." },
+      { heading: "When to use it", body: "Before any pitch to an active acquirer. Before quarterly pipeline reviews with the engagement team. When a partner asks 'what should we be telling Reliance to acquire next quarter?'" },
+      { heading: "How to use", body: "", steps: [
+        "Sidebar → Intelligence → Bolt-on Engine",
+        "Pick a buyer from the dropdown (shows their pipeline deal count)",
+        "Pick target tier — Mid/Large/Mega/Any",
+        "Optional: type a partner directive ('focus on India consumer mid-caps')",
+        "Click Generate — takes ~30-45 seconds",
+        "Review 6-10 ranked targets. Click Pursue or Dismiss on each",
+        "Targets feed your proposal generator — when you write a pitch for the same buyer, top 6 active targets appear in the AI's context",
+      ]},
+      { heading: "Fit score interpretation", body: "80+ = obvious bolt-on (sector + geo + size aligned with buyer pattern). 60-79 = strong fit (1-2 dimensions slightly stretch). 40-59 = adjacent (real opportunity but needs strategic framing). <40 = stretch (only pursue with a specific catalyst)." },
+      { heading: "Cost", body: "~$0.05 per shortlist (one profile call + one generation call). At your current key setup (NVIDIA NIM smart-tier), effectively free." },
     ],
   },
   {
@@ -378,7 +396,7 @@ const ALL = [...SECTIONS, ...MORE_SECTIONS];
 const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
   { label: "Deal Data", ids: ["uploads", "pipeline", "resolution", "enrich"] },
-  { label: "Intelligence", ids: ["themes", "critique", "storylines", "signals"] },
+  { label: "Intelligence", ids: ["themes", "critique", "storylines", "signals", "boltons"] },
   { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
   { label: "System", ids: ["exports", "settings", "faq"] },
 ];

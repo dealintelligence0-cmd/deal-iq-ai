@@ -278,7 +278,42 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
     console.error("Signals injection failed:", e);
   }
 
-  const fullContext = dealContext + signalsBlock + buildIndustryContextBlock(sector, geography);
+  // Phase 5: pull latest bolt-on shortlist for the buyer (if exists)
+  let boltOnBlock = "";
+  try {
+    if (buyer) {
+      const { data: shortlist } = await admin
+        .from("bolt_on_shortlists")
+        .select("id, refreshed_at")
+        .eq("created_by", user.id)
+        .eq("status", "active")
+        .ilike("buyer_name", buyer)
+        .order("refreshed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (shortlist) {
+        const { data: targets } = await admin
+          .from("bolt_on_targets")
+          .select("target_name, target_sector, target_geography, fit_score, strategic_rationale, status")
+          .eq("shortlist_id", shortlist.id)
+          .neq("status", "dismissed")
+          .order("fit_score", { ascending: false })
+          .limit(6);
+        if (targets && targets.length > 0) {
+          boltOnBlock = "\n## BUYER BOLT-ON SHORTLIST (from Phase 5 engine)\nIf relevant to the pitch, you may reference these adjacent targets the buyer should consider:\n\n" +
+            targets.map((t: any, i: number) => {
+              const sector = t.target_sector ?? "—";
+              const geo = t.target_geography ?? "";
+              return `${i + 1}. ${t.target_name} (${sector} ${geo}) — fit ${t.fit_score}/100. ${t.strategic_rationale}`;
+            }).join("\n") + "\n";
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Bolt-on injection failed:", e);
+  }
+
+  const fullContext = dealContext + signalsBlock + boltOnBlock + buildIndustryContextBlock(sector, geography);
 
   const ctx = buildDealContext({
     buyer, target, sector, geography, deal_size,
