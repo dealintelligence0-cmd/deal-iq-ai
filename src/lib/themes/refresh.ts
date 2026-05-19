@@ -146,6 +146,8 @@ export async function refreshThemes(
 
   let clusters_created = 0;
   let clusters_updated = 0;
+  let fallbackUsed = 0;
+  const labelErrors: string[] = [];
 
   // ---- 5. For each cluster: label + persist ----
   for (const cluster of clusters) {
@@ -154,7 +156,7 @@ export async function refreshThemes(
                                      .sort((a, b) => b.sim - a.sim);
     const topMembersMeta = ranked.slice(0, 10).map((r) => dealMeta.get(r.id)).filter(Boolean) as Array<typeof all[0]>;
 
-    const label = await labelCluster(opts.labelRouteConfig, topMembersMeta.map((d) => ({
+    const labelResult = await labelCluster(opts.labelRouteConfig, topMembersMeta.map((d) => ({
       heading: d.heading as string,
       buyer: d.buyer as string | null,
       target: d.target as string | null,
@@ -162,9 +164,12 @@ export async function refreshThemes(
       country: d.dominant_geography as string | null,
       deal_type: d.deal_type as string | null,
     })));
-    cost_usd += 0.003;  // approx per labelling call
+    cost_usd += 0.003;
 
-    if (!label) continue;
+    const label = labelResult.label;
+    if (labelResult.error) labelErrors.push(labelResult.error);
+    if (!label) continue;  // fallback also failed — extremely rare
+    if (labelResult.via === "fallback") fallbackUsed++;
 
     // Compute aggregate metrics
     const allMemberMeta = cluster.memberIds.map((id) => dealMeta.get(id)).filter(Boolean) as Array<typeof all[0]>;
@@ -177,10 +182,13 @@ export async function refreshThemes(
       if (m.dominant_geography) geos.add(m.dominant_geography as string);
     }
 
-    // Upsert theme
-    const { data: insertedTheme } = await sb.from("themes").upsert({
+    // Upsert theme — append a small disambiguation suffix to the slug to avoid
+    // collisions when multiple clusters in one run share the same fallback slug
+    const uniqueSlug = `${label.slug}-${cluster.memberIds[0].slice(0, 6)}`.slice(0, 60);
+
+    const { data: insertedTheme, error: upsertErr } = await sb.from("themes").upsert({
       created_by: opts.userId,
-      slug: label.slug,
+      slug: uniqueSlug,
       display_name: label.display_name,
       emoji: label.emoji,
       strategic_summary: label.strategic_summary,
@@ -199,6 +207,10 @@ export async function refreshThemes(
       last_refreshed_at: new Date().toISOString(),
     }, { onConflict: "created_by,slug" }).select("id").single();
 
+    if (upsertErr) {
+      labelErrors.push(`Upsert failed for "${label.display_name}": ${upsertErr.message}`);
+      continue;
+    }
     const themeId = (insertedTheme as { id: string } | null)?.id;
     if (!themeId) continue;
     clusters_created++;
@@ -215,10 +227,18 @@ export async function refreshThemes(
     }
   }
 
-  // If we got 0 clusters, attach the diagnostic so user sees WHY
-  const finalError = clusters_created === 0
-    ? `Embedded ${embeddings_added} new deals but produced 0 themes. ${diagSummary}. Your embeddings may be too diverse — try uploading more deals in the same sector, or lower the threshold.`
-    : null;
+  // Build a precise diagnostic based on what actually happened
+  let finalError: string | null = null;
+  if (clusters_created === 0 && diagnostic.clustersFound > 0) {
+    // Clusters formed but none got persisted — all labelings failed
+    const firstErr = labelErrors[0] ?? "Unknown labeling error.";
+    finalError = `Clustering found ${diagnostic.clustersFound} candidate themes but the AI labeler failed for all of them. First error: ${firstErr}`;
+  } else if (clusters_created === 0) {
+    finalError = `Embedded ${embeddings_added} new deals but no clusters formed. ${diagSummary}. Your embeddings may be too diverse — try uploading more deals in the same sector.`;
+  } else if (fallbackUsed > 0) {
+    // Some clusters got labeled, some used the fallback — informational only
+    finalError = `Used deterministic fallback labels for ${fallbackUsed} of ${clusters_created} themes (AI labeling failed for those). First error: ${labelErrors[0] ?? "see logs"}`;
+  }
 
   await sb.from("theme_refresh_runs").update({
     status: "completed",
