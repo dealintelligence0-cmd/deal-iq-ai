@@ -12,7 +12,7 @@
  */
 
 export type FilingMeta = {
-  source: "sec_edgar" | "annual_reports" | "manual";
+  source: "sec_edgar" | "annual_reports" | "uk_companies_house" | "india_bse" | "india_nse" | "eu_oam" | "manual";
   source_id: string;
   filing_type: string;
   title: string;

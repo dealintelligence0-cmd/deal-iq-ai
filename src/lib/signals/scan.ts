@@ -19,6 +19,9 @@ import {
   lookupCikFromTicker, listSecFilings, fetchSecFilingText,
   type FilingMeta,
 } from "./sources";
+import { lookupUkCompanyNumber, listUkFilings, fetchUkFilingText } from "./sources-uk";
+import { listBseAnnouncements, fetchBseAnnouncementText, listNseAnnouncements } from "./sources-india";
+import { lookupEuLei } from "./sources-eu";
 import { extractSignals } from "./extractor";
 
 export type ScanResult = {
@@ -61,7 +64,7 @@ export async function scanSignals(
   try {
     // Load watchlist (filter to specific row if requested)
     let q = sb.from("watchlist_companies")
-      .select("id, company_name, ticker, cik, country, sector")
+      .select("id, company_name, ticker, cik, country, sector, uk_company_number, bse_scrip_code, nse_symbol, eu_lei")
       .eq("is_active", true);
     if (opts.watchlistId) q = q.eq("id", opts.watchlistId);
     const { data: companies, error: qErr } = await q;
@@ -78,96 +81,158 @@ export async function scanSignals(
     for (const co of companies) {
       result.companies_scanned++;
       try {
-        // Resolve CIK
+        // ============================================================
+        // Build list of (source, filings) pairs we'll process for this company.
+        // Try every source the company has an identifier for.
+        // ============================================================
+        type SourceFilings = { sourceName: string; filings: FilingMeta[]; fetchText: (f: FilingMeta) => Promise<string | null> };
+        const sources: SourceFilings[] = [];
+
+        // --- SEC (US) ---
         let cik = co.cik as string | null;
         if (!cik && co.ticker) {
           cik = await lookupCikFromTicker(co.ticker as string);
           if (cik) await sb.from("watchlist_companies").update({ cik }).eq("id", co.id as string);
         }
-        if (!cik) {
-          // Skip non-US-listed companies for now (Phase 4 v1 is SEC-only)
+        if (cik) {
+          const filings = await listSecFilings(cik, ["10-K","10-Q","8-K","DEF 14A"], maxFilings * 2);
+          sources.push({
+            sourceName: "sec_edgar",
+            filings,
+            fetchText: (f) => fetchSecFilingText(f.url, 100_000),
+          });
+        }
+
+        // --- UK Companies House ---
+        let ukNum = co.uk_company_number as string | null;
+        if (!ukNum && (co.country as string)?.toLowerCase().includes("united kingdom")) {
+          ukNum = await lookupUkCompanyNumber(co.company_name as string);
+          if (ukNum) await sb.from("watchlist_companies").update({ uk_company_number: ukNum }).eq("id", co.id as string);
+        }
+        if (ukNum) {
+          const filings = await listUkFilings(ukNum, maxFilings * 2);
+          sources.push({
+            sourceName: "uk_companies_house",
+            filings,
+            fetchText: (f) => fetchUkFilingText(f.url, 50_000),
+          });
+        }
+
+        // --- BSE India ---
+        if (co.bse_scrip_code) {
+          const filings = await listBseAnnouncements(co.bse_scrip_code as string, maxFilings * 2);
+          sources.push({
+            sourceName: "india_bse",
+            filings,
+            fetchText: async (f) => {
+              // BSE: source_id IS the NEWSID
+              return fetchBseAnnouncementText(co.bse_scrip_code as string, f.source_id, 50_000);
+            },
+          });
+        }
+
+        // --- NSE India (best-effort, may fail server-side) ---
+        if (co.nse_symbol) {
+          const filings = await listNseAnnouncements(co.nse_symbol as string, maxFilings * 2);
+          sources.push({
+            sourceName: "india_nse",
+            filings,
+            // Use the title + filing_type as the "text" (NSE attachments are PDFs)
+            fetchText: async (f) => `${f.title}\n\n${f.filing_type}`,
+          });
+        }
+
+        // --- EU LEI lookup (just to populate the LEI; full filings deferred) ---
+        if (!co.eu_lei && (co.country as string) && !["USA","UK","India"].includes(co.country as string)) {
+          const lei = await lookupEuLei(co.company_name as string);
+          if (lei?.lei) {
+            await sb.from("watchlist_companies").update({ eu_lei: lei.lei }).eq("id", co.id as string);
+          }
+        }
+
+        // ============================================================
+        // No sources resolved → mark scanned and continue
+        // ============================================================
+        if (sources.length === 0) {
           await sb.from("watchlist_companies").update({ last_scanned_at: new Date().toISOString() }).eq("id", co.id as string);
           continue;
         }
 
-        // List filings
-        const filings = await listSecFilings(cik, ["10-K","10-Q","8-K","DEF 14A"], maxFilings * 2);
-        result.filings_found += filings.length;
+        // ============================================================
+        // Process filings from each source
+        // ============================================================
+        for (const src of sources) {
+          result.filings_found += src.filings.length;
 
-        // Filter to new + recent
-        const fresh: FilingMeta[] = [];
-        for (const f of filings) {
-          if (fresh.length >= maxFilings) break;
-          if (!f.filed_date) continue;
-          if (new Date(f.filed_date) < cutoff) continue;
-          // Dedupe via unique constraint check
-          const { data: existing } = await sb.from("company_filings")
-            .select("id").eq("watchlist_id", co.id as string)
-            .eq("source", "sec_edgar").eq("source_id", f.source_id).maybeSingle();
-          if (!existing) fresh.push(f);
-        }
+          // Filter to new + recent
+          const fresh: FilingMeta[] = [];
+          for (const f of src.filings) {
+            if (fresh.length >= maxFilings) break;
+            if (!f.filed_date) continue;
+            if (new Date(f.filed_date) < cutoff) continue;
+            const { data: existing } = await sb.from("company_filings")
+              .select("id").eq("watchlist_id", co.id as string)
+              .eq("source", src.sourceName).eq("source_id", f.source_id).maybeSingle();
+            if (!existing) fresh.push(f);
+          }
 
-        // Process each new filing
-        for (const f of fresh) {
-          const rawText = await fetchSecFilingText(f.url, 100_000);
-          if (!rawText || rawText.length < 500) {
-            // Save the filing record but mark skipped
-            await sb.from("company_filings").insert({
+          for (const f of fresh) {
+            const rawText = await src.fetchText(f);
+            if (!rawText || rawText.length < 200) {
+              await sb.from("company_filings").insert({
+                watchlist_id: co.id as string,
+                created_by: opts.userId,
+                source: src.sourceName, source_id: f.source_id,
+                filing_type: f.filing_type, title: f.title, url: f.url,
+                filed_date: f.filed_date, fiscal_period: f.fiscal_period,
+                raw_text_chars: rawText?.length ?? 0,
+                scan_status: "skipped",
+                scan_error: "Filing too short or unreadable",
+              });
+              continue;
+            }
+
+            const ex = await extractSignals(opts.routeConfig, co.company_name as string, f.filing_type, f.fiscal_period, rawText);
+            result.cost_usd += ex.cost_usd;
+
+            const { data: filingRow, error: filingErr } = await sb.from("company_filings").insert({
               watchlist_id: co.id as string,
               created_by: opts.userId,
-              source: f.source, source_id: f.source_id,
+              source: src.sourceName, source_id: f.source_id,
               filing_type: f.filing_type, title: f.title, url: f.url,
               filed_date: f.filed_date, fiscal_period: f.fiscal_period,
-              raw_text_chars: rawText?.length ?? 0,
-              scan_status: "skipped",
-              scan_error: "Filing too short or unreadable",
-            });
-            continue;
-          }
+              raw_text: rawText.slice(0, 500_000),
+              raw_text_chars: rawText.length,
+              scan_status: ex.error ? "failed" : "scanned",
+              scan_error: ex.error,
+              scanned_at: new Date().toISOString(),
+            }).select("id").single();
 
-          // Extract signals
-          const ex = await extractSignals(opts.routeConfig, co.company_name as string, f.filing_type, f.fiscal_period, rawText);
-          result.cost_usd += ex.cost_usd;
+            if (filingErr) {
+              result.errors.push(`Filing insert failed (${co.company_name} ${f.filing_type}): ${filingErr.message}`);
+              continue;
+            }
+            result.filings_processed++;
+            const filingId = (filingRow as { id: string } | null)?.id;
 
-          // Save filing
-          const { data: filingRow, error: filingErr } = await sb.from("company_filings").insert({
-            watchlist_id: co.id as string,
-            created_by: opts.userId,
-            source: f.source, source_id: f.source_id,
-            filing_type: f.filing_type, title: f.title, url: f.url,
-            filed_date: f.filed_date, fiscal_period: f.fiscal_period,
-            raw_text: rawText.slice(0, 500_000),
-            raw_text_chars: rawText.length,
-            scan_status: ex.error ? "failed" : "scanned",
-            scan_error: ex.error,
-            scanned_at: new Date().toISOString(),
-          }).select("id").single();
-
-          if (filingErr) {
-            result.errors.push(`Filing insert failed (${co.company_name} ${f.filing_type}): ${filingErr.message}`);
-            continue;
-          }
-          result.filings_processed++;
-          const filingId = (filingRow as { id: string } | null)?.id;
-
-          // Save signals
-          if (ex.signals.length > 0 && filingId) {
-            const payload = ex.signals.map((s) => ({
-              watchlist_id: co.id as string,
-              filing_id: filingId,
-              created_by: opts.userId,
-              signal_type: s.signal_type,
-              severity: s.severity,
-              confidence: s.confidence,
-              headline: s.headline,
-              evidence_quote: s.evidence_quote,
-              evidence_page: `${f.filing_type}${f.fiscal_period ? ` ${f.fiscal_period}` : ""}`,
-              context: s.context,
-              pitch_angle: s.pitch_angle,
-            }));
-            const { error: sigErr } = await sb.from("executive_signals").insert(payload);
-            if (sigErr) result.errors.push(`Signal insert failed: ${sigErr.message}`);
-            else result.signals_extracted += ex.signals.length;
+            if (ex.signals.length > 0 && filingId) {
+              const payload = ex.signals.map((s) => ({
+                watchlist_id: co.id as string,
+                filing_id: filingId,
+                created_by: opts.userId,
+                signal_type: s.signal_type,
+                severity: s.severity,
+                confidence: s.confidence,
+                headline: s.headline,
+                evidence_quote: s.evidence_quote,
+                evidence_page: `${f.filing_type}${f.fiscal_period ? ` ${f.fiscal_period}` : ""}`,
+                context: s.context,
+                pitch_angle: s.pitch_angle,
+              }));
+              const { error: sigErr } = await sb.from("executive_signals").insert(payload);
+              if (sigErr) result.errors.push(`Signal insert failed: ${sigErr.message}`);
+              else result.signals_extracted += ex.signals.length;
+            }
           }
         }
 
