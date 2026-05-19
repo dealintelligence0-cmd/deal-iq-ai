@@ -18,7 +18,7 @@ export async function GET() {
 
   const { data, error } = await sb
     .from("watchlist_companies")
-    .select("id, company_name, ticker, cik, sector, country, is_active, notes, last_scanned_at, created_at")
+    .select("id, company_name, ticker, cik, uk_company_number, bse_scrip_code, nse_symbol, eu_lei, sector, country, is_active, notes, last_scanned_at, created_at, added_via")
     .order("company_name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -57,7 +57,13 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { company_name?: string; ticker?: string; cik?: string; sector?: string; country?: string; notes?: string; related_deal_id?: string };
+  let body: {
+    company_name?: string; ticker?: string; cik?: string;
+    sector?: string; country?: string; notes?: string;
+    related_deal_id?: string;
+    uk_company_number?: string; bse_scrip_code?: string;
+    nse_symbol?: string; eu_lei?: string;
+  };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   if (!body.company_name?.trim()) return NextResponse.json({ error: "company_name required" }, { status: 400 });
 
@@ -70,6 +76,10 @@ export async function POST(req: NextRequest) {
     country: body.country?.trim() || null,
     notes: body.notes?.trim() || null,
     related_deal_id: body.related_deal_id || null,
+    uk_company_number: body.uk_company_number?.trim() || null,
+    bse_scrip_code: body.bse_scrip_code?.trim().replace(/\D/g, "") || null,
+    nse_symbol: body.nse_symbol?.trim().toUpperCase() || null,
+    eu_lei: body.eu_lei?.trim().toUpperCase() || null,
     added_via: body.related_deal_id ? "deal_import" : "manual",
   }).select().single();
 
