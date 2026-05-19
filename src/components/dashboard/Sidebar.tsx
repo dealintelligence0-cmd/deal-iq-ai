@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   BrainCircuit, LayoutDashboard, CloudUpload, GitMerge,
-  AlertTriangle, Briefcase, FileText, Settings, Sparkles,
+  AlertTriangle, Briefcase, FileText, Settings, Sparkles, Activity,
   Download, Shield, BookOpen, Layers, TrendingUp, ArrowLeftRight, Lightbulb, Target, ClipboardCheck,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -28,6 +28,7 @@ const NAV_GROUPS = [
   {
     label: "Intelligence", items: [
       { label: "Themes Radar",     href: "/dashboard/themes",           icon: Sparkles },
+      { label: "Signal Intel",     href: "/dashboard/signals",          icon: Activity },
     ],
   },
   {
