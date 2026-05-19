@@ -29,6 +29,7 @@ const NAV_GROUPS = [
     label: "Intelligence", items: [
       { label: "Themes Radar",     href: "/dashboard/themes",           icon: Sparkles },
       { label: "Signal Intel",     href: "/dashboard/signals",          icon: Activity },
+      { label: "Bolt-on Engine",   href: "/dashboard/boltons",          icon: Target },
     ],
   },
   {
