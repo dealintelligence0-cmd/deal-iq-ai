@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/refresh-themes",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/scan-signals",
+      "schedule": "0 3 * * *"
     }
   ]
 }
