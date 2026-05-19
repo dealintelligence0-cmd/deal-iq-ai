@@ -98,6 +98,22 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: "signals", title: "Signal Intelligence — Executive Filing Analysis", icon: AlertTriangle,
+    content: [
+      { heading: "What it does", body: "Pulls recent SEC filings (10-K, 10-Q, 8-K, DEF 14A) for companies on your watchlist and uses AI to extract 5 categories of advisory signals: margin pressure, transformation pressure, activist activity, acquisition intent, leadership change. Each signal includes a direct quote from the filing, an analyst interpretation, and the specific consulting pitch angle it opens." },
+      { heading: "When to use it", body: "When prepping a proposal for an MBB-grade client. Before any pitch meeting. As Monday-morning briefing. Signals automatically feed into the Proposal Generator when the buyer or target is on your watchlist — proposals become evidence-backed instead of generic." },
+      { heading: "How to use", body: "", steps: [
+        "Sidebar → Intelligence → Signal Intel",
+        "Click 'Add company' — enter the name, SEC ticker (for US-listed companies), and optional sector/country",
+        "Click 'Scan all' or 'Scan now' on a specific company — takes 30-90 seconds per company",
+        "Review extracted signals. Dismiss the ones that aren't relevant",
+        "Generate a proposal for that company on M&A Proposals — signals will appear in the generated content",
+      ]},
+      { heading: "Coverage", body: "Phase 4 v1 covers SEC EDGAR (US-listed). Non-US companies can be added to the watchlist for tracking, but full filing coverage requires Phase 5 (international filings via additional free sources)." },
+      { heading: "Cost", body: "~$0.05 per filing scanned (smart-tier key). Typical company with 3 recent filings = $0.15. Cron runs daily at 03:00 UTC, scans 2 filings per company in 90-day lookback to minimise cost." },
+    ],
+  },
+  {
     id: "storylines", title: "Storyline Templates (PPTX slide intelligence)", icon: FileText,
     content: [
       { heading: "What it does", body: "Before exporting a proposal to PPTX, pick one of 6 MBB storyline templates. Each template reorders slides to match a specific narrative arc — Pyramid Principle, Strategic Case, Operating Transformation, Synergy Bridge, IC Pack, or Board Narrative. The deck reflects how senior partners actually present, not just what the AI wrote." },
@@ -362,7 +378,7 @@ const ALL = [...SECTIONS, ...MORE_SECTIONS];
 const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
   { label: "Deal Data", ids: ["uploads", "pipeline", "resolution", "enrich"] },
-  { label: "Intelligence", ids: ["themes", "critique", "storylines"] },
+  { label: "Intelligence", ids: ["themes", "critique", "storylines", "signals"] },
   { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
   { label: "System", ids: ["exports", "settings", "faq"] },
 ];

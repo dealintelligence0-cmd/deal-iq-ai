@@ -242,7 +242,43 @@ ${servicesBlock}
 ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)}\n` : ""}
 `;
 
-  const fullContext = dealContext + buildIndustryContextBlock(sector, geography);
+  // Phase 4: pull active signals for buyer or target if they're on the watchlist
+  let signalsBlock = "";
+  try {
+    const namesToCheck = [buyer, target].filter(Boolean) as string[];
+    if (namesToCheck.length > 0) {
+      const { data: watchRows } = await admin
+        .from("watchlist_companies")
+        .select("id, company_name")
+        .eq("created_by", user.id)
+        .in("company_name", namesToCheck);
+      const watchIds = (watchRows ?? []).map((r) => r.id as string);
+      if (watchIds.length > 0) {
+        const { data: sigs } = await admin
+          .from("executive_signals")
+          .select("signal_type, severity, headline, evidence_quote, context, pitch_angle, watchlist_companies!inner(company_name)")
+          .in("watchlist_id", watchIds)
+          .eq("status", "active")
+          .order("severity", { ascending: false })
+          .limit(10);
+        if (sigs && sigs.length > 0) {
+          signalsBlock = "\n## EXECUTIVE SIGNALS (extracted from recent filings)\nUse these to ground your pitch in concrete, evidence-backed observations:\n\n" +
+            sigs.map((s: any, i) => {
+              const name = s.watchlist_companies?.company_name ?? "";
+              return `${i + 1}. [${(s.severity ?? "medium").toUpperCase()}] ${name} — ${s.signal_type}: ${s.headline}` +
+                     (s.evidence_quote ? `\n   Quote: "${s.evidence_quote}"` : "") +
+                     (s.context ? `\n   Context: ${s.context}` : "") +
+                     (s.pitch_angle ? `\n   Pitch angle: ${s.pitch_angle}` : "");
+            }).join("\n\n") + "\n";
+        }
+      }
+    }
+  } catch (e) {
+    // Non-fatal — proposals work fine without signals
+    console.error("Signals injection failed:", e);
+  }
+
+  const fullContext = dealContext + signalsBlock + buildIndustryContextBlock(sector, geography);
 
   const ctx = buildDealContext({
     buyer, target, sector, geography, deal_size,
