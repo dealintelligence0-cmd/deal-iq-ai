@@ -5,7 +5,7 @@
 import { useState } from "react";
 import {
   BookOpen, ChevronRight, Search, Rocket, Upload, GitMerge,
-  AlertTriangle, Briefcase, Sparkles, FileText, Download, Shield, Target,
+  AlertTriangle, Briefcase, Sparkles, FileText, Download, Shield, Target, Network,
   Settings as SettingsIcon, HelpCircle, Zap, FlaskConical, Globe, Trash2, History,
 } from "lucide-react";
 
@@ -129,6 +129,23 @@ const SECTIONS: Section[] = [
       ]},
       { heading: "Fit score interpretation", body: "80+ = obvious bolt-on (sector + geo + size aligned with buyer pattern). 60-79 = strong fit (1-2 dimensions slightly stretch). 40-59 = adjacent (real opportunity but needs strategic framing). <40 = stretch (only pursue with a specific catalyst)." },
       { heading: "Cost", body: "~$0.05 per shortlist (one profile call + one generation call). At your current key setup (NVIDIA NIM smart-tier), effectively free." },
+    ],
+  },
+  {
+    id: "advisors", title: "Advisor Ecosystem Map", icon: Network,
+    content: [
+      { heading: "What it does", body: "AI scans every deal in your pipeline and identifies the named financial advisors (Goldman, Morgan Stanley, Lazard, Rothschild, etc) from the heading + buyer/target/size/sector context. The system surfaces an advisor leaderboard, a sector × advisor heatmap, and a list of 'whitespace' deals where no advisor is known yet — those are open opportunities." },
+      { heading: "When to use it", body: "Before pitching for an advisory mandate: see who's likely already entrenched and where the whitespace is. For partner-level reviews: see which incumbent advisor dominates each sector, and where you can credibly displace them." },
+      { heading: "How to use", body: "", steps: [
+        "Sidebar → Intelligence → Advisor Map",
+        "Click 'Run extraction' — scans up to 25 deals at a time (cap controls cost)",
+        "Review the leaderboard: deal count by advisor + buy-side vs sell-side split + average confidence",
+        "Use the sector heatmap to spot strong vs weak sectors per advisor",
+        "Scroll to Whitespace deals — click '+ Log advisor' on any deal to add the incumbent yourself (manual entries override AI guesses)",
+      ]},
+      { heading: "Tiers", body: "44 advisors are pre-seeded across 6 tiers: Bulge Bracket (GS, MS, JPM, Citi, BofA, Barclays, UBS, DB), Elite Boutique (Lazard, Rothschild, Evercore, Moelis, Centerview…), Big 4 (Deloitte, PwC, EY, KPMG), MBB (McKinsey, BCG, Bain), Mid-Market (Jefferies, Raymond James, William Blair…), Regional (Avendus, Kotak, JM Financial for India)." },
+      { heading: "Confidence", body: "AI confidence: 70%+ = advisor was named in the heading. 30-50% = inferred from sector/size norms. Manual entries are 100% confidence and supersede AI guesses on the same role." },
+      { heading: "Cost", body: "~$0.001 per deal scanned (25 deals × $0.001 ≈ $0.025 per run on NVIDIA NIM smart-tier)." },
     ],
   },
   {
@@ -422,7 +439,7 @@ const ALL = [...SECTIONS, ...MORE_SECTIONS];
 const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
   { label: "Deal Data", ids: ["uploads", "pipeline", "resolution", "enrich"] },
-  { label: "Intelligence", ids: ["themes", "critique", "storylines", "signals", "boltons"] },
+  { label: "Intelligence", ids: ["themes", "critique", "storylines", "signals", "boltons", "advisors"] },
   { label: "Admin", ids: ["admin_invite", "admin_modules"] },
   { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
   { label: "System", ids: ["exports", "settings", "faq"] },

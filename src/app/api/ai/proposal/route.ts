@@ -313,7 +313,46 @@ ${body.research_docs ? `\n## RESEARCH NOTES\n${body.research_docs.slice(0, 4000)
     console.error("Bolt-on injection failed:", e);
   }
 
-  const fullContext = dealContext + signalsBlock + boltOnBlock + buildIndustryContextBlock(sector, geography);
+  // Phase 6: pull known advisors for the buyer & target (if any)
+  let advisorEcosystemBlock = "";
+  try {
+    if (buyer || target) {
+      const { data: existing } = await admin
+        .from("deal_advisors")
+        .select("role, side, confidence, source, advisor_registry(display_name, tier), canonical_deals!inner(buyer, target)")
+        .eq("created_by", user.id)
+        .order("confidence", { ascending: false })
+        .limit(60);
+      const matchBuy = (existing ?? []).filter((r: any) =>
+        buyer && (r.canonical_deals?.buyer ?? "").toLowerCase() === buyer.toLowerCase()
+      );
+      const matchSell = (existing ?? []).filter((r: any) =>
+        target && (r.canonical_deals?.target ?? "").toLowerCase() === target.toLowerCase()
+      );
+      const lines: string[] = [];
+      if (matchBuy.length > 0) {
+        lines.push(`${buyer} has previously used these advisors:`);
+        for (const r of matchBuy.slice(0, 6)) {
+          const reg = (r as any).advisor_registry;
+          lines.push(`  - ${reg?.display_name} (${reg?.tier ?? "?"}) as ${r.role}${r.side ? `, ${r.side}-side` : ""}`);
+        }
+      }
+      if (matchSell.length > 0) {
+        lines.push(`${target} has previously been advised by:`);
+        for (const r of matchSell.slice(0, 6)) {
+          const reg = (r as any).advisor_registry;
+          lines.push(`  - ${reg?.display_name} (${reg?.tier ?? "?"}) as ${r.role}${r.side ? `, ${r.side}-side` : ""}`);
+        }
+      }
+      if (lines.length > 0) {
+        advisorEcosystemBlock = "\n## INCUMBENT ADVISORS (from Phase 6 ecosystem map)\nUse this to position competitively — acknowledge the incumbent, then differentiate.\n\n" + lines.join("\n") + "\n";
+      }
+    }
+  } catch (e) {
+    console.error("Advisor injection failed:", e);
+  }
+
+  const fullContext = dealContext + signalsBlock + boltOnBlock + advisorEcosystemBlock + buildIndustryContextBlock(sector, geography);
 
   const ctx = buildDealContext({
     buyer, target, sector, geography, deal_size,
