@@ -29,6 +29,7 @@ export default function PathModuleGate({ children }: { children: React.ReactNode
   const pathname = usePathname();
   const [perms, setPerms] = useState<Record<string, boolean> | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function PathModuleGate({ children }: { children: React.ReactNode
         const r = await fetch("/api/me/modules").then((x) => x.json());
         setPerms(r.modules ?? {});
         setIsAdmin(Boolean(r.is_admin));
+        setIsGuest(Boolean(r.is_guest));
       } catch {
         setPerms({});
       } finally {

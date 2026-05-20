@@ -57,6 +57,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [perms, setPerms] = useState<Record<string, boolean> | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -64,6 +65,7 @@ export default function Sidebar() {
         const r = await fetch("/api/me/modules").then((x) => x.json());
         setPerms(r.modules ?? {});
         setIsAdmin(Boolean(r.is_admin));
+        setIsGuest(Boolean(r.is_guest));
       } catch {
         setPerms({});
       }
@@ -91,6 +93,7 @@ export default function Sidebar() {
         </div>
         <span className="flex-1 text-base font-semibold text-white">Deal IQ AI</span>
         {isAdmin && <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-300">Admin</span>}
+        {isGuest && <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-300">Guest</span>}
         <ThemeToggle />
       </div>
 
