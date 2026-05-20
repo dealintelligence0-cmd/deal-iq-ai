@@ -68,7 +68,9 @@ export default function LoginPage() {
             </button>
           </form>
           <div className="mt-6 text-center text-xs text-slate-400">
-            New users join via invite link only. Ask the admin for one if you need access.
+            <Link href="/signup" className="font-medium text-indigo-400 hover:text-indigo-300">Create an account</Link>
+            {" · "}
+            <span>or visit the portal via an admin invite link</span>
           </div>
         </div>
       </div>

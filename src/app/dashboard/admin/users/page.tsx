@@ -12,11 +12,12 @@ type CatalogRow = {
 };
 
 type Row = {
-  kind: "admin" | "guest";
+  kind: "admin" | "guest" | "user";
   id: string;
   email: string;
   is_admin: boolean;
   access: Record<string, boolean>;
+  user_id: string | null;
   invite_id: string | null;
   signup_count: number | null;
   created_at: string;
@@ -98,17 +99,19 @@ export default function AdminUsersPage() {
     finally { setBusy(false); }
   }
 
-  async function togglePermission(inviteId: string | null, moduleKey: string, currentValue: boolean) {
-    if (!inviteId) return;  // admin row — can't modify
+  async function togglePermission(row: Row, moduleKey: string, currentValue: boolean) {
     setError(null);
-    setRows((prev) => prev.map((row) =>
-      row.invite_id === inviteId ? { ...row, access: { ...row.access, [moduleKey]: !currentValue } } : row
+    setRows((prev) => prev.map((r) =>
+      r.id === row.id ? { ...r, access: { ...r.access, [moduleKey]: !currentValue } } : r
     ));
     try {
+      const payload: Record<string, unknown> = { module_key: moduleKey, granted: !currentValue };
+      if (row.kind === "guest" && row.invite_id) payload.invite_id = row.invite_id;
+      else if (row.user_id) payload.user_id = row.user_id;
       const r = await fetch("/api/admin/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invite_id: inviteId, module_key: moduleKey, granted: !currentValue }),
+        body: JSON.stringify(payload),
       });
       if (!r.ok) {
         const j = await r.json();
@@ -116,8 +119,8 @@ export default function AdminUsersPage() {
       }
     } catch (e: any) {
       setError(e?.message ?? "Toggle failed");
-      setRows((prev) => prev.map((row) =>
-        row.invite_id === inviteId ? { ...row, access: { ...row.access, [moduleKey]: currentValue } } : row
+      setRows((prev) => prev.map((r) =>
+        r.id === row.id ? { ...r, access: { ...r.access, [moduleKey]: currentValue } } : r
       ));
     }
   }
@@ -245,6 +248,7 @@ export default function AdminUsersPage() {
                       <div className="font-medium text-slate-900 dark:text-white">{r.email}</div>
                       {r.kind === "admin" && <div className="text-[9px] font-bold uppercase text-indigo-600">Admin · all modules</div>}
                       {r.kind === "guest" && <div className="text-[9px] font-bold uppercase text-emerald-600">Guest session (via invite link)</div>}
+                      {r.kind === "user" && <div className="text-[9px] font-bold uppercase text-slate-500">Registered user</div>}
                     </td>
                     {Object.values(catalogByCategory).flat().map((m) => (
                       <td key={m.module_key} className="border-l border-slate-200 px-1 py-1.5 text-center dark:border-slate-700">
@@ -252,7 +256,7 @@ export default function AdminUsersPage() {
                           type="checkbox"
                           checked={r.access[m.module_key] ?? false}
                           disabled={r.kind === "admin"}
-                          onChange={() => togglePermission(r.invite_id, m.module_key, r.access[m.module_key] ?? false)}
+                          onChange={() => togglePermission(r, m.module_key, r.access[m.module_key] ?? false)}
                           className="h-3.5 w-3.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                         />
                       </td>
