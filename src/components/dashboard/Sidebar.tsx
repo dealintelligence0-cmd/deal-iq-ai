@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   BrainCircuit, LayoutDashboard, CloudUpload, GitMerge,
   AlertTriangle, Briefcase, FileText, Settings, Sparkles, Activity, Network,
-  Download, Shield, BookOpen, Layers, TrendingUp, ArrowLeftRight, Lightbulb, Target, ClipboardCheck,
+  Download, Shield, BookOpen, Layers, TrendingUp, ArrowLeftRight, Lightbulb, Target, ClipboardCheck, Users2, ChevronsUpDown, Check,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -30,6 +30,7 @@ const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
       { label: "Signal Intel",    href: "/dashboard/signals", icon: Activity, module: "signals" },
       { label: "Bolt-on Engine",  href: "/dashboard/boltons", icon: Target,   module: "boltons" },
       { label: "Advisor Map",     href: "/dashboard/advisors", icon: Network, module: "advisors" },
+      { label: "Account Narratives", href: "/dashboard/narratives", icon: Lightbulb, module: "narratives" },
     ],
   },
   {
@@ -43,6 +44,7 @@ const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   {
     label: "Admin", items: [
       { label: "User Settings", href: "/dashboard/admin/users", icon: Shield, module: null, adminOnly: true },
+      { label: "Workspaces",    href: "/dashboard/admin/workspaces", icon: Users2, module: null, adminOnly: true },
     ],
   },
   {
@@ -59,6 +61,9 @@ export default function Sidebar() {
   const [perms, setPerms] = useState<Record<string, boolean> | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Array<{ id: string; name: string; is_personal: boolean; role: string; member_count: number }>>([]);
+  const [activeWs, setActiveWs] = useState<{ id: string | null; name: string | null; isPersonal: boolean } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -72,6 +77,36 @@ export default function Sidebar() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    // Only load workspaces if user is authed (not guest)
+    if (isGuest) return;
+    (async () => {
+      try {
+        const r = await fetch("/api/workspaces").then((x) => x.json());
+        if (r.workspaces) setWorkspaces(r.workspaces);
+        if (r.active) setActiveWs({
+          id: r.active.workspaceId,
+          name: r.active.workspaceName,
+          isPersonal: r.active.isPersonal,
+        });
+      } catch { /* non-fatal */ }
+    })();
+  }, [isGuest, isAdmin]);
+
+  async function switchWorkspace(id: string) {
+    try {
+      const r = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace_id: id }),
+      });
+      if (r.ok) {
+        setPickerOpen(false);
+        window.location.reload(); // simplest way to refresh all per-workspace data
+      }
+    } catch { /* non-fatal */ }
+  }
 
   // Filter items by permission
   const visibleGroups = NAV_GROUPS
@@ -97,6 +132,36 @@ export default function Sidebar() {
         {isGuest && <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-300">Guest</span>}
         <ThemeToggle />
       </div>
+
+      {/* Workspace picker — visible for authed (non-guest) users */}
+      {!isGuest && activeWs && workspaces.length > 0 && (
+        <div className="border-b border-white/5 px-3 py-2 relative">
+          <button onClick={() => setPickerOpen((o) => !o)}
+                  className="flex w-full items-center justify-between gap-2 rounded-md bg-white/5 px-2.5 py-1.5 text-left text-[11px] text-white/80 hover:bg-white/10">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Users2 className="h-3 w-3 flex-shrink-0 text-white/50" />
+              <span className="truncate font-medium">{activeWs.name}</span>
+              {activeWs.isPersonal && <span className="ml-1 rounded bg-slate-700 px-1 py-0.5 text-[8.5px] font-bold uppercase">Personal</span>}
+            </div>
+            <ChevronsUpDown className="h-3 w-3 flex-shrink-0 text-white/40" />
+          </button>
+          {pickerOpen && (
+            <div className="absolute left-3 right-3 top-full z-50 mt-1 rounded-md border border-white/10 bg-[#1a1929] shadow-xl">
+              {workspaces.map((w) => (
+                <button key={w.id} onClick={() => switchWorkspace(w.id)}
+                        className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[11px] text-white/80 hover:bg-white/10">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate">{w.name}</span>
+                    {w.is_personal && <span className="rounded bg-slate-700 px-1 py-0.5 text-[8.5px] font-bold uppercase">Personal</span>}
+                    {w.member_count > 1 && <span className="text-white/40">· {w.member_count}</span>}
+                  </div>
+                  {activeWs.id === w.id && <Check className="h-3 w-3 flex-shrink-0 text-emerald-400" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
         {visibleGroups.map((group, gi) => (
