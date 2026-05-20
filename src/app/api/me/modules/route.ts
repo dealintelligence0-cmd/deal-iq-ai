@@ -1,24 +1,24 @@
 /**
  * GET /api/me/modules
  *
- * Returns the current user's module access map + is_admin flag.
- * Used by the sidebar to filter nav items in real-time.
+ * Returns the current viewer's module access map + identity kind.
+ * Drives sidebar filtering.
  */
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getUserModules, isUserAdmin } from "@/lib/auth/permissions";
+import { resolveViewer, getViewerModules } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ modules: {}, is_admin: false });
-
-  const [modules, admin] = await Promise.all([
-    getUserModules(sb, user.id),
-    isUserAdmin(sb, user.id),
-  ]);
-  return NextResponse.json({ modules, is_admin: admin });
+  const viewer = await resolveViewer(sb);
+  const modules = await getViewerModules(sb, viewer);
+  return NextResponse.json({
+    modules,
+    is_admin: viewer.kind === "admin",
+    is_guest: viewer.kind === "guest",
+    viewer_kind: viewer.kind,
+  });
 }

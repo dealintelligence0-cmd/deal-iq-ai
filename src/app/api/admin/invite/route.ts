@@ -1,38 +1,35 @@
 /**
- * GET   /api/admin/invite        → return the current active invite link (or null)
- * POST  /api/admin/invite        → generate a new link; auto-invalidates the previous active one
- * DELETE /api/admin/invite       → invalidate the active link (no replacement)
+ * GET    /api/admin/invite        → current active invite + history
+ * POST   /api/admin/invite        → generate new link (auto-invalidates previous)
+ * DELETE /api/admin/invite        → invalidate active link, no replacement
  *
  * Admin only.
  */
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { isUserAdmin } from "@/lib/auth/permissions";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveViewer } from "@/lib/auth/permissions";
 import { randomBytes } from "crypto";
 
 export const runtime = "nodejs";
 
 function makeToken(): string {
-  // URL-safe random token, ~43 chars
   return randomBytes(32).toString("base64url");
 }
 
 export async function GET() {
   const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await isUserAdmin(sb, user.id))) {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
-  }
+  const viewer = await resolveViewer(sb);
+  if (viewer.kind !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
-  const { data: active } = await sb
+  const admin = createAdminClient();
+  const { data: active } = await admin
     .from("admin_invite_links")
-    .select("id, token, created_at, signup_count")
+    .select("id, token, created_at, signup_count, module_access")
     .eq("is_active", true)
     .maybeSingle();
-
-  const { data: history } = await sb
+  const { data: history } = await admin
     .from("admin_invite_links")
     .select("id, created_at, invalidated_at, signup_count, is_active")
     .order("created_at", { ascending: false })
@@ -43,21 +40,29 @@ export async function GET() {
 
 export async function POST() {
   const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await isUserAdmin(sb, user.id))) {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const viewer = await resolveViewer(sb);
+  if (viewer.kind !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
+
+  const admin = createAdminClient();
+
+  // Build default module_access map — all non-admin modules ON
+  const { data: catalog } = await admin
+    .from("module_catalog")
+    .select("module_key, default_for_invitees");
+  const defaultAccess: Record<string, boolean> = {};
+  for (const c of catalog ?? []) {
+    defaultAccess[c.module_key as string] = c.default_for_invitees as boolean;
   }
 
-  // Insert new active link — trigger will auto-invalidate any previous active row
-  const { data, error } = await sb
+  const { data, error } = await admin
     .from("admin_invite_links")
     .insert({
       token: makeToken(),
-      created_by: user.id,
+      created_by: viewer.userId,
       is_active: true,
+      module_access: defaultAccess,
     })
-    .select("id, token, created_at")
+    .select("id, token, created_at, module_access")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -66,13 +71,11 @@ export async function POST() {
 
 export async function DELETE() {
   const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await isUserAdmin(sb, user.id))) {
-    return NextResponse.json({ error: "Admin only" }, { status: 403 });
-  }
+  const viewer = await resolveViewer(sb);
+  if (viewer.kind !== "admin") return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
-  const { error } = await sb
+  const admin = createAdminClient();
+  const { error } = await admin
     .from("admin_invite_links")
     .update({ is_active: false, invalidated_at: new Date().toISOString() })
     .eq("is_active", true);
