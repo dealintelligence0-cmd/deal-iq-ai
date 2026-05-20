@@ -132,6 +132,32 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: "admin_invite", title: "Admin — Secure Invite Link", icon: Shield,
+    content: [
+      { heading: "What it does", body: "The system has exactly ONE active invite link at any time. Anyone with the URL can sign up and gets default access to the Deal Pipeline module only. All other modules are locked until the admin grants them." },
+      { heading: "How to use", body: "", steps: [
+        "Sidebar → Admin → User Settings (only visible to admin)",
+        "Click 'Generate invite link' — produces a fresh secure URL",
+        "Share that URL with the person you want to invite",
+        "When they sign up via that URL, they are stamped as an invitee with Deal Pipeline access by default",
+        "Generating a new link automatically invalidates the previous active one",
+        "You can also Invalidate the current link without replacement (kills all pending signups)",
+      ]},
+    ],
+  },
+  {
+    id: "admin_modules", title: "Admin — Module Access Toggles", icon: Shield,
+    content: [
+      { heading: "What it does", body: "Below the invite-link panel, the User × Module matrix shows every user (admin + invitees) with checkboxes for each of 13 modules: Deal Pipeline, Import, Prioritization, Triage, Themes, Signals, Bolt-ons, Proposals, PMI, Synergy, TSA, Exports, Settings." },
+      { heading: "How to use", body: "", steps: [
+        "Tick a checkbox to grant access (live — no save button)",
+        "Untick to revoke; the user loses access on their next page load",
+        "Admin users cannot be modified — they always have access to everything",
+        "Helpful pattern: grant Themes + Signals + Bolt-ons to senior associates; keep Proposals + PMI for partners only",
+      ]},
+    ],
+  },
+  {
     id: "storylines", title: "Storyline Templates (PPTX slide intelligence)", icon: FileText,
     content: [
       { heading: "What it does", body: "Before exporting a proposal to PPTX, pick one of 6 MBB storyline templates. Each template reorders slides to match a specific narrative arc — Pyramid Principle, Strategic Case, Operating Transformation, Synergy Bridge, IC Pack, or Board Narrative. The deck reflects how senior partners actually present, not just what the AI wrote." },
@@ -397,6 +423,7 @@ const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
   { label: "Deal Data", ids: ["uploads", "pipeline", "resolution", "enrich"] },
   { label: "Intelligence", ids: ["themes", "critique", "storylines", "signals", "boltons"] },
+  { label: "Admin", ids: ["admin_invite", "admin_modules"] },
   { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
   { label: "System", ids: ["exports", "settings", "faq"] },
 ];

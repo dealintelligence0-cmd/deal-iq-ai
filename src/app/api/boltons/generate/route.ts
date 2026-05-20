@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
     primaryProvider: resolved.provider as ProviderId,
     primaryKey: resolved.apiKey,
     primaryModel: resolved.model ?? undefined,
+    blockFreeFallback: true,  // bolt-on requires real AI — rules-v1 can't produce structured JSON
   };
 
   // Audit row

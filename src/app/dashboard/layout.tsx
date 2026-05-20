@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Footer from "@/components/Footer";
 import DisclaimerModal from "@/components/DisclaimerModal";
+import PathModuleGate from "@/components/auth/PathModuleGate";
 import { LayoutDashboard, Briefcase, FileText, Layers, TrendingUp } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -14,11 +15,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <DisclaimerModal />
       <main className="lg:pl-64 pb-16 lg:pb-0">
-        <div className="p-6">{children}</div>
+        <div className="p-6">
+          <PathModuleGate>{children}</PathModuleGate>
+        </div>
         <Footer />
       </main>
       <nav className="fixed bottom-0 left-0 right-0 z-40 flex justify-around border-t border-slate-200 bg-white py-2 lg:hidden">
-       {[
+        {[
           { href: "/dashboard",           icon: LayoutDashboard, label: "Home" },
           { href: "/dashboard/deals",     icon: Briefcase,       label: "Pipeline" },
           { href: "/dashboard/proposals", icon: FileText,        label: "Proposals" },
