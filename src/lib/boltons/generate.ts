@@ -188,6 +188,21 @@ export async function generateBoltOnShortlist(
     cost = ((res.inputTokens / 1000) * 0.0015) + ((res.outputTokens / 1000) * 0.006);
     provider = res.provider;
     model = res.model;
+
+    // Detect rule-based fallback (router returns "[rule-based] ..." when all real
+    // providers fail). This is never valid JSON for bolt-ons.
+    if (res.model === "rules-v1" || res.text.startsWith("[rule-based]")) {
+      aiError = `AI fell through to rules-v1 stub — your smart-tier provider (${provider}) failed. ` +
+                `Check Settings → API Key Library. ` +
+                ((res as any).lastError ? `Last error: ${(res as any).lastError}` : "");
+      // Skip parsing — go straight to error return
+      // Update shortlist header with what we know
+      await sb.from("bolt_on_shortlists").update({
+        ai_provider: provider, ai_model: model, status: "draft",
+      }).eq("id", shortlistId);
+      return { shortlistId, targets: [], cost_usd: cost, provider, model, error: aiError };
+    }
+
     const parsed = safeParseJson(res.text);
     const arr = Array.isArray(parsed?.targets) ? parsed!.targets as Array<Record<string, unknown>> : [];
     targets = arr.slice(0, 10).map((t) => {
