@@ -15,6 +15,7 @@ const PATH_TO_MODULE: Array<{ prefix: string; module: string }> = [
   { prefix: "/dashboard/themes",           module: "themes" },
   { prefix: "/dashboard/signals",          module: "signals" },
   { prefix: "/dashboard/boltons",          module: "boltons" },
+  { prefix: "/dashboard/advisors",         module: "advisors" },
   { prefix: "/dashboard/proposals",        module: "proposals" },
   { prefix: "/dashboard/pmi",              module: "pmi" },
   { prefix: "/dashboard/synergy",          module: "synergy" },
