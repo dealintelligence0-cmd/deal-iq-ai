@@ -17,7 +17,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ModuleKey =
   | "deals_data" | "import" | "prioritization" | "triage"
-  | "themes" | "signals" | "boltons" | "advisors"
+  | "themes" | "signals" | "boltons" | "advisors" | "narratives"
   | "proposals" | "pmi" | "synergy" | "tsa"
   | "exports" | "settings";
 
