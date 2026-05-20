@@ -5,7 +5,7 @@
 import { useState } from "react";
 import {
   BookOpen, ChevronRight, Search, Rocket, Upload, GitMerge,
-  AlertTriangle, Briefcase, Sparkles, FileText, Download, Shield, Target, Network,
+  AlertTriangle, Briefcase, Sparkles, FileText, Download, Shield, Target, Network, Lightbulb, Users2,
   Settings as SettingsIcon, HelpCircle, Zap, FlaskConical, Globe, Trash2, History,
 } from "lucide-react";
 
@@ -149,6 +149,22 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: "narratives", title: "Account Narratives — Partner-Ready 1-Pagers", icon: Lightbulb,
+    content: [
+      { heading: "What it does", body: "For any account (a buyer or target name), synthesises a partner-ready 1-page strategic brief that combines all your existing intelligence: prior deals in pipeline, executive signals, relevant themes, bolt-on shortlists, and incumbent advisors. Output is 8 structured sections you can copy into a deck or export as Markdown." },
+      { heading: "When to use it", body: "Pre-meeting prep with a partner. Pre-pitch internal briefing. When you want a 30-second tour through 'everything we know about this account' without clicking through 5 modules." },
+      { heading: "How to use", body: "", steps: [
+        "Sidebar → Intelligence → Account Narratives",
+        "Type the account name (e.g. \"Reliance Industries\") — works best for names that match a buyer/target in your pipeline",
+        "Click Generate brief — ~$0.03 and 20-30 seconds",
+        "Read the 8 sections: Exec Summary, Strategic Situation, Signal Summary, Theme Relevance, Bolt-on Opportunities, Advisor Landscape, Pitch Angle, Recommended Next Steps",
+        "Export as Markdown for further editing or pasting into other tools",
+      ]},
+      { heading: "Sources blended", body: "Every brief pulls from: up to 8 prior deals, 8 most recent signals, 4 relevant themes, top 6 bolt-on targets, top 6 incumbent advisors. Empty sections mean no data exists in that dimension yet — build it up by running Themes/Signals/Bolt-ons/Advisors extractions first." },
+      { heading: "Workspaces", body: "Each brief is scoped to your active workspace. Switch workspaces using the picker at the top of the sidebar. Members of the same workspace see each other's briefs." },
+    ],
+  },
+  {
     id: "admin_invite", title: "Admin — Secure Invite Link", icon: Shield,
     content: [
       { heading: "What it does", body: "The system has exactly ONE active invite link at any time. Anyone with the URL can sign up and gets default access to the Deal Pipeline module only. All other modules are locked until the admin grants them." },
@@ -172,6 +188,21 @@ const SECTIONS: Section[] = [
         "Admin users cannot be modified — they always have access to everything",
         "Helpful pattern: grant Themes + Signals + Bolt-ons to senior associates; keep Proposals + PMI for partners only",
       ]},
+    ],
+  },
+  {
+    id: "admin_workspaces", title: "Admin — Multi-User Workspaces", icon: Users2,
+    content: [
+      { heading: "What it does", body: "Workspaces let multiple users collaborate on the same Account Narratives. Each user always has a Personal workspace (private). Admins can create shared workspaces (e.g. \"Healthcare practice\", \"Q4 deal book\") and add members with roles." },
+      { heading: "Roles", body: "Owner — can do everything. Editor — can create/edit narratives. Viewer — read-only. The admin (you) is always an owner of every shared workspace." },
+      { heading: "How to use", body: "", steps: [
+        "Sidebar → Admin → Workspaces",
+        "Type a name in the create box → click Create — adds you as owner automatically",
+        "Click 'Add member' under any workspace → pick a user → choose role → Add",
+        "Each user sees a workspace picker at the top of their sidebar and can switch between Personal and shared workspaces they're members of",
+        "Currently only Account Narratives is workspace-scoped. Themes, signals, bolt-ons etc. remain per-user — extend this in future rounds if needed",
+      ]},
+      { heading: "Personal workspaces", body: "Cannot be deleted. Cannot be shared. Always owned by the original user. Created automatically on signup." },
     ],
   },
   {
@@ -439,8 +470,8 @@ const ALL = [...SECTIONS, ...MORE_SECTIONS];
 const HELP_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Getting Started", ids: ["getting-started"] },
   { label: "Deal Data", ids: ["uploads", "pipeline", "resolution", "enrich"] },
-  { label: "Intelligence", ids: ["themes", "critique", "storylines", "signals", "boltons", "advisors"] },
-  { label: "Admin", ids: ["admin_invite", "admin_modules"] },
+  { label: "Intelligence", ids: ["themes", "critique", "storylines", "signals", "boltons", "advisors", "narratives"] },
+  { label: "Admin", ids: ["admin_invite", "admin_modules", "admin_workspaces"] },
   { label: "Advisory Intelligence", ids: ["proposals", "ai-tiers", "research", "history", "pmi", "synergy", "tsa"] },
   { label: "System", ids: ["exports", "settings", "faq"] },
 ];
