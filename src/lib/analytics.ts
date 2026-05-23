@@ -64,9 +64,12 @@ export async function fetchDeals(force = false): Promise<Deal[]> {
   }
   try {
     const sb = createClient();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return [];
     const { data, error } = await sb
       .from("deals")
       .select("*")
+      .eq("created_by", user.id)
       .order("deal_date", { ascending: false })
       .limit(500);
     if (error) {
