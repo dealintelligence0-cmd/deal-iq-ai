@@ -16,7 +16,12 @@ export async function POST(req: Request) {
   if (!body.deal_id) return NextResponse.json({ error: "deal_id required" }, { status: 400 });
 
   const admin = createAdminClient();
-  const { data: deal } = await admin.from("deals").select("*").eq("id", body.deal_id).maybeSingle();
+  const { data: deal } = await admin
+    .from("deals")
+    .select("*")
+    .eq("id", body.deal_id)
+    .eq("created_by", user.id)
+    .maybeSingle();
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
   const trigger_events = scanTriggerEvents(deal);
@@ -187,7 +192,7 @@ Return ONLY valid JSON per schema above.`;
       targeting_recommendation: parsed.targeting_recommendation,
       targeting_reason: parsed.targeting_reason,
       confidence_level: parsed.confidence_level,
-    }).eq("id", body.deal_id);
+    }).eq("id", body.deal_id).eq("created_by", user.id);
 
     return NextResponse.json({ ok: true, cached: false, insight_sections: ins,
       deal_takeaway: parsed.deal_takeaway,

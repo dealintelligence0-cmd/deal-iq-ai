@@ -150,7 +150,9 @@ export default function PipelinePage() {
     if (!confirm(`Delete ${selected.size} deal(s)? This cannot be undone.`)) return;
     setDeleting(true);
     const ids = Array.from(selected);
-    const { error } = await supabase.from("deals").delete().in("id", ids);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setDeleting(false); return; }
+    const { error } = await supabase.from("deals").delete().in("id", ids).eq("created_by", user.id);
     if (!error) { setAll((p) => p.filter((d) => !selected.has(d.id))); setSelected(new Set()); }
     else alert(error.message);
     setDeleting(false);

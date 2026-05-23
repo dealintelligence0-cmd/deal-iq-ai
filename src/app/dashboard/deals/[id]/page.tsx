@@ -60,12 +60,15 @@ export default function DealDetailPage() {
 
   useEffect(() => {
     (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
       const { data: one } = await supabase
         .from("deals")
         .select(
           "id,deal_date,buyer,target,sector,country,deal_type,status,normalized_value_usd,stake_percent,value_raw,created_at"
         )
         .eq("id", id)
+        .eq("created_by", user.id)
         .single();
       if (one) {
         const all = await fetchDeals();
