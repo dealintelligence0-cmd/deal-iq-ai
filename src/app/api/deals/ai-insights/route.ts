@@ -193,7 +193,7 @@ Return ONLY valid JSON per schema above.`;
       targeting_reason: parsed.targeting_reason,
       confidence_level: parsed.confidence_level,
     }).eq("id", body.deal_id).eq("created_by", user.id);
-
+    
     return NextResponse.json({ ok: true, cached: false, insight_sections: ins,
       deal_takeaway: parsed.deal_takeaway,
       targeting_recommendation: parsed.targeting_recommendation,

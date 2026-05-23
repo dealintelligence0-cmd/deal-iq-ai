@@ -174,7 +174,7 @@ Return JSON per schema.`;
     await admin.from("deals").update({
       ai_enrichment: parsed,
       ai_enriched_at: new Date().toISOString(),
-    }).eq("id", deal_id).eq("created_by", user.id);
+     }).eq("id", deal_id).eq("created_by", user.id);
 
     return NextResponse.json({ ok: true, cached: false, ...parsed });
   } catch (e) {

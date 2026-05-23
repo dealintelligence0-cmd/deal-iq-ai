@@ -18,7 +18,7 @@ export async function POST() {
   const { data: fxSettings } = await admin.from("ai_settings")
     .select("fx_inr_usd").eq("user_id", user.id).maybeSingle();
   const fxRate = (fxSettings as Record<string, unknown> | null)?.fx_inr_usd as number | null ?? 83;
-  const { data: rows, error } = await admin
+   const { data: rows, error } = await admin
     .from("deals")
     .select("*")
     .eq("created_by", user.id)
@@ -51,7 +51,7 @@ export async function POST() {
       time_sensitivity: d.time_sensitivity,
       why_not: d.why_not,
       action_verb: d.action_verb,
-    }).eq("id", r.id).eq("created_by", user.id);
+   }).eq("id", r.id).eq("created_by", user.id);
     if (upErr) { failed++; console.error("Derive failed", r.id, upErr.message); }
     else updated++;
   }
