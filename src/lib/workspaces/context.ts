@@ -1,41 +1,55 @@
 /**
- * Workspace context helpers — Phase 7.
+ * Workspace resolution helper — current workspace from cookie, fallback to personal
  *
- * Active workspace resolution order:
- *   1. `deal_iq_workspace` cookie (set by workspace picker)
- *   2. User's personal workspace (workspace.id = user.id)
- *   3. null → caller falls back to per-user behavior (legacy `created_by` scope)
- *
- * Guest sessions never have a workspace — they get null.
+ * For guests: use hash of invite token as a virtual workspace ID.
+ * This allows guest narratives to be workspace-scoped and visible on reload.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import crypto from "crypto";
 
 export const WORKSPACE_COOKIE = "deal_iq_workspace";
+export const GUEST_SESSION_WORKSPACE_PREFIX = "guest_session_";
 
 export type WorkspaceContext = {
   workspaceId: string | null;
   workspaceName: string | null;
   isPersonal: boolean;
   role: "owner" | "editor" | "viewer" | null;
+  isGuestSession: boolean;
 };
 
 /**
  * Resolve which workspace the current user is operating in.
- * Returns nulls for guests + signed-out viewers.
+ * Returns nulls for signed-out viewers.
  */
 export async function getActiveWorkspace(sb: SupabaseClient): Promise<WorkspaceContext> {
   const { data: { user } } = await sb.auth.getUser();
-  if (!user) return { workspaceId: null, workspaceName: null, isPersonal: false, role: null };
-
   const admin = createAdminClient();
   const jar = await cookies();
+
+  // Check if guest session
+  const guestToken = jar.get("deal_iq_guest")?.value;
+  if (guestToken && !user) {
+    // Derive a stable virtual workspace ID from the guest token
+    const wsId = GUEST_SESSION_WORKSPACE_PREFIX + crypto.createHash("sha256").update(guestToken).digest("hex").slice(0, 16);
+    return {
+      workspaceId: wsId,
+      workspaceName: "Guest Session",
+      isPersonal: false,
+      role: "viewer",
+      isGuestSession: true,
+    };
+  }
+
+  if (!user) return { workspaceId: null, workspaceName: null, isPersonal: false, role: null, isGuestSession: false };
+
   const explicit = jar.get(WORKSPACE_COOKIE)?.value;
 
   // Verify the explicit workspace is one the user belongs to
-  if (explicit) {
+  if (explicit && !explicit.startsWith(GUEST_SESSION_WORKSPACE_PREFIX)) {
     const { data } = await admin
       .from("workspace_members")
       .select("role, workspaces!inner(id, name, is_personal)")
@@ -49,6 +63,7 @@ export async function getActiveWorkspace(sb: SupabaseClient): Promise<WorkspaceC
         workspaceName: ws.name as string,
         isPersonal: ws.is_personal as boolean,
         role: data.role as "owner" | "editor" | "viewer",
+        isGuestSession: false,
       };
     }
   }
@@ -66,9 +81,10 @@ export async function getActiveWorkspace(sb: SupabaseClient): Promise<WorkspaceC
       workspaceName: personal.name as string,
       isPersonal: true,
       role: "owner",
+      isGuestSession: false,
     };
   }
-  return { workspaceId: null, workspaceName: null, isPersonal: false, role: null };
+  return { workspaceId: null, workspaceName: null, isPersonal: false, role: null, isGuestSession: false };
 }
 
 /**
