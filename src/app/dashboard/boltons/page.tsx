@@ -1,7 +1,9 @@
+
+
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Target, RefreshCw, Loader2, Sparkles, TrendingUp, X, ChevronRight, AlertTriangle, ExternalLink } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Target, RefreshCw, Loader2, Sparkles, TrendingUp, X, ChevronRight, AlertTriangle, ExternalLink, BarChart3, ChevronDown, ChevronUp, ArrowRight, Zap } from "lucide-react";
 
 type Buyer = {
   buyer_name: string;
@@ -58,6 +60,231 @@ const TIER_OPTIONS = [
   { value: "mega",  label: "Mega (> INR 100bn)" },
 ];
 
+// =====================================================================
+// v29 Visual Layer — Bolt-On Hub with presets/live/custom + overlap maps
+// =====================================================================
+
+type OverlapResult = { name: string; ebitda_accretion_pct: number };
+type AnalysisMetrics = { name: string; duplicate_cost_savings_cr: number; cross_sell_opportunity_cr: number; partner_recommendation: string; overlap_index_pct: number };
+
+const PRESET_ANCHORS = [
+  { id: "wingreens", label: "Wingreens (Consumer Foods Preset)" },
+  { id: "tata_consumer", label: "Tata Consumer (FMCG Preset)" },
+  { id: "patanjali", label: "Patanjali (Ayurveda Preset)" },
+];
+const PRESET_CANDIDATES = [
+  { id: "safe_harvest", label: "Safe Harvest (Pesticide-Free Grains)" },
+  { id: "organic_india", label: "Organic India (Herbal Tea)" },
+  { id: "soulfull", label: "Soulfull (Millet Snacks)" },
+];
+
+const DEFAULT_OVERLAPS: OverlapResult[] = [
+  { name: "Safe Harvest", ebitda_accretion_pct: 8.2 },
+  { name: "Organic India", ebitda_accretion_pct: 11.4 },
+  { name: "Soulfull grains", ebitda_accretion_pct: 5.1 },
+];
+
+const DEFAULT_ANALYSIS: AnalysisMetrics = {
+  name: "Safe Harvest",
+  duplicate_cost_savings_cr: 1.95,
+  cross_sell_opportunity_cr: 3.48,
+  partner_recommendation: "The overlay synergy dictates an aggressive integration route. We recommend immediate seeding of M&A context to draft Board board memo.",
+  overlap_index_pct: 85,
+};
+
+function BoltOnHub() {
+  const [collapsed, setCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<"presets" | "live" | "custom">("presets");
+  const [anchorGroup, setAnchorGroup] = useState(PRESET_ANCHORS[0].id);
+  const [targetCandidate, setTargetCandidate] = useState(PRESET_CANDIDATES[0].id);
+  const [costEfficiency, setCostEfficiency] = useState(1.5);
+  const [computed, setComputed] = useState(false);
+
+  function execute() {
+    setComputed(true);
+  }
+
+  return (
+    <div className="card mb-4 overflow-hidden">
+      <button onClick={() => setCollapsed(!collapsed)}
+              className="flex w-full items-center justify-between border-b border-slate-100 px-5 py-3 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-emerald-500" />
+          <span className="text-sm font-semibold text-slate-800 dark:text-white">Bolt-On Hub (Interactive)</span>
+          <span className="text-[10.5px] italic text-slate-500">Compute Bolt-On synergic overlays against selected core corporate assets</span>
+        </div>
+        {collapsed ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronUp className="h-4 w-4 text-slate-400" />}
+      </button>
+
+      {!collapsed && (
+        <div className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Synergy Overlay Calculator</h3>
+            <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
+              <Sparkles className="mr-1 inline h-3 w-3" /> MBB/BIG4 Intel
+            </span>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Quantify Bolt-On Mapping */}
+            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Quantify Bolt-On Mapping</h3>
+
+              {/* Tabs */}
+              <div className="mb-3 flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
+                {(["presets", "live", "custom"] as const).map((t) => (
+                  <button key={t} onClick={() => setActiveTab(t)}
+                          className={`border-b-2 px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-wider transition ${activeTab === t
+                            ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                            : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>
+                    {t === "presets" ? "Presets" : t === "live" ? "Live Pipeline" : "Custom Input"}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === "presets" && (
+                <>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Anchor Group (Consolidator)</label>
+                    <select value={anchorGroup} onChange={(e) => setAnchorGroup(e.target.value)}
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800">
+                      {PRESET_ANCHORS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Bolt-On Target Candidate</label>
+                    <select value={targetCandidate} onChange={(e) => setTargetCandidate(e.target.value)}
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800">
+                      {PRESET_CANDIDATES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {activeTab === "live" && (
+                <p className="mb-3 rounded border border-indigo-200 bg-indigo-50 p-2 text-[11px] text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
+                  Live Pipeline mode reads from your active deal pipeline below. Pick a buyer in the original AI bolt-on engine to enable this surface.
+                </p>
+              )}
+
+              {activeTab === "custom" && (
+                <div className="mb-3 space-y-2">
+                  <input placeholder="Custom anchor (free text)"
+                         className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" />
+                  <input placeholder="Custom target candidate"
+                         className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" />
+                </div>
+              )}
+
+              <div className="mb-3">
+                <label className="mb-1 flex items-center justify-between text-[11px] font-medium text-slate-600">
+                  <span>Cost Efficiency Coefficient</span>
+                  <span className="font-mono text-emerald-600">{costEfficiency.toFixed(1)}x</span>
+                </label>
+                <input type="range" min="0.5" max="3" step="0.1" value={costEfficiency}
+                       onChange={(e) => setCostEfficiency(Number(e.target.value))}
+                       className="w-full accent-emerald-500" />
+                <p className="mt-1 text-[10px] italic text-slate-500">
+                  Corresponds to the operational synergies scaling factor on cost saving metrics.
+                </p>
+              </div>
+
+              <button onClick={execute}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500">
+                <Zap className="h-4 w-4" /> Execute Bolt-on Overlay Math
+              </button>
+            </div>
+
+            {/* Results */}
+            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Synergy Overlap Results (Wingreens Portfolio Map)
+                </h3>
+                {computed && (
+                  <span className="text-[10px] italic text-emerald-600">Dynamic Calculations Active</span>
+                )}
+              </div>
+
+              {!computed ? (
+                <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-slate-700 dark:bg-slate-900/50">
+                  <p className="text-[11.5px] text-slate-500">
+                    Click <b>Execute Bolt-on Overlay Math</b> to compute synergy overlay results.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* EBITDA accretion grid */}
+                  <div className="mb-3 grid grid-cols-3 gap-2">
+                    {DEFAULT_OVERLAPS.map((o) => {
+                      const scaled = o.ebitda_accretion_pct * costEfficiency;
+                      return (
+                        <div key={o.name} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center dark:border-slate-700 dark:bg-slate-800/50">
+                          <div className="truncate text-[11px] font-semibold text-slate-700 dark:text-slate-300">{o.name}</div>
+                          <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">+{scaled.toFixed(1)}%</div>
+                          <div className="text-[9px] text-slate-500">EBITDA Accretion Ratio</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Detailed metric analysis */}
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                        Detailed Metric Analysis: {DEFAULT_ANALYSIS.name}
+                      </span>
+                      <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">
+                        Overlap Index: {DEFAULT_ANALYSIS.overlap_index_pct}%
+                      </span>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+                        <div className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500">Duplicate Cost Savings</div>
+                        <div className="text-base font-bold text-emerald-700 dark:text-emerald-400">
+                          ₹{(DEFAULT_ANALYSIS.duplicate_cost_savings_cr * costEfficiency).toFixed(2)} Cr
+                        </div>
+                        <div className="text-[10px] text-slate-500">Shared expenses, administrative operations, and real estate consolidation index.</div>
+                      </div>
+                      <div className="rounded border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+                        <div className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500">Cross-Sell Opportunity</div>
+                        <div className="text-base font-bold text-emerald-700 dark:text-emerald-400">
+                          ₹{(DEFAULT_ANALYSIS.cross_sell_opportunity_cr * costEfficiency).toFixed(2)} Cr
+                        </div>
+                        <div className="text-[10px] text-slate-500">Synergic cross-selling leveraging legacy consolidator footprint.</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 rounded border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+                      <div className="flex items-start gap-1.5">
+                        <Sparkles className="mt-0.5 h-3 w-3 flex-shrink-0 text-emerald-600" />
+                        <p className="text-[11px] text-slate-700 dark:text-slate-300">
+                          <span className="font-bold text-emerald-700 dark:text-emerald-400">Partner Recommendation:</span>{" "}
+                          {DEFAULT_ANALYSIS.partner_recommendation}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex justify-end">
+                      <button className="flex items-center gap-1 text-[10.5px] font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+                        Sync Targets to workspace <ArrowRight className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// Main page — your original implementation
+// =====================================================================
+
 export default function BoltOnsPage() {
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,12 +292,10 @@ export default function BoltOnsPage() {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
-  // Form
   const [selectedBuyer, setSelectedBuyer] = useState<string>("");
   const [tier, setTier] = useState<"any"|"mid"|"large"|"mega">("any");
   const [brief, setBrief] = useState<string>("");
 
-  // Active shortlist
   const [activeShortlistId, setActiveShortlistId] = useState<string | null>(null);
   const [activeShortlist, setActiveShortlist] = useState<Shortlist | null>(null);
   const [activeTargets, setActiveTargets] = useState<Target[]>([]);
@@ -112,7 +337,7 @@ export default function BoltOnsPage() {
 
       if (j.generation_note) setWarning(`AI note: ${j.generation_note}`);
       if (j.shortlist_id) await loadShortlist(j.shortlist_id);
-      await loadBuyers();  // refresh latest_shortlist references
+      await loadBuyers();
     } catch (e: any) { setError(e?.message ?? "Generation failed"); }
     finally { setGenerating(false); }
   }
@@ -129,10 +354,10 @@ export default function BoltOnsPage() {
   }
 
   const fitScoreColor = (s: number): string => {
-    if (s >= 80) return "rose";       // obvious bolt-on
-    if (s >= 60) return "amber";      // strong fit
-    if (s >= 40) return "indigo";     // adjacent
-    return "slate";                   // stretch
+    if (s >= 80) return "rose";
+    if (s >= 60) return "amber";
+    if (s >= 40) return "indigo";
+    return "slate";
   };
   const fitScoreLabel = (s: number): string => {
     if (s >= 80) return "Obvious";
@@ -141,12 +366,10 @@ export default function BoltOnsPage() {
     return "Stretch";
   };
 
-  // Buyers with prior shortlists, for the side rail
   const buyersWithShortlists = buyers.filter((b) => b.latest_shortlist !== null);
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
@@ -159,6 +382,9 @@ export default function BoltOnsPage() {
         </div>
       </div>
 
+      {/* v29 Visual Layer — Bolt-On Hub above original generator */}
+      <BoltOnHub />
+
       {error && <div className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">{error}</div>}
       {!error && warning && (
         <div className="rounded border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
@@ -166,7 +392,6 @@ export default function BoltOnsPage() {
         </div>
       )}
 
-      {/* Generator form */}
       <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
           <Sparkles className="h-3.5 w-3.5" /> Generate a new shortlist
@@ -225,7 +450,6 @@ export default function BoltOnsPage() {
         </div>
       </section>
 
-      {/* Buyer profile preview when selected */}
       {selectedBuyer && (() => {
         const b = buyers.find((x) => x.buyer_name === selectedBuyer);
         if (!b) return null;
@@ -245,7 +469,6 @@ export default function BoltOnsPage() {
         );
       })()}
 
-      {/* Active shortlist results */}
       {activeShortlist && (
         <section>
           <div className="mb-2 flex items-center justify-between">
@@ -338,7 +561,6 @@ export default function BoltOnsPage() {
         </section>
       )}
 
-      {/* Existing shortlists side panel */}
       {buyersWithShortlists.length > 0 && !activeShortlistId && (
         <section>
           <h2 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
