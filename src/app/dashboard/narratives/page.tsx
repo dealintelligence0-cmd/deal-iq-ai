@@ -35,25 +35,30 @@ export default function NarrativesPage() {
   const [error, setError] = useState<string | null>(null);
   const [accountInput, setAccountInput] = useState("");
 
-  const loadList = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await fetch("/api/narratives").then((x) => x.json());
-      if (r.error) throw new Error(r.error);
-      setNarratives(r.narratives ?? []);
-    } catch (e: any) { setError(e?.message ?? "Load failed"); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { loadList(); }, [loadList]);
-
-  async function loadOne(account: string) {
+  const loadOne = useCallback(async (account: string) => {
     setError(null);
     try {
       const r = await fetch(`/api/narratives?account=${encodeURIComponent(account)}`).then((x) => x.json());
       if (r.narrative) setActive(r.narrative as Narrative);
     } catch (e: any) { setError(e?.message ?? "Load failed"); }
-  }
+  }, []);
+
+  const loadList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/narratives").then((x) => x.json());
+      if (r.error) throw new Error(r.error);
+      const list = (r.narratives ?? []) as NarrativeRow[];
+      setNarratives(list);
+      // Auto-load the most recent brief if nothing is active
+      if (list.length > 0 && !active) {
+        await loadOne(list[0].account_name);
+      }
+    } catch (e: any) { setError(e?.message ?? "Load failed"); }
+    finally { setLoading(false); }
+  }, [active, loadOne]);
+
+  useEffect(() => { loadList(); }, [loadList]);
 
   async function generate() {
     const account = accountInput.trim();

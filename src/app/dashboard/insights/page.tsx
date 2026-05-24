@@ -86,12 +86,9 @@ export default function InsightsPage() {
 
   const loadDeals = useCallback(async () => {
     setLoading(true);
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) { setDeals([]); setLoading(false); return; }
     const { data } = await sb
       .from("deals")
       .select("id,buyer,target,sector,country,deal_type,status,ai_enriched_at,ai_summary,priority_score,advisory_score,risk_flag")
-      .eq("created_by", user.id)
       .order("created_at", { ascending: false })
       .limit(500);
     setDeals((data ?? []) as DealRow[]);

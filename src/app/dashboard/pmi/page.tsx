@@ -1,510 +1,273 @@
-
-
-
-
 "use client";
 
-import { useState, useEffect } from "react";
-import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
-import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download } from "lucide-react";
-import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
-import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
-import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
-import AIGenerateConfirm from "@/components/AIGenerateConfirm";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect, useCallback } from "react";
+import { Briefcase, Loader2, Plus, Search, ChevronRight, Layers, CheckSquare, Square } from "lucide-react";
 
-const MODES = [
-  { id: "narrative",   label: "Narrative Proposal",   desc: "Full board-ready PMI proposal" },
-  { id: "slides",      label: "Executive Slides",     desc: "Slide-style structured deck" },
-  { id: "workplan",    label: "Workplan Table",       desc: "Function × phase deliverables" },
-  { id: "roadmap",     label: "Gantt Roadmap",        desc: "Pre-/Post-Day-1 visual" },
-  { id: "steerco",     label: "Steering Committee Pack", desc: "Concise update format" },
+type Playbook = { id: string; account_name: string; buyer_name: string | null; total_weeks: number; current_week: number; updated_at: string };
+type Task = { id: string; title: string; workstream: string; start_week: number; end_week: number; progress_pct: number; dependencies: string[] };
+type Check = { id: string; phase: string; title: string; owner_role: string | null; done: boolean; notes: string | null };
+
+const WS_COLORS: Record<string, string> = {
+  IMO: "bg-purple-500/70", HR: "bg-rose-500/70", IT: "bg-cyan-500/70",
+  Finance: "bg-amber-500/70", GTM: "bg-blue-500/70", Legal: "bg-pink-500/70", Ops: "bg-emerald-500/70",
+};
+const PHASES = [
+  { key: "pre_close",        label: "Pre-Close / Day 0",     desc: "SLA approvals and antitrust checks" },
+  { key: "day_1_core",       label: "Day 1 Core",            desc: "Corporate notifications and tech freezes" },
+  { key: "day_30_stabilize", label: "Day 30 Stabilization",  desc: "Cutover verification and SLA alignment" },
+  { key: "day_100_integrate",label: "Day 100 Integration",   desc: "Operational consolidation milestones" },
+  { key: "post_close",       label: "Post-Close",            desc: "Synergy review and lessons learned" },
 ];
 
-type HistoryItem = {
-  id: string; buyer: string | null; target: string | null;
-  sector: string | null; deal_size: string | null;
-  tier: string | null; provider: string | null; model: string | null;
-  cost_estimate_usd: number | null;
-  content: string; created_at: string;
-};
+export default function PMIPage() {
+  const [list, setList] = useState<Playbook[]>([]);
+  const [active, setActive] = useState<Playbook | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [checklist, setChecklist] = useState<Check[]>([]);
+  const [accountInput, setAccountInput] = useState("");
+  const [buyerInput, setBuyerInput] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [phaseTab, setPhaseTab] = useState("day_1_core");
 
-export default function PmiStudioPage() {
-  const [buyer, setBuyer] = useState("");
-  const [target, setTarget] = useState("");
-  const [sector, setSector] = useState("");
-  const [geography, setGeography] = useState("");
-  const [dealSize, setDealSize] = useState("");
-  const [dealId, setDealId] = useState<string>("");
-  const [synergyAmbition, setSynergyAmbition] = useState<"low" | "medium" | "high">("medium");
-  const [mandateType, setMandateType] = useState<string>("buy_side");
-  const [buyerTypeF, setBuyerTypeF] = useState<string>("strategic");
-  const [ownershipType, setOwnershipType] = useState<string>("majority");
-  const [integrationStyle, setIntegrationStyle] = useState<string>("functional");
-  const [keyRisks, setKeyRisks] = useState("");
-  const [publicPrivate, setPublicPrivate] = useState<"public" | "private">("private");
-  const [listed, setListed] = useState<"listed" | "unlisted">("unlisted");
-  const [knownIssues, setKnownIssues] = useState("");
-  const [tsaNeeded, setTsaNeeded] = useState(false);
-  const [crossBorder, setCrossBorder] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [outputMode, setOutputMode] = useState("narrative");
-
-  const [generating, setGenerating] = useState(false);
-  const [content, setContent] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [pptExporting, setPptExporting] = useState(false);
-
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [premiumTier, setPremiumTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
-  const [economicTier, setEconomicTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
-
-  const sb = createClient();
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-
-  // 1) Load tier settings + history
-  useEffect(() => {
-    (async () => {
-      const { data: u } = await sb.auth.getUser();
-      if (!u.user) return;
-      const { data } = await sb.from("ai_settings")
-        .select("premium_provider,premium_model,premium_key_encrypted,economic_provider,economic_model,economic_key_encrypted")
-        .eq("user_id", u.user.id).maybeSingle();
-      if (data) {
-        setPremiumTier({
-          provider: data.premium_provider, model: data.premium_model,
-          hasKey: !!data.premium_key_encrypted && data.premium_provider !== "free",
-        });
-        setEconomicTier({
-          provider: data.economic_provider, model: data.economic_model,
-          hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free",
-        });
-      }
-      const { data: h } = await sb.from("ai_outputs")
-        .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
-        .eq("user_id", u.user.id).eq("module", "pmi")
-        .order("created_at", { ascending: false }).limit(20);
-      if (h) setHistory(h as HistoryItem[]);
-    })();
-  }, [sb]);
-
-  // 2) Read URL params + sessionStorage fallback (mount-only)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const did = params.get("deal_id");
-    if (did) resetIfNewDeal(did);
-
-    const stored = loadDealContext();
-    const finalDID = did ?? stored.deal_id;
-    const finalB = params.get("buyer") ?? stored.buyer;
-    const finalT = params.get("target") ?? stored.target;
-    const finalS = params.get("sector") ?? stored.sector;
-    const finalG = params.get("geography") ?? stored.geography;
-    const finalDS = params.get("deal_size") ?? stored.deal_size;
-
-    if (finalDID) setDealId(finalDID);
-    if (finalB) setBuyer(finalB);
-    if (finalT) setTarget(finalT);
-    if (finalS) setSector(finalS);
-    if (finalG) setGeography(finalG);
-    if (finalDS) setDealSize(finalDS);
-
-    saveDealContext({ buyer: finalB, target: finalT, sector: finalS, geography: finalG, deal_size: finalDS, deal_id: finalDID });
-    const cached = loadOutput("pmi");
-    if (cached) setContent(cached);
+  const loadList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/pmi").then((x) => x.json());
+      setList(r.playbooks ?? []);
+    } catch (e: any) { setError(e?.message ?? "Load failed"); }
+    finally { setLoading(false); }
   }, []);
+  useEffect(() => { loadList(); }, [loadList]);
 
-  // 3) Save context whenever any field changes
-  useEffect(() => {
-    saveDealContext({ buyer, target, sector, geography, deal_size: dealSize, deal_id: dealId });
-  }, [buyer, target, sector, geography, dealSize, dealId]);
-
-  async function reloadHistory() {
-    const { data: u } = await sb.auth.getUser();
-    if (!u.user) return;
-    const { data: h } = await sb.from("ai_outputs")
-      .select("id,buyer,target,sector,deal_size,tier,provider,model,cost_estimate_usd,content,created_at")
-      .eq("user_id", u.user.id).eq("module", "pmi")
-      .order("created_at", { ascending: false }).limit(20);
-    if (h) setHistory(h as HistoryItem[]);
-  }
-
-  async function deleteFromHistory(id: string) {
-    if (!confirm("Delete this saved PMI output?")) return;
-    await sb.from("ai_outputs").delete().eq("id", id);
-    reloadHistory();
-  }
-
-  function loadFromHistory(item: HistoryItem) {
-    setContent(item.content);
-    if (item.buyer) setBuyer(item.buyer);
-    if (item.target) setTarget(item.target);
-    if (item.sector) setSector(item.sector);
-    if (item.deal_size) setDealSize(item.deal_size);
-    setShowHistory(false);
-  }
-
-  function generateOffline() {
-    if (!buyer || !target) return;
-    setGenerating(true);
-    const input: PmiInput = {
-      buyer, target, sector, geography, deal_size: dealSize,
-      synergy_ambition: synergyAmbition, key_risks: keyRisks,
-      public_private: publicPrivate, listed, known_issues: knownIssues,
-      tsa_needed: tsaNeeded, cross_border: crossBorder, notes,
-    };
-    const result = generatePmiProposal(input);
-    setContent(result);
-    saveOutput("pmi", result);
-    setGenerating(false);
-  }
-
-  function startAIGenerate() {
-    if (!buyer || !target) return;
-    setConfirmOpen(true);
-  }
-
-  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
-    setConfirmOpen(false);
-    if (tier === "offline") { generateOffline(); return; }
-    if (!buyer || !target) return;
-    setGenerating(true);
+  async function open(account: string) {
+    setError(null);
     try {
-      const res = await fetch("/api/ai/pmi", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          buyer, target, sector, geography,
-          deal_id: dealId || undefined,
-          deal_size: dealSize,
-          synergy_ambition: synergyAmbition,
-          key_risks: keyRisks,
-          public_private: publicPrivate,
-          listed,
-          known_issues: knownIssues,
-          tsa_needed: tsaNeeded,
-          cross_border: crossBorder,
-          notes,
-          output_mode: outputMode,
-          tier,
-          model_override: modelOverride,
-          mandate_type: mandateType,
-          buyer_type: buyerTypeF,
-          ownership_type: ownershipType,
-          integration_style: integrationStyle,
-        }),
+      const r = await fetch(`/api/pmi?account=${encodeURIComponent(account)}`).then((x) => x.json());
+      setActive(r.playbook);
+      setTasks(r.tasks ?? []);
+      setChecklist(r.checklist ?? []);
+    } catch (e: any) { setError(e?.message ?? "Load failed"); }
+  }
+
+  async function create(useAI: boolean) {
+    if (!accountInput.trim()) return;
+    setCreating(true); setError(null);
+    try {
+      const r = await fetch("/api/pmi", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_name: accountInput.trim(), buyer_name: buyerInput.trim() || null, use_ai: useAI }),
       });
-      const j = await res.json();
-      if (j.content) {
-        setContent(j.content);
-        saveOutput("pmi", j.content);
-        reloadHistory();
-      } else if (j.error) alert("AI error: " + j.error);
-    } catch {
-      alert("Request failed. Check your API key in Settings.");
-    }
-    setGenerating(false);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "Create failed");
+      setAccountInput(""); setBuyerInput("");
+      await loadList();
+      await open(accountInput.trim());
+    } catch (e: any) { setError(e?.message ?? "Create failed"); }
+    finally { setCreating(false); }
   }
 
-  function copyText() {
-    if (!content) return;
-    navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  async function downloadPptx() {
-    if (!content) return;
-    setPptExporting(true);
-    try {
-      const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
-      await exportProposalToPptx(content, { buyer, target, sector, geography, dealSize, moduleLabel: "PMI Playbook" }, undefined, `deal-iq-pmi-${buyer || "buyer"}-${target || "target"}.pptx`);
-    } catch (e) {
-      alert("PPTX export failed: " + String(e));
-    } finally {
-      setPptExporting(false);
-    }
-  }
-
-  function printDoc() {
-    if (!content) return;
-    openMbbPrintWindow({
-      contentMarkdown: content,
-      meta: {
-        moduleLabel: "PMI Playbook",
-        buyer,
-        target,
-        sector,
-        geography,
-        dealSize,
-      },
+  async function bumpProgress(t: Task, delta: number) {
+    const np = Math.max(0, Math.min(100, t.progress_pct + delta));
+    setTasks((prev) => prev.map((x) => x.id === t.id ? { ...x, progress_pct: np } : x));
+    await fetch("/api/pmi/task", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: t.id, progress_pct: np }),
     });
   }
 
+  async function toggleCheck(c: Check) {
+    const nd = !c.done;
+    setChecklist((prev) => prev.map((x) => x.id === c.id ? { ...x, done: nd } : x));
+    await fetch("/api/pmi/checklist", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: c.id, done: nd }),
+    });
+  }
+
+  const totalWeeks = active?.total_weeks ?? 20;
+  const weekHeaders = Array.from({ length: totalWeeks }, (_, i) => i + 1);
+
   return (
-    <>
-      <AIGenerateConfirm
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={generate}
-        module="pmi"
-        premiumProvider={{ tier: "premium", ...premiumTier }}
-        economicProvider={{ tier: "economic", ...economicTier }}
-        hasOfflineFallback={true}
-      />
-      <div className="flex h-full min-h-screen flex-col lg:flex-row">
-        <aside className="w-full shrink-0 border-b border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#15151f] lg:w-80 lg:border-b-0 lg:border-r lg:p-6">
-          <div className="page-header">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <Layers className="h-5 w-5 text-white" />
-                <div>
-                  <h1 className="text-lg font-semibold text-white">PMI Studio</h1>
-                  <p className="text-[11px] text-white/60">Post-Merger Integration · Synergy · Roadmap</p>
-                </div>
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
+          <Briefcase className="h-6 w-6 text-purple-500" />
+          Post-Merger Integration Playbook Studio
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Formulate Joint IMO architectures, draft Day-1 advisory communications, edit workstream progress, and deploy Gantt schedules.
+        </p>
+      </div>
+
+      {error && <div className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">{error}</div>}
+
+      {!active && (
+        <>
+          <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Create new playbook</h2>
+            <div className="grid gap-2 sm:grid-cols-[2fr,2fr,auto,auto]">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input value={accountInput} onChange={(e) => setAccountInput(e.target.value)}
+                       placeholder="Target firm" className="w-full rounded border border-slate-300 px-8 py-2 text-sm dark:border-slate-700 dark:bg-slate-800" />
               </div>
-              <button onClick={() => setShowHistory(!showHistory)}
-                className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20">
-                <History className="h-3 w-3" /> {history.length}
+              <input value={buyerInput} onChange={(e) => setBuyerInput(e.target.value)}
+                     placeholder="Acquirer (optional)" className="rounded border border-slate-300 px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-800" />
+              <button onClick={() => create(false)} disabled={!accountInput.trim() || creating}
+                      className="rounded border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800 disabled:opacity-50">
+                <Plus className="mr-1 inline h-4 w-4" /> Default plan
+              </button>
+              <button onClick={() => create(true)} disabled={!accountInput.trim() || creating}
+                      className="rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-500 disabled:opacity-50">
+                {creating ? <Loader2 className="mr-1 inline h-4 w-4 animate-spin" /> : <Plus className="mr-1 inline h-4 w-4" />}
+                AI-tailored plan
               </button>
             </div>
-          </div>
+            <p className="mt-2 text-[10.5px] italic text-slate-500">Default plan seeds 10 standard tasks + 15 checklist items in 1 second. AI-tailored adapts to sector/geography (~$0.03, 20 sec).</p>
+          </section>
 
-          {showHistory && (
-            <div className="mb-3 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#15151f]">
-              {history.length === 0 ? (
-                <p className="px-2 py-3 text-[11px] text-slate-500">No PMI history yet.</p>
-              ) : history.map((h) => (
-                <div key={h.id} className="mb-1 flex items-center gap-2 rounded p-2 text-[10px] hover:bg-slate-50 dark:hover:bg-white/5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-slate-700 dark:text-slate-300">
-                      {h.target ?? "—"} · {h.buyer ?? "—"}
+          {list.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Active playbooks ({list.length})</h2>
+              <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                {list.map((p) => (
+                  <button key={p.id} onClick={() => open(p.account_name)}
+                          className="rounded-lg border border-slate-200 bg-white p-3 text-left hover:border-purple-300 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="flex items-start justify-between">
+                      <span className="text-sm font-bold">{p.account_name}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                    <p className="text-[10.5px] text-slate-500">
+                      {p.buyer_name && `Acquirer: ${p.buyer_name} · `}Week {p.current_week} of {p.total_weeks}
                     </p>
-                    <p className="truncate text-slate-500">
-                      {h.provider ?? "—"} · {h.cost_estimate_usd ? `$${h.cost_estimate_usd.toFixed(4)}` : "Free"} · {new Date(h.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <button onClick={() => loadFromHistory(h)} className="rounded border border-slate-200 px-1.5 py-0.5 text-slate-700 dark:border-white/10 dark:text-slate-300">Load</button>
-                  <button onClick={() => deleteFromHistory(h.id)} className="rounded bg-red-50 p-1 text-red-700 dark:bg-red-950/30 dark:text-red-400">
-                    <Trash2 className="h-2.5 w-2.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-slate-600 dark:text-slate-400">Buyer</label>
-                <input value={buyer} onChange={(e) => setBuyer(e.target.value)} placeholder="Apollo Capital"
-                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]" />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-600 dark:text-slate-400">Target</label>
-                <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Acme Tech"
-                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-slate-600 dark:text-slate-400">Sector</label>
-                <input value={sector} onChange={(e) => setSector(e.target.value)} placeholder="Manufacturing"
-                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]" />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-600 dark:text-slate-400">Geography</label>
-                <input value={geography} onChange={(e) => setGeography(e.target.value)} placeholder="USA"
-                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]" />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] text-slate-600 dark:text-slate-400">Deal Size</label>
-              <input value={dealSize} onChange={(e) => setDealSize(e.target.value)} placeholder="$2.5B"
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]" />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">Synergy Ambition</label>
-              <div className="mt-1 flex gap-1">
-                {(["low", "medium", "high"] as const).map((a) => (
-                  <button key={a} onClick={() => setSynergyAmbition(a)}
-                    className={`flex-1 rounded px-2 py-1 text-[10px] font-medium capitalize ${synergyAmbition === a ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                    {a}
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
+          )}
+        </>
+      )}
 
+      {active && (
+        <>
+          <div className="flex items-center justify-between">
             <div>
-              <label className="text-xs text-slate-500">Mandate Type</label>
-              <select value={mandateType} onChange={(e) => setMandateType(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-                <option value="buy_side">Buy-side</option>
-                <option value="sell_side">Sell-side</option>
-                <option value="pmi_only">PMI only</option>
-                <option value="carve_out">Carve-out</option>
-                <option value="synergy_capture">Synergy capture</option>
-                <option value="value_creation">Value creation</option>
-                <option value="distressed">Distressed</option>
-              </select>
+              <h2 className="text-lg font-bold">{active.account_name}</h2>
+              <p className="text-[11px] text-slate-500">{active.buyer_name && `Acquirer: ${active.buyer_name} · `}{active.total_weeks}-week integration · {tasks.length} workstream tasks</p>
             </div>
-
-            <div>
-              <label className="text-xs text-slate-500">Buyer Type</label>
-              <select value={buyerTypeF} onChange={(e) => setBuyerTypeF(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-                <option value="strategic">Strategic</option>
-                <option value="pe">PE sponsor</option>
-                <option value="family_office">Family office</option>
-                <option value="sovereign">Sovereign / infra</option>
-                <option value="founder">Founder buyer</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs text-slate-500">Ownership</label>
-              <select value={ownershipType} onChange={(e) => setOwnershipType(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-                <option value="minority">Minority</option>
-                <option value="majority">Majority</option>
-                <option value="full">Full (100%)</option>
-                <option value="jv">Joint venture</option>
-                <option value="merger">Merger of equals</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs text-slate-500">Integration Style</label>
-              <select value={integrationStyle} onChange={(e) => setIntegrationStyle(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
-                <option value="light_touch">Light touch</option>
-                <option value="controlled_autonomy">Controlled autonomy</option>
-                <option value="functional">Functional integration</option>
-                <option value="full_absorption">Full absorption</option>
-                <option value="standalone_holdco">Standalone holdco</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-slate-600 dark:text-slate-400">Public/Private</label>
-                <select value={publicPrivate} onChange={(e) => setPublicPrivate(e.target.value as "public" | "private")}
-                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]">
-                  <option value="private">Private</option>
-                  <option value="public">Public</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-600 dark:text-slate-400">Listed</label>
-                <select value={listed} onChange={(e) => setListed(e.target.value as "listed" | "unlisted")}
-                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]">
-                  <option value="unlisted">Unlisted</option>
-                  <option value="listed">Listed</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex items-center gap-2 rounded border border-slate-200 px-2 py-1.5 text-[11px]">
-                <input type="checkbox" checked={tsaNeeded} onChange={(e) => setTsaNeeded(e.target.checked)} className="rounded" />
-                TSA Needed
-              </label>
-              <label className="flex items-center gap-2 rounded border border-slate-200 px-2 py-1.5 text-[11px]">
-                <input type="checkbox" checked={crossBorder} onChange={(e) => setCrossBorder(e.target.checked)} className="rounded" />
-                Cross Border
-              </label>
-            </div>
-
-            <div>
-              <label className="text-[10px] text-slate-600 dark:text-slate-400">Key Risks</label>
-              <textarea value={keyRisks} onChange={(e) => setKeyRisks(e.target.value)} rows={2} placeholder="Customer concentration, regulatory..."
-                className="w-full rounded border border-slate-200 px-2 py-1 text-[11px]" />
-            </div>
-
-            <div>
-              <label className="text-[10px] text-slate-600 dark:text-slate-400">Known Issues</label>
-              <textarea value={knownIssues} onChange={(e) => setKnownIssues(e.target.value)} rows={2} placeholder="Pending litigation, IT debt..."
-                className="w-full rounded border border-slate-200 px-2 py-1 text-[11px]" />
-            </div>
-
-            <div>
-              <label className="text-[10px] text-slate-600 dark:text-slate-400">Notes / Custom Insights</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
-                className="w-full rounded border border-slate-200 px-2 py-1 text-[11px]" />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">Output Mode</label>
-              <select value={outputMode} onChange={(e) => setOutputMode(e.target.value)}
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-[11px]">
-                {MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-              </select>
-              <p className="mt-1 text-[9px] text-slate-500">{MODES.find(m => m.id === outputMode)?.desc}</p>
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={startAIGenerate} disabled={generating || !buyer || !target}
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
-                {generating ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}
-                Generate with AI ✦
-              </button>
-              <button onClick={generateOffline} disabled={generating || !buyer || !target}
-                className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 disabled:opacity-40">
-                Quick (Offline)
-              </button>
-            </div>
+            <button onClick={() => { setActive(null); setTasks([]); setChecklist([]); loadList(); }}
+                    className="text-[11px] text-slate-500 hover:text-slate-700 underline">← Back to list</button>
           </div>
-        </aside>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-6 dark:bg-[#0a0a14]">
-          {!content && (
-            <div className="flex h-full min-h-[400px] items-center justify-center">
-              <div className="text-center">
-                <Layers className="mx-auto h-12 w-12 text-indigo-300" />
-                <p className="mt-4 text-base font-semibold text-slate-700 dark:text-slate-200">PMI Studio</p>
-                <p className="mt-1 text-sm text-slate-500">Generate board-ready Post-Merger Integration proposals.</p>
-                <p className="mt-3 max-w-sm text-xs text-slate-400">Fill the panel left → pick output mode → Generate. Synergy benchmarks auto-tuned by sector.</p>
+          {/* Gantt */}
+          <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Interactive Integration Gantt (Weeks 1 - {active.total_weeks})</h2>
+              <span className="rounded border border-purple-200 bg-purple-50 px-2 py-0.5 text-[9px] font-bold uppercase text-purple-700 dark:border-purple-900 dark:bg-purple-950/30 dark:text-purple-400">Active IMO Track</span>
+            </div>
+            <p className="mb-3 text-[10.5px] text-slate-500">Edit task completion directly on current workstream bars.</p>
+
+            <div className="overflow-x-auto">
+              <div style={{ minWidth: 800 }}>
+                {/* Header */}
+                <div className="grid gap-1 border-b border-slate-200 pb-1 text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700"
+                     style={{ gridTemplateColumns: `2fr 60px 50px 80px repeat(${totalWeeks}, 1fr)` }}>
+                  <span>Active Transition Activity</span>
+                  <span className="text-center">WS</span>
+                  <span className="text-center">Prog</span>
+                  <span className="text-center">±</span>
+                  {weekHeaders.map((w) => <span key={w} className="text-center">{w}</span>)}
+                </div>
+
+                {tasks.map((t) => {
+                  const start = t.start_week - 1;
+                  const span = t.end_week - t.start_week + 1;
+                  const wsColor = WS_COLORS[t.workstream] ?? "bg-slate-500/70";
+                  return (
+                    <div key={t.id} className="grid gap-1 border-b border-slate-100 py-2 text-[11px] hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30"
+                         style={{ gridTemplateColumns: `2fr 60px 50px 80px repeat(${totalWeeks}, 1fr)` }}>
+                      <div>
+                        <div className="font-medium text-slate-900 dark:text-white">{t.title}</div>
+                        <div className="text-[9.5px] text-slate-500">Dependency: {t.dependencies?.length ? t.dependencies.join(", ") : "None"}</div>
+                      </div>
+                      <div className="text-center">
+                        <span className={`rounded px-1 py-0.5 text-[9px] font-bold uppercase ${wsColor.replace("/70","/30")} text-slate-700 dark:text-slate-100`}>{t.workstream}</span>
+                      </div>
+                      <div className="text-center font-mono text-[10.5px]">{t.progress_pct}%</div>
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => bumpProgress(t, -10)} className="text-[10px] text-slate-400 hover:text-slate-700">−</button>
+                        <button onClick={() => bumpProgress(t, +10)} className="text-[10px] text-slate-400 hover:text-slate-700">+</button>
+                      </div>
+                      {/* Bars */}
+                      <div className="relative" style={{ gridColumn: `5 / span ${totalWeeks}`, height: "20px" }}>
+                        <div className="absolute inset-y-1 rounded-sm" style={{
+                          left: `${(start / totalWeeks) * 100}%`,
+                          width: `${(span / totalWeeks) * 100}%`,
+                        }}>
+                          <div className={`h-full rounded-sm ${wsColor} relative overflow-hidden`}>
+                            <div className={`absolute inset-y-0 left-0 ${wsColor.replace("/70","")} opacity-60`}
+                                 style={{ width: `${t.progress_pct}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          )}
+          </section>
 
-          {content && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#15151f]">
-                <div>
-                  <p className="text-sm font-semibold">PMI Proposal</p>
-                  <p className="text-xs text-slate-500">{target} · {buyer} · {sector} · {dealSize}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={copyText} className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1.5 text-xs">
-                    {copied ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                  <button onClick={printDoc} className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1.5 text-xs">
-                    <Printer className="h-3 w-3" /> Print / PDF
-                  </button>
-                  <button onClick={downloadPptx} disabled={pptExporting} className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-50">
-                    {pptExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
-                  </button>
-                  <button onClick={() => { setContent(null); clearOutput("pmi"); }}
-                    className="flex items-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
-                    <Trash2 className="h-3 w-3" /> Clear
-                  </button>
-                </div>
+          {/* Checklist */}
+          <div className="grid gap-4 md:grid-cols-[1fr,2fr]">
+            <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+              <h2 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <Layers className="h-3.5 w-3.5" /> Integration Phase Checklist
+              </h2>
+              <div className="space-y-1">
+                {PHASES.map((p) => {
+                  const count = checklist.filter((c) => c.phase === p.key).length;
+                  const done = checklist.filter((c) => c.phase === p.key && c.done).length;
+                  return (
+                    <button key={p.key} onClick={() => setPhaseTab(p.key)}
+                            className={`flex w-full items-center justify-between rounded p-2 text-left transition ${phaseTab === p.key ? "bg-purple-100 dark:bg-purple-950/40" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
+                      <div>
+                        <div className={`text-[12px] font-bold ${phaseTab === p.key ? "text-purple-700 dark:text-purple-400" : "text-slate-700 dark:text-slate-300"}`}>{p.label}</div>
+                        <div className="text-[10px] text-slate-500">{p.desc}</div>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-500">{done}/{count}</span>
+                    </button>
+                  );
+                })}
               </div>
+            </section>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-white/10 dark:bg-[#15151f]">
-                <div dangerouslySetInnerHTML={{ __html: renderVisualProposal(content) }} />
+            <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">{PHASES.find((p) => p.key === phaseTab)?.label}</h2>
+                <span className="text-[9.5px] uppercase tracking-wider text-slate-400">Checklist</span>
               </div>
-            </div>
-          )}
-        </main>
-      </div>
-    </>
+              <div className="space-y-2">
+                {checklist.filter((c) => c.phase === phaseTab).map((c) => (
+                  <div key={c.id} className="flex items-start gap-2 rounded border border-slate-100 p-2 text-[12px] dark:border-slate-800">
+                    <button onClick={() => toggleCheck(c)} className="mt-0.5 flex-shrink-0">
+                      {c.done ? <CheckSquare className="h-4 w-4 text-emerald-600" /> : <Square className="h-4 w-4 text-slate-400" />}
+                    </button>
+                    <div className="flex-1">
+                      <div className={`font-medium ${c.done ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>{c.title}</div>
+                      {c.owner_role && <div className="text-[10px] text-slate-500">Owner: {c.owner_role}</div>}
+                    </div>
+                  </div>
+                ))}
+                {checklist.filter((c) => c.phase === phaseTab).length === 0 && (
+                  <p className="text-[11px] italic text-slate-500">No checklist items in this phase yet.</p>
+                )}
+              </div>
+            </section>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
