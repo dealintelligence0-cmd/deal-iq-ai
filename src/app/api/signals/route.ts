@@ -1,3 +1,5 @@
+
+
 /**
  * GET /api/signals
  *
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 200);
 
   let q = admin.from("executive_signals")
-    .select("id, watchlist_id, filing_id, signal_type, category, severity, confidence, headline, evidence_quote, evidence_page, context, pitch_angle, advisory_angle, target_focus, signal_ref, status, created_at, watchlist_companies!inner(id, company_name, ticker, sector, country)")
+    .select("id, watchlist_id, filing_id, signal_type, severity, confidence, headline, evidence_quote, evidence_page, context, pitch_angle, status, created_at, watchlist_companies!inner(id, company_name, ticker, sector, country)")
     .eq("created_by", owner.ownerId)
     .eq("status", status)
     .order("created_at", { ascending: false })
@@ -42,8 +44,6 @@ export async function GET(req: NextRequest) {
 
   if (watchlistId) q = q.eq("watchlist_id", watchlistId);
   if (signalType)  q = q.eq("signal_type", signalType);
-  const category = url.searchParams.get("category");
-  if (category) q = q.eq("category", category);
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
