@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveKey } from "@/lib/ai/key-resolver";
+import { resolveDataOwner } from "@/lib/auth/data-owner";
 import { critiquePitch } from "@/lib/critique/critique";
 import type { ProviderId } from "@/lib/ai/providers";
 import crypto from "node:crypto";
@@ -102,16 +103,18 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const owner = await resolveDataOwner(sb);
+  if (!owner.ok) return NextResponse.json({ error: owner.error }, { status: owner.status });
 
   const proposalId = new URL(req.url).searchParams.get("proposal_id");
   if (!proposalId) return NextResponse.json({ error: "proposal_id required" }, { status: 400 });
 
-  const { data } = await sb
+  const admin = createAdminClient();
+  const { data } = await admin
     .from("pitch_critiques")
     .select("*")
     .eq("proposal_id", proposalId)
+    .eq("created_by", owner.ownerId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
