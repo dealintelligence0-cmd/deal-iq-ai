@@ -184,7 +184,7 @@ function TSAVisuals() {
                        className="w-full accent-emerald-500" />
               </div>
 
-              <button onClick={() => alert("This is the visual layer only. Use the AI Carve-Out Rationale generator below (when wired) to produce text narrative explaining service selection.")}
+              <button onClick={() => alert("This is the visual layer. Use your TSA AI generation flow below (when wired) to produce text narrative explaining service selection.")}
                       className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500">
                 <Sparkles className="h-4 w-4" />
                 Request AI Carve-Out Rationale
@@ -197,11 +197,6 @@ function TSAVisuals() {
   );
 }
 
-// =====================================================================
-// Main page wrapper — preserves any existing TSA functionality below.
-// If you have an existing TSA page with AI generation, copy the body
-// of this default export into the top of yours (above your current JSX).
-// =====================================================================
 export default function TSAPage() {
   return (
     <div className="space-y-6 p-6">
@@ -217,8 +212,11 @@ export default function TSAPage() {
 
       <TSAVisuals />
 
-      {/* If you have an existing TSA AI flow, paste its JSX below this comment.
-          The visualization above will sit on top, your existing functionality stays below. */}
+      {/* ============================================================
+          If you have an existing TSA AI generation flow, paste its
+          JSX below this comment. The visualization above sits on top;
+          your existing functionality stays below.
+          ============================================================ */}
     </div>
   );
 }
