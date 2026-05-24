@@ -11,6 +11,8 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveDataOwner } from "@/lib/auth/data-owner";
 
 export const runtime = "nodejs";
 
@@ -24,25 +26,32 @@ const SIGNAL_LABELS: Record<string, string> = {
 
 export async function GET() {
   const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const owner = await resolveDataOwner(sb);
+  if (!owner.ok) return NextResponse.json({ error: owner.error }, { status: owner.status });
 
-  const { data, error } = await sb
+  const admin = createAdminClient();
+  // signal_trends is a view over executive_signals + watchlist_companies. To scope
+  // to the owner's data, we join through watchlist_companies.created_by.
+  const { data: ownerWatchlist } = await admin
+    .from("watchlist_companies").select("id").eq("created_by", owner.ownerId);
+  const wlIds = (ownerWatchlist ?? []).map((w) => w.id as string);
+
+  if (wlIds.length === 0) return NextResponse.json({ trends: [], isReadOnly: owner.isReadOnly });
+
+  const { data, error } = await admin
     .from("signal_trends")
     .select("*")
+    .in("watchlist_id", wlIds)
     .order("signals_180d", { ascending: false })
     .order("signals_30d", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Enrich with acceleration flag + readable label
   const trends = (data ?? []).map((t: any) => {
     const s30 = t.signals_30d ?? 0;
     const s90 = t.signals_90d ?? 0;
     const s180 = t.signals_180d ?? 0;
-    // Acceleration: ≥3 signals total AND ≥50% of them came in the last 30 days
     const accelerating = s180 >= 3 && s30 / Math.max(s180, 1) >= 0.5;
-    // Sustained pattern: ≥3 signals over 6 months AND consistent across windows
     const sustained = s180 >= 3 && s90 >= 2 && !accelerating;
     return {
       ...t,
@@ -53,5 +62,5 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ trends });
+  return NextResponse.json({ trends, isReadOnly: owner.isReadOnly });
 }

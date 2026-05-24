@@ -8,25 +8,28 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveDataOwner } from "@/lib/auth/data-owner";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const sb = await createClient();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const owner = await resolveDataOwner(sb);
+  if (!owner.ok) return NextResponse.json({ error: owner.error }, { status: owner.status });
 
-  const { data, error } = await sb
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from("watchlist_companies")
     .select("id, company_name, ticker, cik, uk_company_number, bse_scrip_code, nse_symbol, eu_lei, sector, country, is_active, notes, last_scanned_at, created_at, added_via")
+    .eq("created_by", owner.ownerId)
     .order("company_name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Annotate with signal counts (active signals only)
   const ids = (data ?? []).map((c) => c.id as string);
-  if (ids.length === 0) return NextResponse.json({ companies: [] });
+  if (ids.length === 0) return NextResponse.json({ companies: [], isReadOnly: owner.isReadOnly });
 
-  const { data: counts } = await sb
+  const { data: counts } = await admin
     .from("executive_signals")
     .select("watchlist_id, severity")
     .in("watchlist_id", ids)
@@ -49,6 +52,7 @@ export async function GET() {
       high_severity_count: countMap.get(c.id as string)?.high ?? 0,
       critical_severity_count: countMap.get(c.id as string)?.critical ?? 0,
     })),
+    isReadOnly: owner.isReadOnly,
   });
 }
 
