@@ -27,7 +27,7 @@ const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   {
     label: "Intelligence", items: [
       { label: "Themes Radar",    href: "/dashboard/themes",  icon: Sparkles, module: "themes" },
-      { label: "Signal Intel",    href: "/dashboard/signals", icon: Activity, module: "signals" },
+      { label: "Signal Intel Hub", href: "/dashboard/signals", icon: Activity, module: "signals" },
       { label: "Bolt-on Engine",  href: "/dashboard/boltons", icon: Target,   module: "boltons" },
       { label: "Advisor Map",     href: "/dashboard/advisors", icon: Network, module: "advisors" },
       { label: "Account Narratives", href: "/dashboard/narratives", icon: Lightbulb, module: "narratives" },
@@ -36,8 +36,8 @@ const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   {
     label: "Advisory Intelligence", items: [
       { label: "M&A Proposals",  href: "/dashboard/proposals", icon: FileText,        module: "proposals" },
-      { label: "PMI Planner",    href: "/dashboard/pmi",       icon: Layers,          module: "pmi" },
-      { label: "Synergy Engine", href: "/dashboard/synergy",   icon: TrendingUp,      module: "synergy" },
+      { label: "PMI Playbook Studio", href: "/dashboard/pmi",       icon: Layers,          module: "pmi" },
+      { label: "Synergy Quantification", href: "/dashboard/synergy",   icon: TrendingUp,      module: "synergy" },
       { label: "TSA Generator",  href: "/dashboard/tsa",       icon: ArrowLeftRight,  module: "tsa" },
     ],
   },
