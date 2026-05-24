@@ -1,265 +1,205 @@
 
 
-import { NextResponse } from "next/server";
+/**
+ * POST /api/ai/tsa
+ *
+ * Generates a TSA / Carve-Out Rationale from the interactive service catalog.
+ * Mirrors the structure of /api/ai/synergy and /api/ai/pmi.
+ */
+
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { routedCall, type RouteConfig } from "@/lib/ai/router";
-import type { ChatMessage, ProviderId } from "@/lib/ai/providers";
-import { getSemanticCache, setSemanticCache } from "@/lib/ai/semantic-cache";
-import { buildIndustryContextBlock } from "@/lib/intelligence/industry";
-import { normalizePrompt, injectDealContext } from "@/lib/ai/utils";
-import { estimateCost } from "@/lib/ai/cost-estimator";
-import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
-import { buildPmiDependencyMap } from "@/lib/intelligence/pmi-engine";
-import { getOrSeed, dealModelToPromptBlock } from "@/lib/intelligence/deal-model";
+import { resolveKey } from "@/lib/ai/key-resolver";
+import { routedCall } from "@/lib/ai/router";
+import type { ProviderId } from "@/lib/ai/providers";
 
+export const runtime = "nodejs";
+export const maxDuration = 120;
 
+type ServiceLine = {
+  category: string;
+  title: string;
+  sla: string;
+  duration_months: number;
+  monthly_cost_k: number;
+  line_cost_k: number;
+};
 
-export async function POST(req: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+const SYSTEM_PROMPT = `You are an MBB-grade carve-out transition partner producing a board-ready TSA rationale memo.
+
+You will receive:
+  - Deal context (buyer, target, sector, geography, size)
+  - Carve-out entities (target special entity, selling parent group, acquiring buyer group)
+  - Interactive TSA service catalog with category, SLA baseline, duration, cost
+  - Total billing tally with admin overhead
+  - Optional partner notes
+
+Produce a comprehensive carve-out rationale in markdown with these sections:
+
+# Carve-Out Rationale — {Target}
+
+## 1. Executive Summary
+One paragraph: scope of the carve-out, why a TSA is needed, top-line budget, expected transition window.
+
+## 2. Carve-Out Entities & Boundary
+- Target special entity being separated
+- Selling parent's residual obligations
+- Acquiring buyer's intake commitments
+- Legal boundary risks
+
+## 3. Service Catalog Rationale (Function-by-Function)
+For each service line, explain in 2-3 sentences:
+- Why this service must continue post-close (not just "because they need IT")
+- Why the chosen duration is correct (cite specific risk if shorter; cite cost overrun risk if longer)
+- Which side benefits more (parent vs buyer) — informs negotiation leverage
+- SLA enforcement mechanism
+
+## 4. Billing Methodology
+- Direct-billed cost basis (cost-plus vs market rate vs fixed)
+- Admin overhead percentage rationale
+- True-up mechanics for over/underuse
+- Currency / tax treatment if cross-border
+
+## 5. Exit Triggers & Off-Ramps
+- Earliest sensible termination dates per service
+- Step-down pricing for partial discontinuation
+- Hold-back conditions
+- What happens if either party breaches
+
+## 6. Risk Register (Top 5)
+1-5: Specific risks with mitigation. E.g. "If Zendesk tenant separation slips past Month 9, customer-facing SLAs degrade — mitigate with parallel-run + 2-week buffer fee."
+
+## 7. Negotiation Posture
+- Where to be firm (e.g. data security SLAs)
+- Where to trade (e.g. extend cheap IT services to win cheaper finance services)
+- Walk-away conditions
+
+Use the actual numbers from the catalog. Be specific. No fluff words. Output ONLY the markdown, no preamble or postamble.`;
+
+export async function POST(req: NextRequest) {
+  const sb = await createClient();
+  const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { checkRateLimit } = await import("@/lib/security");
-  const allowed = await checkRateLimit(supabase, "ai_tsa", 10, 60);
-  if (!allowed) return NextResponse.json({ error: "Rate limit: 10 requests per minute" }, { status: 429 });
-
- const body = await req.json() as {
-    deal_id?: string;
-    seller?: string; buyer?: string; sector?: string;
-    deal_size?: string; geography?: string; close_date?: string;
-    functions?: string[]; duration?: string;
-    pricing_basis?: string; constraints?: string;
-    tier?: "premium" | "economic" | "offline";
-    mandate_type?: string;
-    buyer_type?: string;
-    ownership_type?: string;
-    integration_style?: string;
-  };
-  const tier = body.tier ?? "premium";
+  let body: any;
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   const {
-    seller = "", buyer = "", sector = "", deal_size = "",
-    geography = "", close_date = "", functions = [],
-    duration = "12", pricing_basis = "cost_plus_10", constraints = "",
-  } = body;
+    buyer, target, sector, geography, deal_size, deal_id,
+    carve_target, parent_group, buyer_group,
+    services = [], admin_overhead_pct, total_budget_k, direct_billed_k, overhead_k, active_services,
+    notes, tier = "premium", model_override,
+  } = body as {
+    buyer?: string; target?: string; sector?: string; geography?: string;
+    deal_size?: string; deal_id?: string;
+    carve_target?: string; parent_group?: string; buyer_group?: string;
+    services?: ServiceLine[]; admin_overhead_pct?: number;
+    total_budget_k?: number; direct_billed_k?: number; overhead_k?: number; active_services?: number;
+    notes?: string; tier?: "premium" | "economic"; model_override?: string;
+  };
 
-  const industryCtx = buildIndustryContextBlock(sector, geography);
-  const dealCtx = injectDealContext({
-    buyer, target: seller, sector, geography,
-    dealSize: deal_size, notes: normalizePrompt(constraints, 500),
-  });
-  const fnList = Array.isArray(functions) ? functions.join(", ") : String(functions);
-  const fnCount = Array.isArray(functions) ? functions.length : 0;
-  const complexity = fnCount >= 7 ? "Complex" : fnCount >= 4 ? "Standard" : "Simple";
-
-  // Build route config
- const admin = createAdminClient();
-
-  // Resolve API key via new multi-key library (with legacy ai_settings fallback)
-  const { resolveKey } = await import("@/lib/ai/key-resolver");
-  const overrideKeyId = ((body as unknown) as { key_id?: string }).key_id;
-  const resolved = await resolveKey(admin, user.id, tier === "economic" ? "economic" : "smart", overrideKeyId);
-
-  if (!resolved.apiKey || resolved.provider === "free") {
-    return NextResponse.json({
-      error: "No AI provider configured. Open Settings → API Key Library and save at least one key, or mark one as the Smart/Economic default.",
-    }, { status: 400 });
+  // Resolve AI key via the same path as synergy/pmi
+  const admin = createAdminClient();
+  let resolved = await resolveKey(admin, user.id, tier === "premium" ? "smart" : "economic");
+  if (!resolved?.apiKey) resolved = await resolveKey(admin, user.id, "economic");
+  if (!resolved?.apiKey) resolved = await resolveKey(admin, user.id, "fast");
+  if (!resolved?.apiKey || !resolved.provider) {
+    return NextResponse.json({ error: "No AI key configured. Open Settings → API Key Library to add one." }, { status: 400 });
   }
 
-  const modelOverride = ((body as unknown) as { model_override?: string }).model_override;
-
-  const cfg: RouteConfig = {
-    tier: "smart",
+  const routeConfig = {
+    tier: (tier === "premium" ? "smart" : "economic") as "smart" | "economic",
     primaryProvider: resolved.provider as ProviderId,
     primaryKey: resolved.apiKey,
-    primaryModel: modelOverride || resolved.model || undefined,
+    primaryModel: model_override ?? resolved.model ?? undefined,
     blockFreeFallback: true,
   };
-  // Pull live web research if a search key exists
-  let researchBlock = "";
+
+  // Build user prompt with all interactive catalog data
+  const serviceBlock = services.length === 0
+    ? "(no services configured)"
+    : services.map((s, i) =>
+        `${i + 1}. [${s.category}] ${s.title}
+   SLA Baseline: ${s.sla}
+   Duration: ${s.duration_months} months
+   Monthly cost: $${s.monthly_cost_k}K
+   Line total: $${s.line_cost_k}K`
+      ).join("\n\n");
+
+  const userPrompt = `DEAL CONTEXT
+=============
+Buyer: ${buyer || "—"}
+Target: ${target || "—"}
+Sector: ${sector || "—"}
+Geography: ${geography || "—"}
+Deal size: ${deal_size || "—"}
+
+CARVE-OUT ENTITIES
+==================
+Target special entity: ${carve_target || "—"}
+Selling parent group: ${parent_group || "—"}
+Acquiring buyer group: ${buyer_group || "—"}
+
+INTERACTIVE TSA CATALOG
+=======================
+${serviceBlock}
+
+BILLING TALLY
+=============
+Direct-billed services: $${direct_billed_k ?? 0}K
+Admin overhead (${admin_overhead_pct ?? 10}%): $${overhead_k ?? 0}K
+Total TSA budget: $${total_budget_k ?? 0}K
+Active services: ${active_services ?? services.filter((s) => s.duration_months > 0).length}
+
+${notes ? `PARTNER NOTES\n=============\n${notes}\n` : ""}
+Generate the full carve-out rationale memo in markdown.`;
+
   try {
-    const { data: provData } = await admin
-      .from("ai_settings")
-      .select("research_provider, tavily_key_encrypted, brave_key_encrypted, serper_key_encrypted")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const res = await routedCall(routeConfig, [
+      { role: "system", content: SYSTEM_PROMPT, stable: true },
+      { role: "user", content: userPrompt },
+    ], 3500);
 
-    const provider = (provData?.research_provider ?? "tavily") as "tavily" | "brave" | "serper";
-    const cipherCol = provider === "brave" ? "brave_key_encrypted"
-                    : provider === "serper" ? "serper_key_encrypted"
-                    : "tavily_key_encrypted";
-    const searchCipher = provData?.[cipherCol] as string | null | undefined;
+    const cost = ((res.inputTokens / 1000) * 0.0015) + ((res.outputTokens / 1000) * 0.006);
 
-    if (searchCipher) {
-      const { data: dec } = await admin.rpc("decrypt_key", { cipher: searchCipher });
-      const searchKey = dec as string;
-      const { researchDeal, briefToPromptBlock } = await import("@/lib/research/web-research");
-      const brief = await researchDeal(buyer, seller, sector, geography, searchKey);
-      researchBlock = briefToPromptBlock(brief);
-      void provider;
-    }
-  } catch { /* research is optional */ }
-
-  const systemPrompt = `You are an MBB carve-out specialist designing a Transitional Service Agreement (TSA) framework.
-
-RULES:
-1. Service catalog MUST cover every selected function with specific service descriptions — not generic bullets.
-2. Pricing: cost-plus 5% = allocated fully-loaded cost + margin; cost-plus 10% = higher margin; market rate = industry benchmarks.
-   All prices MUST be computed from deal_size: IT ~0.3%/mo, Finance ~0.15%/mo, HR ~0.1%/mo, Legal ~0.08%/mo, others ~0.05–0.12%/mo of deal value.
-3. Exit milestones must be a critical path — show sequence and dependencies.
-4. Governance section must include specific SLA breach consequences (not vague).
-5. No generic phrases. Every recommendation actionable.
-TSA complexity: ${complexity} (${fnCount} functions, ${duration} months).
-
-MANDATORY OUTPUT STRUCTURE:
-
-## TSA Executive Summary
-Scope, total estimated cost, duration, top 3 exit dependencies, overall complexity rating.
-
-## Service Catalog
-For EACH selected function, one table row:
-| Service | Description | Provider Obligations | Recipient Obligations | SLA | Pricing Basis | Est. Monthly Cost | Duration (months) |
-Compute monthly cost from deal_size. Show total per function.
-
-## Pricing Summary
-Table: Function | Monthly ($K) | Duration (mo) | Total ($K) | % of Deal Value
-Grand total TSA cost. Benchmark: "MBB benchmark: 1–3% of deal value for 12-month TSA."
-
-## Exit Milestone Critical Path
-Ordered table:
-| Sequence | Workstream | Exit Trigger | Target Month | Owner | Predecessor | Risk if Delayed |
-Show the 3 most complex exits in detail.
-
-## Governance & SLA Framework
-- Escalation: Service issue → TSA Manager (48h) → Joint SteerCo (5 days) → CEO escalation (10 days)
-- SLA breach remedy: 5% monthly service credit per breach, up to 25% cap
-- Pricing dispute: 30-day cure → independent accountant → binding arbitration
-- Change control: any scope change requires 15-day written notice and joint approval
-
-## TSA Risks & Mitigation
-Table: Risk | Probability | $ Impact | Mitigation | Owner
-Min 5 risks. Include: seller motivation to exit early, IT migration delays, stranded costs, pricing disputes, dependency chain failures.
-
-## Negotiation Strategy for Buyer
-5 specific negotiating positions with commercial rationale.
-Format: "Position: [X] — Rationale: [Y] — Fallback: [Z]"
-
-OUTPUT QUALITY CONTROL:
-- Total length 700-1000 words
-- Every service must include specific SLA metric (e.g., "99.5% uptime, 4hr response time")
-- Every monthly cost must be computed from deal_size (no placeholder ranges)
-- Every exit dependency must name a specific predecessor service
-- For cross-border deals: explicit data residency + regulatory regime per jurisdiction
-- Stranded cost risk quantified in $ for each function`;
-
-  const advisoryRules = buildAdvisoryRules({
-    mandateType: body.mandate_type,
-    buyerType: body.buyer_type,
-    ownershipType: body.ownership_type,
-    integrationStyle: body.integration_style,
-    sector,
-  });
- // Load canonical Deal Model — single source of truth across modules.
-  // TSA is target-specific (the seller's carve-out is what the TSA covers), so we pass `seller` as the target.
-  let dealModelBlock = "";
-  if (body.deal_id) {
-    const dm = await getOrSeed(supabase, {
-      deal_id: body.deal_id,
-      user_id: user.id,
-      buyer,
-      target: seller,
-      sector,
-      geography,
-      deal_size_input: deal_size,
-      buyer_type: body.buyer_type,
-      ownership_type: body.ownership_type,
-    });
-    dealModelBlock = dealModelToPromptBlock(dm);
-  }
-
-
-  const finalSystemPrompt = systemPrompt + `
-
-# CANONICAL DEAL MODEL DISCIPLINE (CRITICAL)
-
-The user message contains a CANONICAL DEAL MODEL block at the top. That block is the SINGLE SOURCE OF TRUTH for this deal across all modules (proposal, PMI, synergy, TSA).
-
-Rules:
-1. EVERY dollar/INR/currency figure in your output MUST match the canonical model exactly. Do not re-compute, do not round differently, do not change currencies.
-2. If the canonical model lists initiatives, risks, regulatory filings, or comparables BY NAME, cite them by those exact names. Do not invent new ones.
-3. If a section requires DEPTH that the canonical model does not yet provide (e.g. "List 8 cost initiatives totaling the canonical run-rate"), derive that depth — but the SUM must equal the canonical run-rate, not exceed it.
-4. If you believe the canonical numbers are wrong, do NOT change them. Note the disagreement in a "Modeling Note" subsection so the partner can review and override via the Deal Model UI.
-5. Currency: report in the canonical model's primary_currency. Do not switch currencies mid-document.
-
-This rule is more important than any other formatting requirement. Coherence across modules is non-negotiable for an MBB-grade deliverable.`;
-  const userPrompt = [
-    dealModelBlock,
-    dealCtx,
-    industryCtx,
-    researchBlock,
-    `Selected TSA functions: ${fnList}`,
-    `Target duration: ${duration} months`,
-    `Pricing basis: ${pricing_basis}`,
-    `Close date: ${close_date}`,
-    researchBlock ? "[USE RESEARCH] Cite live findings using [1], [2] markers — reference seller's actual operational footprint and buyer's capability gaps." : "",
-  ].filter(Boolean).join("\n");
-
-  const dependencyMap = buildPmiDependencyMap();
-  const messages: ChatMessage[] = [
-     // Stable across calls for the same mandate type — provider adapter applies caching where supported.
-    { role: "system", stable: true, content: finalSystemPrompt + "\n\n=== DEAL-SPECIFIC RULES ===\n" + advisoryRules },
-    { role: "user", content: `${userPrompt}
-
-Mandatory TSA dependencies (ERP/CRM/Supply Chain) with cost derivation and failure scenarios: ${JSON.stringify(dependencyMap)}` },
-  ];
-
-const cached = getSemanticCache({ userId: user.id, module: "tsa", messages, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
-if (cached) {
-  return NextResponse.json({
-    content: cached.content,
-    provider: cached.provider ?? cfg.primaryProvider,
-    model: cached.model ?? cfg.primaryModel,
-    cached: true,
-    semanticSimilarity: Number(cached.similarity.toFixed(3)),
-  });
-}
-
-try {
-  // Groq free-tier TPM safety: swap to a smaller model if the prompt exceeds Llama 3.3 70B's 12K token cap
-  const estimatedTokens = messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0);
-  if (cfg.primaryProvider === "groq" && estimatedTokens > 11000 && cfg.primaryModel?.includes("70b")) {
-    cfg.primaryModel = "llama-3.1-8b-instant";
-  }
-    const result = await routedCall(cfg, messages, 5000);
-  if (result.provider === "free" || result.model === "rules-v1") {
+    if (res.model === "rules-v1" || res.text.startsWith("[rule-based]")) {
       return NextResponse.json({
-        error: `TSA AI failed. Real reason: ${result.lastError ?? "unknown"}.`,
-      }, { status: 500 });
+        error: `AI fell through to rules-v1 (provider ${res.provider} failed). Verify your ${tier} tier key in Settings → API Key Library.`,
+      }, { status: 502 });
     }
 
-    setSemanticCache({ userId: user.id, module: "tsa", messages, content: result.text, provider: result.provider, model: result.model, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
+    const content = res.text.trim();
+    if (!content || content.length < 100) {
+      return NextResponse.json({ error: "AI returned an empty or trivial response. Try again or switch tier in Settings." }, { status: 502 });
+    }
 
-    const inputTokens = result.inputTokens ?? 0;
-    const outputTokens = result.outputTokens ?? 0;
-    const { cost } = estimateCost(result.provider, inputTokens, outputTokens);
-
+    // Save to history
     await admin.from("ai_outputs").insert({
-      user_id: user.id, module: "tsa",
-      buyer, target: seller, sector, geography, deal_size,
-      tier, provider: result.provider, model: result.model,
-      input_tokens: inputTokens, output_tokens: outputTokens, cost_estimate_usd: cost,
-      content: result.text,
-      meta: { functions, duration, pricing_basis, close_date },
+      user_id: user.id,
+      module: "tsa",
+      buyer: buyer ?? null,
+      target: target ?? null,
+      sector: sector ?? null,
+      deal_size: deal_size ?? null,
+      deal_id: deal_id ?? null,
+      tier,
+      provider: res.provider,
+      model: res.model,
+      cost_estimate_usd: Math.round(cost * 10000) / 10000,
+      content,
     });
 
     return NextResponse.json({
-      content: result.text,
-      provider: result.provider,
-      model: result.model,
-      viaFallback: result.viaFallback,
+      content,
+      provider: res.provider,
+      model: res.model,
+      cost_usd: cost,
     });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  } catch (e: any) {
+    return NextResponse.json({
+      error: e?.message ?? "AI generation failed. Check provider status and key validity.",
+    }, { status: 500 });
   }
 }
