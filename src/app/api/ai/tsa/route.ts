@@ -191,20 +191,69 @@ Generate the full carve-out rationale memo in markdown.`;
       content,
     });
 
-    // =====================================================================
+// =====================================================================
 // PHASE 3 — Cognition spine hook (TSA). Non-blocking, additive.
 // =====================================================================
 try {
   const { extractTsaSidecar } = await import("@/lib/cognition/extract-tsa");
   const { reviseAssumption } = await import("@/lib/cognition/orchestrator");
-  const fnCountValue = Array.isArray(functions) ? functions.length : 0;
-  const sidecar = extractTsaSidecar(result.text, duration, fnCountValue);
+
+  const fnCountValue = Array.isArray(services)
+    ? services.length
+    : 0;
+
+  const durationValue =
+    typeof admin_overhead_pct === "number"
+      ? admin_overhead_pct
+      : 12;
+
+  const sidecar = extractTsaSidecar(
+    content,
+    durationValue,
+    fnCountValue
+  );
+
   const baseTriggerMeta = {
     module: "tsa",
-    provider: result.provider,
-    model: result.model,
-    requested_duration_months: duration,
+    provider: res.provider,
+    model: res.model,
+    requested_duration_months: durationValue,
   };
+
+  if (sidecar.total_duration_months !== null) {
+    await reviseAssumption({
+      workspaceId: null,
+      dealId: deal_id ?? null,
+      key: "tsa.total_duration_months",
+      valueNumeric: sidecar.total_duration_months,
+      unit: "months",
+      confidence: 0.8,
+      source: "ai",
+      triggeredBy: "ai_run",
+      triggerMeta: baseTriggerMeta,
+      reason: "TSA transition duration from AI framework",
+    });
+  }
+
+  if (sidecar.total_budget_k !== null) {
+    await reviseAssumption({
+      workspaceId: null,
+      dealId: deal_id ?? null,
+      key: "tsa.total_budget_k",
+      valueNumeric: sidecar.total_budget_k,
+      unit: "USD_k",
+      currency: "USD",
+      confidence: 0.65,
+      source: "ai",
+      triggeredBy: "ai_run",
+      triggerMeta: baseTriggerMeta,
+      reason: "TSA total budget extracted from AI framework",
+    });
+  }
+} catch (cogErr) {
+  console.error("[cognition] TSA spine hook failed (non-fatal):", cogErr);
+}
+// =====================================================================
 
   if (sidecar.total_duration_months !== null) {
     await reviseAssumption({
