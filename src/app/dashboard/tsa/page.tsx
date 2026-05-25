@@ -8,6 +8,7 @@ import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
+import CognitionIndicators from "@/components/cognition/CognitionIndicators";
 import { createClient } from "@/lib/supabase/client";
 import { generateOfflineTsa } from "@/lib/proposal/offline-tsa";
 
@@ -491,8 +492,17 @@ export default function TSAGeneratorPage() {
         </div>
       </div>
 
-      {/* v29 Visual Layer — auto-fills from seller/buyer, sits ABOVE the original AI generator */}
-      <TSAVisuals seller={seller} buyer={buyer} />
+     /* v29 Visual Layer — auto-fills from seller/buyer, sits ABOVE the original AI generator */
+<TSAVisuals seller={seller} buyer={buyer} />
+
+<CognitionIndicators
+  dealId={dealId || null}
+  workspaceId={null}
+  keyPrefix="pmi,tsa,synergy"
+  limit={5}
+/>
+
+{showHistory && (
 
       {showHistory && (
         <div className="card p-4">
