@@ -202,10 +202,10 @@ try {
     ? services.length
     : 0;
 
-  const durationValue =
-    typeof admin_overhead_pct === "number"
-      ? admin_overhead_pct
-      : 12;
+const durationValue =
+  Array.isArray(services) && services.length > 0
+    ? Math.max(...services.map((s) => s.duration_months || 0))
+    : 12;
 
   const sidecar = extractTsaSidecar(
     content,
