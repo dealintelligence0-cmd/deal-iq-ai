@@ -258,6 +258,84 @@ This rule is more important than any other formatting requirement. Coherence acr
       meta: { ambition, target_revenue, target_ebitda, buyer_revenue },
     });
 
+   // =====================================================================
+// PHASE 2 — Cognition spine hook (additive, non-blocking)
+// =====================================================================
+// Extract a small JSON sidecar from the markdown (zero extra AI tokens).
+// Write the extracted values into cognition_assumptions so other modules
+// (PMI, TSA, Valuation) can read them and react via propagation rules.
+// Failures here never block the original Synergy response.
+try {
+  const { extractSynergySidecar } = await import("@/lib/cognition/extract-synergy");
+  const { reviseAssumption } = await import("@/lib/cognition/orchestrator");
+
+  const sidecar = extractSynergySidecar(result.text);
+  const dealId = body.deal_id ?? null;
+  const baseTriggerMeta = {
+    ai_module: "synergy",
+    provider: result.provider,
+    model: result.model,
+    extracted_confidence: sidecar.confidence,
+  };
+
+  // Only write fields we successfully extracted
+  if (sidecar.cost_run_rate_m !== null) {
+    await reviseAssumption({
+      workspaceId: null, dealId,
+      key: "synergy.cost_run_rate_m",
+      valueNumeric: sidecar.cost_run_rate_m,
+      unit: "USD_m", currency: "USD",
+      confidence: 0.7,
+      source: "ai",
+      triggeredBy: "ai_run",
+      triggerMeta: baseTriggerMeta,
+      reason: "Extracted from AI synergy memo",
+    });
+  }
+  if (sidecar.revenue_run_rate_m !== null) {
+    await reviseAssumption({
+      workspaceId: null, dealId,
+      key: "synergy.revenue_run_rate_m",
+      valueNumeric: sidecar.revenue_run_rate_m,
+      unit: "USD_m", currency: "USD",
+      confidence: 0.65,
+      source: "ai",
+      triggeredBy: "ai_run",
+      triggerMeta: baseTriggerMeta,
+      reason: "Extracted from AI synergy memo",
+    });
+  }
+  if (sidecar.total_run_rate_m !== null) {
+    await reviseAssumption({
+      workspaceId: null, dealId,
+      key: "synergy.total_run_rate_m",
+      valueNumeric: sidecar.total_run_rate_m,
+      unit: "USD_m", currency: "USD",
+      confidence: 0.7,
+      source: "ai",
+      triggeredBy: "ai_run",
+      triggerMeta: baseTriggerMeta,
+      reason: "Extracted from AI synergy memo",
+    });
+  }
+  if (sidecar.payback_months !== null) {
+    await reviseAssumption({
+      workspaceId: null, dealId,
+      key: "synergy.payback_months",
+      valueNumeric: sidecar.payback_months,
+      unit: "months",
+      confidence: 0.6,
+      source: "ai",
+      triggeredBy: "ai_run",
+      triggerMeta: baseTriggerMeta,
+      reason: "Extracted from AI synergy memo",
+    });
+  }
+} catch (cogErr) {
+  // Cognition is additive — failure here must not block the Synergy response
+  console.error("[cognition] synergy spine hook failed (non-fatal):", cogErr);
+}
+// =====================================================================
     // === Cognition layer hook (Phase 1) — fire-and-forget, non-blocking ===
 
 // Deterministic heuristic for now — no extra AI tokens
