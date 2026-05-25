@@ -482,13 +482,6 @@ export default function SynergyEnginePage() {
   hasOfflineFallback={true}
 />
 
-<CognitionIndicators
-  dealId={dealId || null}
-  workspaceId={null}
-  keyPrefix="synergy"
-  limit={5}
-/>
-
 <div className="page-header">
         <div className="flex items-start justify-between">
           <div>
@@ -507,6 +500,16 @@ export default function SynergyEnginePage() {
 
       {/* v29 Visual Layer — sits above main grid, complements AI text */}
       <SynergyVisuals />
+
+      {/* Strategic insight changes — positioned between visualization and generated report */}
+      <CognitionIndicators
+        dealId={dealId || null}
+        workspaceId={null}
+        buyer={buyer || null}
+        target={target || null}
+        keyPrefix="synergy"
+        limit={3}
+      />
 
       {showHistory && (
         <div className="card p-5">
