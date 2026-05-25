@@ -22,13 +22,22 @@ type Revision = {
 type Props = {
   dealId?: string | null;
   workspaceId?: string | null;
+  buyer?: string | null;
+  target?: string | null;
   /** Optional comma-separated prefixes to filter revisions. Empty/undefined = all. */
   keyPrefix?: string;
   /** Max revisions to fetch (overfetched for synthesis); implications shown is independent. */
   limit?: number;
 };
 
-export default function CognitionIndicators({ dealId, workspaceId, keyPrefix, limit = 30 }: Props) {
+export default function CognitionIndicators({
+  dealId,
+  workspaceId,
+  buyer,
+  target,
+  keyPrefix,
+  limit = 30,
+}: Props) {
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [implications, setImplications] = useState<Implication[]>([]);
   const [loading, setLoading] = useState(true);
