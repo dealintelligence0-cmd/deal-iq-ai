@@ -209,7 +209,7 @@ try {
 
   const sidecar = extractTsaSidecar(
     content,
-    durationValue,
+    String(durationValue),
     fnCountValue
   );
 
@@ -239,40 +239,6 @@ try {
     await reviseAssumption({
       workspaceId: null,
       dealId: deal_id ?? null,
-      key: "tsa.total_budget_k",
-      valueNumeric: sidecar.total_budget_k,
-      unit: "USD_k",
-      currency: "USD",
-      confidence: 0.65,
-      source: "ai",
-      triggeredBy: "ai_run",
-      triggerMeta: baseTriggerMeta,
-      reason: "TSA total budget extracted from AI framework",
-    });
-  }
-} catch (cogErr) {
-  console.error("[cognition] TSA spine hook failed (non-fatal):", cogErr);
-}
-// =====================================================================
-
-  if (sidecar.total_duration_months !== null) {
-    await reviseAssumption({
-      workspaceId: null,
-      dealId: body.deal_id ?? null,
-      key: "tsa.total_duration_months",
-      valueNumeric: sidecar.total_duration_months,
-      unit: "months",
-      confidence: 0.8,
-      source: "ai",
-      triggeredBy: "ai_run",
-      triggerMeta: baseTriggerMeta,
-      reason: "TSA transition duration from AI framework",
-    });
-  }
-  if (sidecar.total_budget_k !== null) {
-    await reviseAssumption({
-      workspaceId: null,
-      dealId: body.deal_id ?? null,
       key: "tsa.total_budget_k",
       valueNumeric: sidecar.total_budget_k,
       unit: "USD_k",
