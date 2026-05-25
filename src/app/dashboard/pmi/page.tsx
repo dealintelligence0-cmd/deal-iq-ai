@@ -9,6 +9,7 @@ import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engin
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
+import CognitionIndicators from "@/components/cognition/CognitionIndicators";
 import { createClient } from "@/lib/supabase/client";
 
 const MODES = [
@@ -640,8 +641,15 @@ export default function PmiStudioPage() {
         </aside>
 
         <main className="flex-1 overflow-y-auto bg-slate-50 p-6 dark:bg-[#0a0a14]">
-          {/* v29 Visual Layer — Gantt + checklist above AI output */}
-          <PMIVisuals />
+  {/* v29 Visual Layer — Gantt + checklist above AI output */}
+  <PMIVisuals />
+
+  <CognitionIndicators
+    dealId={dealId || null}
+    workspaceId={null}
+    keyPrefix="pmi,tsa,synergy"
+    limit={5}
+  />
 
           {!content && (
             <div className="flex h-full min-h-[400px] items-center justify-center">
