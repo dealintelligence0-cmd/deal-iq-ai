@@ -502,7 +502,6 @@ export default function TSAGeneratorPage() {
   limit={5}
 />
 
-{showHistory && (
 
       {showHistory && (
         <div className="card p-4">
