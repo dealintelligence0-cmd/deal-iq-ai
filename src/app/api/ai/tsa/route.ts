@@ -13,6 +13,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveKey } from "@/lib/ai/key-resolver";
 import { routedCall } from "@/lib/ai/router";
 import type { ProviderId } from "@/lib/ai/providers";
+import { getActiveWorkspace } from "@/lib/workspaces/context";
+import { COGNITION_KEYS } from "@/lib/cognition/keys";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -81,6 +83,7 @@ export async function POST(req: NextRequest) {
   const sb = await createClient();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ws = await getActiveWorkspace(sb);
 
   let body: any;
   try { body = await req.json(); }
@@ -212,6 +215,7 @@ const durationValue =
     String(durationValue),
     fnCountValue
   );
+  console.info("[cognition][extractor][tsa]", sidecar);
 
   const baseTriggerMeta = {
     module: "tsa",
@@ -222,9 +226,9 @@ const durationValue =
 
   if (sidecar.total_duration_months !== null) {
     await reviseAssumption({
-      workspaceId: null,
+      workspaceId: ws.workspaceId ?? null,
       dealId: deal_id ?? null,
-      key: "tsa.total_duration_months",
+      key: COGNITION_KEYS.tsa.totalDurationMonths,
       valueNumeric: sidecar.total_duration_months,
       unit: "months",
       confidence: 0.8,
@@ -237,9 +241,9 @@ const durationValue =
 
   if (sidecar.total_budget_k !== null) {
     await reviseAssumption({
-      workspaceId: null,
+      workspaceId: ws.workspaceId ?? null,
       dealId: deal_id ?? null,
-      key: "tsa.total_budget_k",
+      key: COGNITION_KEYS.tsa.totalBudgetK,
       valueNumeric: sidecar.total_budget_k,
       unit: "USD_k",
       currency: "USD",
@@ -251,7 +255,7 @@ const durationValue =
     });
   }
 } catch (cogErr) {
-  console.error("[cognition] TSA spine hook failed (non-fatal):", cogErr);
+  console.error("[cognition] TSA spine hook failed:", cogErr);
 }
 // =====================================================================
     return NextResponse.json({

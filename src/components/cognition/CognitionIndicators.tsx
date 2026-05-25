@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Sparkles, AlertCircle, Loader2, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { synthesizeImplications, type Implication } from "@/lib/cognition/synthesize-implications";
+import { COGNITION_PREFIXES } from "@/lib/cognition/keys";
 
 type Revision = {
   id: string;
@@ -56,16 +57,24 @@ export default function CognitionIndicators({
       if (!r.ok) { setRevisions([]); setImplications([]); return; }
       const j = await r.json();
       let revs: Revision[] = j.revisions ?? [];
+      console.info("[cognition][ui][fetch]", { dealId, workspaceId, count: revs.length, keyPrefix });
 
       // Optional prefix filtering — but we ALWAYS pass through flag.* rows
       // so cross-module flags (e.g. PMI -> synergy) still surface here.
       if (keyPrefix) {
         const prefixes = keyPrefix.split(",").map((p) => p.trim()).filter(Boolean);
-        revs = revs.filter((rv) => rv.key.startsWith("flag.") || prefixes.some((p) => rv.key.startsWith(p + ".")));
+        // Stabilization mode: keep all known cognition prefixes visible even if not explicitly requested.
+        revs = revs.filter((rv) =>
+          rv.key.startsWith("flag.")
+          || prefixes.some((p) => rv.key.startsWith(p + "."))
+          || COGNITION_PREFIXES.some((p) => rv.key.startsWith(p + "."))
+        );
       }
 
       setRevisions(revs);
-      setImplications(synthesizeImplications(revs));
+      const impl = synthesizeImplications(revs);
+      console.info("[cognition][ui][render]", { revisionCount: revs.length, implicationCount: impl.length });
+      setImplications(impl);
     } catch {
       setRevisions([]); setImplications([]);
     } finally {

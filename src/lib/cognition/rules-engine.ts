@@ -60,6 +60,7 @@ export async function applyPropagation(input: PropagationInput): Promise<Revisio
   const downstream: Revision[] = [];
 
   for (const rule of rules as Rule[]) {
+    console.info("[cognition][propagation][evaluate]", { ruleId: rule.id, ruleName: rule.name, triggerKey: input.triggerKey, workspaceId: input.workspaceId, dealId: input.dealId });
     // Evaluate optional condition (e.g. { "delta_pct_gt": 20 })
     if (!conditionMet(rule.trigger_condition, input)) continue;
 
@@ -81,6 +82,7 @@ export async function applyPropagation(input: PropagationInput): Promise<Revisio
           chainDepth: input.chainDepth, // inherit, won't recurse since flags don't trigger other rules
         });
         if (result.revision) downstream.push(result.revision);
+        console.info("[cognition][propagation][fired]", { ruleId: rule.id, effect: rule.effect_kind, targetKey: `flag.${rule.effect_target_key}` });
         break;
       }
 
@@ -107,6 +109,7 @@ export async function applyPropagation(input: PropagationInput): Promise<Revisio
         });
         if (result.revision) downstream.push(result.revision);
         downstream.push(...result.propagatedRevisions);
+        console.info("[cognition][propagation][fired]", { ruleId: rule.id, effect: rule.effect_kind, targetKey: rule.effect_target_key, value: newValue });
         break;
       }
 
