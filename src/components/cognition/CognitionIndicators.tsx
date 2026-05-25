@@ -49,8 +49,8 @@ export default function CognitionIndicators({ dealId, workspaceId, keyPrefix, li
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (dealId !== undefined) params.set("deal_id", dealId ?? "");
-      if (workspaceId !== undefined) params.set("workspace_id", workspaceId ?? "");
+       if (dealId) params.set("deal_id", dealId);
+      if (workspaceId) params.set("workspace_id", workspaceId);
       params.set("limit", String(limit * 3)); // overfetch, then filter client-side by keyPrefix
 
       const r = await fetch(`/api/cognition/revisions?${params}`);
