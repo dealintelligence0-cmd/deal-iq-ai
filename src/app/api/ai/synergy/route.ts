@@ -12,6 +12,7 @@ import { estimateCost } from "@/lib/ai/cost-estimator";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 import { buildSynergyLevers } from "@/lib/advanced/engines/synergy_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
+import { reviseAssumption } from "@/lib/cognition/orchestrator";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -257,6 +258,36 @@ This rule is more important than any other formatting requirement. Coherence acr
       meta: { ambition, target_revenue, target_ebitda, buyer_revenue },
     });
 
+    // === Cognition layer hook (Phase 1) — fire-and-forget, non-blocking ===
+
+// Deterministic heuristic for now — no extra AI tokens
+const targetRevMatch = parseFloat(body.target_revenue || "0");
+const costRunRate = Math.max(0, targetRevMatch * 0.035);
+
+try {
+  await reviseAssumption({
+    workspaceId: null,
+    dealId: body.deal_id ?? null,
+    key: "synergy.cost_run_rate_m",
+    valueNumeric: costRunRate,
+    unit: "USD_m",
+    currency: "USD",
+    confidence: 0.7,
+    source: "ai",
+    sourceRunId: null,
+    triggeredBy: "ai_run",
+    triggerMeta: {
+      intent: "evaluate_synergy",
+      provider: result.provider,
+      model: result.model,
+    },
+    reason: "Synergy run-rate from AI synergy model",
+  });
+} catch (e) {
+  console.error("[cognition] reviseAssumption failed (non-fatal):", e);
+}
+
+// ===============================================================
    // Best-effort: parse initiative tables out of the markdown and persist to the canonical model.
     // If parsing fails, the canonical numbers from getOrSeed remain untouched — the proposal still gets the right totals.
     if (body.deal_id) {
