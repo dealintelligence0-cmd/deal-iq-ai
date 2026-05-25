@@ -14,6 +14,7 @@ import { resolveKey } from "@/lib/ai/key-resolver";
 import { resolveViewer } from "@/lib/auth/permissions";
 import { generatePMI, defaultPMI } from "@/lib/pmi/generate";
 import type { ProviderId } from "@/lib/ai/providers";
+import { COGNITION_KEYS } from "@/lib/cognition/keys";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
   const viewer = await resolveViewer(sb);
   if (viewer.kind === "none") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { account_name?: string; buyer_name?: string; sector?: string; geography?: string; use_ai?: boolean };
+  let body: { account_name?: string; buyer_name?: string; sector?: string; geography?: string; use_ai?: boolean; deal_id?: string | null };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   if (!body.account_name?.trim()) return NextResponse.json({ error: "account_name required" }, { status: 400 });
 
@@ -103,13 +104,14 @@ try {
   const { extractPmiSidecar } = await import("@/lib/cognition/extract-pmi");
   const { reviseAssumption } = await import("@/lib/cognition/orchestrator");
   const sidecar = await extractPmiSidecar((pb as any).id);
+  console.info("[cognition][extractor][pmi]", sidecar);
   const baseTriggerMeta = { module: "pmi", playbook_id: (pb as any).id };
 
   if (sidecar.total_weeks !== null) {
     await reviseAssumption({
       workspaceId: ws.workspaceId ?? null,
-      dealId: null,
-      key: "pmi.total_weeks",
+      dealId: body.deal_id ?? null,
+      key: COGNITION_KEYS.pmi.totalWeeks,
       valueNumeric: sidecar.total_weeks,
       unit: "weeks",
       confidence: 0.85,
@@ -122,8 +124,8 @@ try {
   if (sidecar.active_workstreams !== null) {
     await reviseAssumption({
       workspaceId: ws.workspaceId ?? null,
-      dealId: null,
-      key: "pmi.active_workstreams",
+      dealId: body.deal_id ?? null,
+      key: COGNITION_KEYS.pmi.activeWorkstreams,
       valueNumeric: sidecar.active_workstreams,
       valueJson: { workstreams: sidecar.workstreams },
       confidence: 0.85,
@@ -134,7 +136,7 @@ try {
     });
   }
 } catch (cogErr) {
-  console.error("[cognition] PMI spine hook failed (non-fatal):", cogErr);
+  console.error("[cognition] PMI spine hook failed:", cogErr);
 }
 // =====================================================================
   return NextResponse.json({ ok: true, playbook: pb, tasks_count: tasksWithMeta.length, checklist_count: checkWithMeta.length, ai_error: plan.error });

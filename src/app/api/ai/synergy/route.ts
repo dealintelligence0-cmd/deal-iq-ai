@@ -13,6 +13,8 @@ import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 import { buildSynergyLevers } from "@/lib/advanced/engines/synergy_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 import { reviseAssumption } from "@/lib/cognition/orchestrator";
+import { getActiveWorkspace } from "@/lib/workspaces/context";
+import { COGNITION_KEYS } from "@/lib/cognition/keys";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -50,6 +52,7 @@ export async function POST(req: Request) {
   });
   // Build route config (Smart tier — synergy modelling needs reasoning)
   const admin = createAdminClient();
+  const ws = await getActiveWorkspace(supabase);
 
 // Pull live web research if user has a search key
   let researchBlock = "";
@@ -270,7 +273,9 @@ try {
   const { reviseAssumption } = await import("@/lib/cognition/orchestrator");
 
   const sidecar = extractSynergySidecar(result.text);
+  console.info("[cognition][extractor][synergy]", sidecar);
   const dealId = body.deal_id ?? null;
+  const workspaceId = ws.workspaceId ?? null;
   const baseTriggerMeta = {
     ai_module: "synergy",
     provider: result.provider,
@@ -281,8 +286,8 @@ try {
   // Only write fields we successfully extracted
   if (sidecar.cost_run_rate_m !== null) {
     await reviseAssumption({
-      workspaceId: null, dealId,
-      key: "synergy.cost_run_rate_m",
+      workspaceId, dealId,
+      key: COGNITION_KEYS.synergy.costRunRateM,
       valueNumeric: sidecar.cost_run_rate_m,
       unit: "USD_m", currency: "USD",
       confidence: 0.7,
@@ -294,8 +299,8 @@ try {
   }
   if (sidecar.revenue_run_rate_m !== null) {
     await reviseAssumption({
-      workspaceId: null, dealId,
-      key: "synergy.revenue_run_rate_m",
+      workspaceId, dealId,
+      key: COGNITION_KEYS.synergy.revenueRunRateM,
       valueNumeric: sidecar.revenue_run_rate_m,
       unit: "USD_m", currency: "USD",
       confidence: 0.65,
@@ -307,8 +312,8 @@ try {
   }
   if (sidecar.total_run_rate_m !== null) {
     await reviseAssumption({
-      workspaceId: null, dealId,
-      key: "synergy.total_run_rate_m",
+      workspaceId, dealId,
+      key: COGNITION_KEYS.synergy.totalRunRateM,
       valueNumeric: sidecar.total_run_rate_m,
       unit: "USD_m", currency: "USD",
       confidence: 0.7,
@@ -320,8 +325,8 @@ try {
   }
   if (sidecar.payback_months !== null) {
     await reviseAssumption({
-      workspaceId: null, dealId,
-      key: "synergy.payback_months",
+      workspaceId, dealId,
+      key: COGNITION_KEYS.synergy.paybackMonths,
       valueNumeric: sidecar.payback_months,
       unit: "months",
       confidence: 0.6,
@@ -331,38 +336,31 @@ try {
       reason: "Extracted from AI synergy memo",
     });
   }
+  if (sidecar.cost_run_rate_m === null) {
+    const targetRevMatch = parseFloat(body.target_revenue || "0");
+    const costRunRate = Math.max(0, targetRevMatch * 0.035);
+    await reviseAssumption({
+      workspaceId: ws.workspaceId ?? null,
+      dealId: body.deal_id ?? null,
+      key: COGNITION_KEYS.synergy.costRunRateM,
+      valueNumeric: costRunRate,
+      unit: "USD_m",
+      currency: "USD",
+      confidence: 0.7,
+      source: "ai",
+      sourceRunId: null,
+      triggeredBy: "ai_run",
+      triggerMeta: {
+        intent: "evaluate_synergy",
+        provider: result.provider,
+        model: result.model,
+        fallback_heuristic: true,
+      },
+      reason: "Fallback heuristic synergy run-rate (extractor had null)",
+    });
+  }
 } catch (cogErr) {
-  // Cognition is additive — failure here must not block the Synergy response
-  console.error("[cognition] synergy spine hook failed (non-fatal):", cogErr);
-}
-// =====================================================================
-    // === Cognition layer hook (Phase 1) — fire-and-forget, non-blocking ===
-
-// Deterministic heuristic for now — no extra AI tokens
-const targetRevMatch = parseFloat(body.target_revenue || "0");
-const costRunRate = Math.max(0, targetRevMatch * 0.035);
-
-try {
-  await reviseAssumption({
-    workspaceId: null,
-    dealId: body.deal_id ?? null,
-    key: "synergy.cost_run_rate_m",
-    valueNumeric: costRunRate,
-    unit: "USD_m",
-    currency: "USD",
-    confidence: 0.7,
-    source: "ai",
-    sourceRunId: null,
-    triggeredBy: "ai_run",
-    triggerMeta: {
-      intent: "evaluate_synergy",
-      provider: result.provider,
-      model: result.model,
-    },
-    reason: "Synergy run-rate from AI synergy model",
-  });
-} catch (e) {
-  console.error("[cognition] reviseAssumption failed (non-fatal):", e);
+  console.error("[cognition] synergy spine hook failed:", cogErr);
 }
 
 // ===============================================================

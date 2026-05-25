@@ -82,13 +82,7 @@ export async function reviseAssumption(w: AssumptionWrite): Promise<{
   const MAX_DEPTH = 3;
 
   // 1. Read existing (for revision diff)
-  const { data: existing } = await admin
-    .from("cognition_assumptions")
-    .select("*")
-    .eq("workspace_id", w.workspaceId)
-    .eq("deal_id", w.dealId)
-    .eq("key", w.key)
-    .maybeSingle();
+  const { data: existing } = await queryAssumptionScope(admin, w.workspaceId, w.dealId, w.key).maybeSingle();
 
   const newValueJson = pickValue(w);
   const existingValueJson = existing ? pickValue({
@@ -131,7 +125,7 @@ export async function reviseAssumption(w: AssumptionWrite): Promise<{
   }
 
   // 4. Log revision
-  const { data: revision } = await admin
+  const { data: revision, error: revisionErr } = await admin
     .from("cognition_revisions")
     .insert({
       assumption_id: saved.id,
@@ -148,19 +142,27 @@ export async function reviseAssumption(w: AssumptionWrite): Promise<{
     })
     .select()
     .single();
+  if (revisionErr || !revision) {
+    throw new Error(`reviseAssumption revision insert failed: ${revisionErr?.message ?? "unknown error"}`);
+  }
 
   // 5. Fire propagation rules (inline, bounded depth)
   let propagatedRevisions: Revision[] = [];
   if (depth < MAX_DEPTH) {
-    propagatedRevisions = await applyPropagation({
-      triggerKey: w.key,
-      triggerValue: w.valueNumeric ?? null,
-      previousValue: existing?.value_numeric ?? null,
-      workspaceId: w.workspaceId,
-      dealId: w.dealId,
-      chainDepth: depth + 1,
-    });
+    try {
+      propagatedRevisions = await applyPropagation({
+        triggerKey: w.key,
+        triggerValue: w.valueNumeric ?? null,
+        previousValue: existing?.value_numeric ?? null,
+        workspaceId: w.workspaceId,
+        dealId: w.dealId,
+        chainDepth: depth + 1,
+      });
+    } catch (e: any) {
+      throw new Error(`reviseAssumption propagation failed: ${e?.message ?? String(e)}`);
+    }
   }
+  console.info("[cognition][write]", { key: w.key, workspaceId: w.workspaceId, dealId: w.dealId, hasRevision: !!revision, propagatedCount: propagatedRevisions.length });
 
   return {
     assumption: saved as Assumption,
@@ -180,13 +182,7 @@ export async function getAssumption(
   key: string,
 ): Promise<Assumption | null> {
   const admin = createAdminClient();
-  const { data } = await admin
-    .from("cognition_assumptions")
-    .select("*")
-    .eq("workspace_id", workspaceId)
-    .eq("deal_id", dealId)
-    .eq("key", key)
-    .maybeSingle();
+  const { data } = await queryAssumptionScope(admin, workspaceId, dealId, key).maybeSingle();
   return (data as Assumption) ?? null;
 }
 
@@ -251,4 +247,11 @@ function deepEqual(a: any, b: any): boolean {
   if (typeof a === "number") return Math.abs(a - b) < 1e-9;
   if (typeof a === "object") return JSON.stringify(a) === JSON.stringify(b);
   return false;
+}
+
+function queryAssumptionScope(admin: any, workspaceId: string | null, dealId: string | null, key: string) {
+  let q = admin.from("cognition_assumptions").select("*").eq("key", key);
+  q = workspaceId === null ? q.is("workspace_id", null) : q.eq("workspace_id", workspaceId);
+  q = dealId === null ? q.is("deal_id", null) : q.eq("deal_id", dealId);
+  return q;
 }

@@ -20,6 +20,7 @@
  */
 
 import type { Revision } from "./orchestrator";
+import { COGNITION_KEYS } from "./keys";
 
 export type Implication = {
   id: string;                  // stable key derived from the underlying revisions
@@ -33,18 +34,18 @@ export type Implication = {
 
 // Map of system keys -> business-language labels (kept narrow)
 const KEY_LABELS: Record<string, string> = {
-  "synergy.cost_run_rate_m": "Cost synergy run-rate",
-  "synergy.revenue_run_rate_m": "Revenue synergy run-rate",
-  "synergy.total_run_rate_m": "Total synergy run-rate",
-  "synergy.payback_months": "Synergy payback window",
-  "synergy.realize_y1_pct": "Year-1 synergy capture",
-  "pmi.active_workstreams": "Integration workstream count",
-  "pmi.total_weeks": "Integration timeline",
-  "pmi.execution_risk_band": "Integration execution risk",
-  "tsa.total_duration_months": "TSA transition timeline",
-  "tsa.total_budget_k": "TSA transition budget",
-  "valuation.anchor_multiple": "Valuation anchor",
-  "buyer.priority_band": "Buyer prioritization",
+  [COGNITION_KEYS.synergy.costRunRateM]: "Cost synergy run-rate",
+  [COGNITION_KEYS.synergy.revenueRunRateM]: "Revenue synergy run-rate",
+  [COGNITION_KEYS.synergy.totalRunRateM]: "Total synergy run-rate",
+  [COGNITION_KEYS.synergy.paybackMonths]: "Synergy payback window",
+  [COGNITION_KEYS.synergy.realizeY1Pct]: "Year-1 synergy capture",
+  [COGNITION_KEYS.pmi.activeWorkstreams]: "Integration workstream count",
+  [COGNITION_KEYS.pmi.totalWeeks]: "Integration timeline",
+  [COGNITION_KEYS.pmi.executionRiskBand]: "Integration execution risk",
+  [COGNITION_KEYS.tsa.totalDurationMonths]: "TSA transition timeline",
+  [COGNITION_KEYS.tsa.totalBudgetK]: "TSA transition budget",
+  [COGNITION_KEYS.valuation.anchorMultiple]: "Valuation anchor",
+  [COGNITION_KEYS.buyer.priorityBand]: "Buyer prioritization",
 };
 
 function labelFor(key: string): string {
@@ -57,12 +58,13 @@ function labelFor(key: string): string {
  */
 export function synthesizeImplications(revisions: Revision[]): Implication[] {
   if (revisions.length === 0) return [];
+  console.info("[cognition][synthesis][input]", { count: revisions.length, keys: revisions.map((r) => r.key) });
 
   const out: Implication[] = [];
   const byKey = groupBy(revisions, (r) => r.key);
 
   // ---------- 1. TSA timeline shift -> synergy realization risk ----------
-  const tsaDuration = byKey["tsa.total_duration_months"]?.[0];
+  const tsaDuration = byKey[COGNITION_KEYS.tsa.totalDurationMonths]?.[0];
   if (tsaDuration) {
     const before = numOrNull(tsaDuration.before_value);
     const after = numOrNull(tsaDuration.after_value);
@@ -85,8 +87,8 @@ export function synthesizeImplications(revisions: Revision[]): Implication[] {
   }
 
   // ---------- 2. Synergy run-rate material movement -> valuation review ----------
-  const costRR = byKey["synergy.cost_run_rate_m"]?.[0];
-  const revRR = byKey["synergy.revenue_run_rate_m"]?.[0];
+  const costRR = byKey[COGNITION_KEYS.synergy.costRunRateM]?.[0];
+  const revRR = byKey[COGNITION_KEYS.synergy.revenueRunRateM]?.[0];
   for (const rev of [costRR, revRR].filter(Boolean) as Revision[]) {
     const before = numOrNull(rev.before_value);
     const after = numOrNull(rev.after_value);
@@ -111,7 +113,7 @@ export function synthesizeImplications(revisions: Revision[]): Implication[] {
   }
 
   // ---------- 3. PMI workstream count -> integration complexity ----------
-  const workstreams = byKey["pmi.active_workstreams"]?.[0];
+  const workstreams = byKey[COGNITION_KEYS.pmi.activeWorkstreams]?.[0];
   if (workstreams) {
     const after = numOrNull(workstreams.after_value);
     if (after !== null) {
@@ -142,7 +144,7 @@ export function synthesizeImplications(revisions: Revision[]): Implication[] {
   }
 
   // ---------- 4. TSA budget material movement -> deal economics review ----------
-  const tsaBudget = byKey["tsa.total_budget_k"]?.[0];
+  const tsaBudget = byKey[COGNITION_KEYS.tsa.totalBudgetK]?.[0];
   if (tsaBudget) {
     const before = numOrNull(tsaBudget.before_value);
     const after = numOrNull(tsaBudget.after_value);
@@ -224,13 +226,13 @@ function numOrNull(v: any): number | null {
  */
 function businessLangFromFlag(targetKey: string): string {
   switch (targetKey) {
-    case "synergy.realize_y1_pct":
+    case COGNITION_KEYS.synergy.realizeY1Pct:
       return "Recent timing or scope changes may shift Year-1 synergy capture. Worth a quick review of capture targets with the integration team before the next partner sync.";
-    case "valuation.anchor_multiple":
+    case COGNITION_KEYS.valuation.anchorMultiple:
       return "Material movement in synergy or risk assumptions suggests the valuation anchor may need a refresh before committee. Consider re-running the multiple sensitivity.";
-    case "pmi.execution_risk_band":
+    case COGNITION_KEYS.pmi.executionRiskBand:
       return "Integration complexity or signal load has shifted execution risk. Recommend pressure-testing the timeline and contingency buffers.";
-    case "buyer.priority_band":
+    case COGNITION_KEYS.buyer.priorityBand:
       return "Strategic context has shifted — current buyer prioritization may no longer be optimal. Consider re-ranking the target list against updated theme momentum.";
     default:
       return "A recent change in the deal model may have downstream implications worth a quick partner review.";
