@@ -9,6 +9,7 @@ import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import { generateOfflineSynergy } from "@/lib/proposal/offline-synergy";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
+import CognitionIndicators from "@/components/cognition/CognitionIndicators";
 import { createClient } from "@/lib/supabase/client";
 import { XAxis, YAxis, Legend, ResponsiveContainer, Tooltip, Area, AreaChart } from "recharts";
 
@@ -471,17 +472,24 @@ export default function SynergyEnginePage() {
   ];
   return (
     <div className="space-y-6 p-6">
-      <AIGenerateConfirm
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={generate}
-        module="synergy"
-        premiumProvider={{ tier: "premium", ...premiumTier }}
-        economicProvider={{ tier: "economic", ...economicTier }}
-        hasOfflineFallback={true}
-      />
+<AIGenerateConfirm
+  open={confirmOpen}
+  onClose={() => setConfirmOpen(false)}
+  onConfirm={generate}
+  module="synergy"
+  premiumProvider={{ tier: "premium", ...premiumTier }}
+  economicProvider={{ tier: "economic", ...economicTier }}
+  hasOfflineFallback={true}
+/>
 
-      <div className="page-header">
+<CognitionIndicators
+  dealId={dealId || null}
+  workspaceId={null}
+  keyPrefix="synergy"
+  limit={5}
+/>
+
+<div className="page-header">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="flex items-center gap-2 text-xl font-semibold text-white">
