@@ -96,6 +96,46 @@ export async function POST(req: NextRequest) {
   const checkWithMeta = plan.checklist.map((c, i) => ({ ...c, playbook_id: (pb as any).id, sort_order: i, done: false }));
   if (tasksWithMeta.length) await admin.from("pmi_tasks").insert(tasksWithMeta);
   if (checkWithMeta.length) await admin.from("pmi_checklist").insert(checkWithMeta);
+// =====================================================================
+// PHASE 3 — Cognition spine hook (PMI). Non-blocking, additive.
+// =====================================================================
+try {
+  const { extractPmiSidecar } = await import("@/lib/cognition/extract-pmi");
+  const { reviseAssumption } = await import("@/lib/cognition/orchestrator");
+  const sidecar = await extractPmiSidecar((pb as any).id);
+  const baseTriggerMeta = { module: "pmi", playbook_id: (pb as any).id };
 
+  if (sidecar.total_weeks !== null) {
+    await reviseAssumption({
+      workspaceId: ws.workspaceId ?? null,
+      dealId: null,
+      key: "pmi.total_weeks",
+      valueNumeric: sidecar.total_weeks,
+      unit: "weeks",
+      confidence: 0.85,
+      source: body.use_ai ? "ai" : "user",
+      triggeredBy: body.use_ai ? "ai_run" : "user_edit",
+      triggerMeta: baseTriggerMeta,
+      reason: `PMI playbook created for ${body.account_name}`,
+    });
+  }
+  if (sidecar.active_workstreams !== null) {
+    await reviseAssumption({
+      workspaceId: ws.workspaceId ?? null,
+      dealId: null,
+      key: "pmi.active_workstreams",
+      valueNumeric: sidecar.active_workstreams,
+      valueJson: { workstreams: sidecar.workstreams },
+      confidence: 0.85,
+      source: body.use_ai ? "ai" : "user",
+      triggeredBy: body.use_ai ? "ai_run" : "user_edit",
+      triggerMeta: baseTriggerMeta,
+      reason: `PMI workstream count for ${body.account_name}`,
+    });
+  }
+} catch (cogErr) {
+  console.error("[cognition] PMI spine hook failed (non-fatal):", cogErr);
+}
+// =====================================================================
   return NextResponse.json({ ok: true, playbook: pb, tasks_count: tasksWithMeta.length, checklist_count: checkWithMeta.length, ai_error: plan.error });
 }
