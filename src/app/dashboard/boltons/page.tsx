@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -121,7 +123,7 @@ function BoltOnHub() {
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Synergy Overlay Calculator</h3>
             <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
-              <Sparkles className="mr-1 inline h-3 w-3" /> MBB/BIG4 Intel
+              <Sparkles className="mr-1 inline h-3 w-3" /> Strategy / Big-4 Intel
             </span>
           </div>
 
