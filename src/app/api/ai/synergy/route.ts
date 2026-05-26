@@ -1,5 +1,7 @@
 
 
+
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -103,7 +105,7 @@ export async function POST(req: Request) {
     blockFreeFallback: true,
   };
 
-  const systemPrompt = `You are an MBB integration partner producing a detailed synergy model.
+  const systemPrompt = `You are a best-practice integration partner producing a detailed synergy model.
 
 ABSOLUTE RULES:
 1. ALL $ values must be computed from the deal_size provided — never state ranges without computing deal-specific values.
@@ -199,7 +201,7 @@ Rules:
 4. If you believe the canonical numbers are wrong, do NOT change them. Note the disagreement in a "Modeling Note" subsection so the partner can review and override via the Deal Model UI.
 5. Currency: report in the canonical model's primary_currency. Do not switch currencies mid-document.
 
-This rule is more important than any other formatting requirement. Coherence across modules is non-negotiable for an MBB-grade deliverable.`;
+This rule is more important than any other formatting requirement. Coherence across modules is non-negotiable for a top-tier deliverable.`;
   const userPrompt = [
     dealModelBlock,    // CANONICAL MODEL FIRST — model anchors every figure here
     dealCtx,
