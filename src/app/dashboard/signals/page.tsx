@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -245,7 +247,7 @@ export default function SignalsPage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
-            <Sparkles className="mr-1 inline h-3 w-3" /> MBB/BIG4 Intel
+            <Sparkles className="mr-1 inline h-3 w-3" /> Strategy / Big-4 Intel
           </span>
           <button onClick={() => setAddOpen(true)} className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300 dark:hover:bg-slate-800">
             <Plus className="h-4 w-4" /> Add company
