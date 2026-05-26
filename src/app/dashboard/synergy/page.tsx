@@ -254,6 +254,10 @@ function SynergyVisuals() {
             <BreakdownTable title="Revenue Synergies (Commercial Scale)"
                             subtitle="Top-line acceleration via cross-selling existing customer networks."
                             rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" methodsKey="rev_methods" unitsKey="rev_units" />
+                            rows={COST_ROWS} viz={viz} update={update} totalLabel="TOTAL COST" total={output.totalCostRR} accent="emerald" methodsKey="cost_methods" />
+            <BreakdownTable title="Revenue Synergies (Commercial Scale)"
+                            subtitle="Top-line acceleration via cross-selling existing customer networks."
+                            rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" methodsKey="rev_methods" />
           </div>
         </div>
       )}
@@ -273,6 +277,7 @@ function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total,
   methodsKey: "cost_methods" | "rev_methods";
   unitsKey: "cost_units" | "rev_units";
 }) {
+function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total, accent, methodsKey }: any) {
   const ccy = currencyMeta(viz.currency);
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -298,6 +303,12 @@ function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total,
                    onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } })}
                    className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
             <input type="number" value={toDisplayFromUsdM(viz[r.key] as number, viz.currency)} step="0.5"
+           
+              
+            <input type="text" value={viz[methodsKey]?.[r.key] ?? r.method}
+                   onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } })}
+                   className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
+            <input type="number" value={toDisplayFromUsdM(viz[r.key], viz.currency)} step="0.5"
                    onChange={(e) => update({ [r.key]: toUsdMFromDisplay(Number(e.target.value), viz.currency) })}
                    className="rounded border border-slate-200 px-1 py-0.5 text-right font-mono text-[11px] dark:border-slate-700 dark:bg-slate-800" />
           </div>
