@@ -1,6 +1,8 @@
+
+
 import type { AdvancedPromptBuilder } from "../types";
 
-export const buy_sidePrompt: AdvancedPromptBuilder = (ctx) => `You are an MBB senior partner preparing an investment-committee-ready buy-side recommendation.
+export const buy_sidePrompt: AdvancedPromptBuilder = (ctx) => `You are a senior partner preparing an investment-committee-ready buy-side recommendation.
 Deal: ${ctx.buyer} acquiring ${ctx.target}; ${ctx.sector}; ${ctx.geography}; ${ctx.dealSize}.
 Notes: ${ctx.notes || "N/A"}
 Research: ${ctx.researchInsights || "N/A"}
