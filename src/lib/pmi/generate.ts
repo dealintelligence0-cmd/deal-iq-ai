@@ -1,3 +1,5 @@
+
+
 /**
  * Phase 8 — PMI Playbook generator.
  * Seeds a default integration plan for any account (overrideable manually).
@@ -53,7 +55,7 @@ export function defaultPMI(): { tasks: SeededTask[]; checklist: SeededChecklist[
   return { tasks, checklist };
 }
 
-const AI_PROMPT = `You are an MBB partner customizing a post-merger integration plan.
+const AI_PROMPT = `You are a senior M&A advisor customizing a post-merger integration plan.
 
 Given account context (industry, size, geography), tailor a 20-week PMI playbook.
 Return up to 10 workstream tasks + 12 checklist items covering pre-close → post-close phases.
