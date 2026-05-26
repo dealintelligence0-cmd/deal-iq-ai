@@ -238,7 +238,7 @@ function SynergyVisuals() {
                       <div key={yr}>
                         <div className="text-center text-[9px] text-slate-500">Y{yr}</div>
                         <input type="number" min={0} max={100} value={viz[k] as number}
-                               onChange={(e) => update({ [k]: Number(e.target.value) } as any)}
+                               onChange={(e) => update({ [k]: Number(e.target.value) } as Partial<VizModel>)}
                                className="w-full rounded border border-slate-300 px-1 py-0.5 text-center text-[10px] dark:border-slate-700 dark:bg-slate-800" />
                       </div>
                     );
@@ -256,10 +256,6 @@ function SynergyVisuals() {
             <BreakdownTable title="Revenue Synergies (Commercial Scale)"
                             subtitle="Top-line acceleration via cross-selling existing customer networks."
                             rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" methodsKey="rev_methods" unitsKey="rev_units" />
-                            rows={COST_ROWS} viz={viz} update={update} totalLabel="TOTAL COST" total={output.totalCostRR} accent="emerald" methodsKey="cost_methods" />
-            <BreakdownTable title="Revenue Synergies (Commercial Scale)"
-                            subtitle="Top-line acceleration via cross-selling existing customer networks."
-                            rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" methodsKey="rev_methods" />
           </div>
         </div>
       )}
@@ -279,7 +275,6 @@ function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total,
   methodsKey: "cost_methods" | "rev_methods";
   unitsKey: "cost_units" | "rev_units";
 }) {
-function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total, accent, methodsKey }: any) {
   const ccy = currencyMeta(viz.currency);
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -296,22 +291,16 @@ function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total,
             <input
               type="text"
               value={viz[unitsKey][r.key] ?? r.label}
-              onChange={(e) => update({ [unitsKey]: { ...viz[unitsKey], [r.key]: e.target.value } })}
+              onChange={(e) => update({ [unitsKey]: { ...viz[unitsKey], [r.key]: e.target.value } } as Partial<VizModel>)}
               placeholder="Edit functional unit"
               aria-label={`${title} functional unit ${r.label}`}
               className="w-full rounded border border-slate-300 bg-white px-1 py-0.5 font-medium text-slate-800 outline-none ring-0 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-indigo-900"
             />
             <input type="text" value={viz[methodsKey]?.[r.key] ?? r.method}
-                   onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } })}
+                   onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } } as Partial<VizModel>)}
                    className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
             <input type="number" value={toDisplayFromUsdM(viz[r.key] as number, viz.currency)} step="0.5"
-           
-              
-            <input type="text" value={viz[methodsKey]?.[r.key] ?? r.method}
-                   onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } })}
-                   className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
-            <input type="number" value={toDisplayFromUsdM(viz[r.key], viz.currency)} step="0.5"
-                   onChange={(e) => update({ [r.key]: toUsdMFromDisplay(Number(e.target.value), viz.currency) })}
+                   onChange={(e) => update({ [r.key]: toUsdMFromDisplay(Number(e.target.value), viz.currency) } as Partial<VizModel>)}
                    className="rounded border border-slate-200 px-1 py-0.5 text-right font-mono text-[11px] dark:border-slate-700 dark:bg-slate-800" />
           </div>
         ))}
@@ -544,8 +533,8 @@ export default function SynergyEnginePage() {
     ["Sector", sector, setSec, "e.g. SaaS / Technology"],
     ["Geography", geography, setGeo, "e.g. USA, Europe"],
     ["Deal Size *", dealSize, setDS, "e.g. $2.5B"],
-    ["Target Revenue ({ccy.symbol}{ccy.unit})", targetRevenue, setTR, "Optional"],
-    ["Target EBITDA ({ccy.symbol}{ccy.unit})", targetEbitda, setTE, "Optional"],
+    ["Target Revenue ($M)", targetRevenue, setTR, "Optional"],
+    ["Target EBITDA ($M)", targetEbitda, setTE, "Optional"],
     ["Buyer Revenue ($M)", buyerRevenue, setBR, "Optional"],
   ];
   return (
