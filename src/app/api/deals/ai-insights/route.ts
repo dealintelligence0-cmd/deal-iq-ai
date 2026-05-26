@@ -1,5 +1,7 @@
 
 
+
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -79,7 +81,7 @@ export async function POST(req: Request) {
   const rawNotes = (deal.notes as string | null) ?? "";
   const heading = (deal.heading as string | null) ?? "";
 
-  const systemPrompt = `You are an MBB Partner producing proprietary deal intelligence.
+  const systemPrompt = `You are an Senior M&A Advisor producing proprietary deal intelligence.
 
 CRITICAL: Your ENTIRE response must be a single valid JSON object. Start with { and end with }. No text before or after. No markdown. No backticks. No explanation.
 
