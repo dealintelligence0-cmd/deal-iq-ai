@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Sparkles, AlertCircle, Loader2, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { synthesizeImplications, type Implication } from "@/lib/cognition/synthesize-implications";
-import { COGNITION_PREFIXES } from "@/lib/cognition/keys";
+import { COGNITION_PREFIXES, labelForKey } from "@/lib/cognition/keys";
 
 type Revision = {
   id: string;
@@ -210,7 +210,7 @@ export default function CognitionIndicators({
                 <div className="mt-1.5 space-y-1">
                   {revisions.filter((r) => !r.key.startsWith("flag.")).slice(0, 10).map((r) => (
                     <div key={r.id} className="rounded border border-slate-100 bg-white p-1.5 text-[10.5px] dark:border-slate-800 dark:bg-slate-900">
-                      <span className="font-medium text-slate-700 dark:text-slate-300">{r.key.replace(/^[a-z]+\./, "").replace(/_/g, " ")}</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{labelForKey(r.key)}</span>
                       <span className="ml-1 text-slate-500">
                         {formatValue(r.before_value)} → <b>{formatValue(r.after_value)}</b>
                       </span>
