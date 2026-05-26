@@ -1,5 +1,7 @@
 
 
+
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -24,7 +26,7 @@ export type ProposalType =
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
 
 const PROPOSAL_PROMPTS: Record<ProposalType, string> = {
-  advisory: `You are an MBB senior partner. Write a consulting-grade M&A advisory proposal that a CEO or PE Investment Committee would accept verbatim.
+  advisory: `You are a senior partner. Write a consulting-grade M&A advisory proposal that a CEO or PE Investment Committee would accept verbatim.
 
 CRITICAL: If "LIVE WEB RESEARCH" appears, cite via [1], [2] markers. If "INSIDER INSIGHTS" appears, weave into Strategic Rationale.
 
@@ -420,7 +422,7 @@ const systemPrompt = isAdvancedMode
   const comparablesBlock = buildComparablesBlock(sector, geography, 5);
 
   // Anti-AI-voice discipline. Expanded banned-phrase list and voice rules so the
-  // output reads like an MBB partner memo, not a ChatGPT draft.
+  // output reads like a senior M&A advisor memo, not a ChatGPT draft.
   const voiceDisciplineBlock = `
 # VOICE DISCIPLINE — ENFORCE STRICTLY
 
@@ -479,7 +481,7 @@ Rules:
 4. If you believe the canonical numbers are wrong, do NOT change them. Note the disagreement in a "Modeling Note" subsection so the partner can review and override via the Deal Model UI.
 5. Currency: report in the canonical model's primary_currency. Do not switch currencies mid-document.
 
-This rule is more important than any other formatting requirement. Coherence across modules is non-negotiable for an MBB-grade deliverable.`;
+This rule is more important than any other formatting requirement. Coherence across modules is non-negotiable for a top-tier deliverable.`;
 
   
  const messages: ChatMessage[] = [
