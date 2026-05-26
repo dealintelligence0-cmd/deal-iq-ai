@@ -1,5 +1,7 @@
 
 
+
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -81,7 +83,7 @@ export async function POST(req: Request) {
     } catch { /* skip */ }
   }
 
-  const systemPrompt = `You are an MBB Partner producing deal intelligence for an Investment Committee. Output STRICT JSON only — no preamble, no markdown.
+  const systemPrompt = `You are an Senior M&A Advisor producing deal intelligence for an Investment Committee. Output STRICT JSON only — no preamble, no markdown.
 
 Schema:
 {
