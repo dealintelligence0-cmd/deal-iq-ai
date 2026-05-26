@@ -253,5 +253,7 @@ function queryAssumptionScope(admin: any, workspaceId: string | null, dealId: st
   let q = admin.from("cognition_assumptions").select("*").eq("key", key);
   q = workspaceId === null ? q.is("workspace_id", null) : q.eq("workspace_id", workspaceId);
   q = dealId === null ? q.is("deal_id", null) : q.eq("deal_id", dealId);
-  return q;
+  // The UNIQUE NULLS NOT DISTINCT constraint guarantees a single row per scope,
+  // but order+limit keeps maybeSingle() safe even if a stray duplicate ever appears.
+  return q.order("last_revised_at", { ascending: false }).limit(1);
 }
