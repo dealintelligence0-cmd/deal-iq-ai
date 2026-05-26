@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import Link from "next/link";
@@ -7,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   BrainCircuit, LayoutDashboard, CloudUpload, GitMerge,
   AlertTriangle, Briefcase, FileText, Settings, Sparkles, Activity, Network,
-  Download, Shield, BookOpen, Layers, TrendingUp, ArrowLeftRight, Lightbulb, Target, ClipboardCheck, Users2, ChevronsUpDown, Check,
+  Download, Shield, BookOpen, Layers, TrendingUp, ArrowLeftRight, Lightbulb, Target, ClipboardCheck, Users2, ChevronsUpDown, Check, ScrollText,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -15,7 +17,10 @@ import ThemeToggle from "@/components/ThemeToggle";
 type NavItem = { label: string; href: string; icon: any; module: string | null; adminOnly?: boolean };
 
 const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
-  { items: [{ label: "Executive Dashboard", href: "/dashboard", icon: LayoutDashboard, module: null }] },
+  { items: [
+    { label: "Executive Dashboard", href: "/dashboard", icon: LayoutDashboard, module: null },
+    { label: "Executive Brief", href: "/dashboard/brief", icon: ScrollText, module: null },
+  ] },
   {
     label: "Deal Data", items: [
       { label: "Import Deals",   href: "/dashboard/uploads",          icon: CloudUpload,    module: "import" },
