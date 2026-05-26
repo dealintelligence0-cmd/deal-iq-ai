@@ -1,3 +1,5 @@
+
+
 /**
  * Theme refresh orchestrator.
  *
@@ -16,6 +18,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { embedTexts, toPgVector, type EmbedConfig } from "./embeddings";
 import { clusterDeals } from "./cluster";
 import { labelCluster } from "./labeler";
+import { portfolioMomentum } from "./momentum";
+import { reviseAssumption } from "@/lib/cognition/orchestrator";
+import { COGNITION_KEYS } from "@/lib/cognition/keys";
 import type { RouteConfig } from "@/lib/ai/router";
 
 export type RefreshResult = {
@@ -148,6 +153,7 @@ export async function refreshThemes(
   let clusters_updated = 0;
   let fallbackUsed = 0;
   const labelErrors: string[] = [];
+  const persistedThemes: Array<{ heat: string; dealCount: number }> = [];
 
   // ---- 5. For each cluster: label + persist ----
   for (const cluster of clusters) {
@@ -214,6 +220,7 @@ export async function refreshThemes(
     const themeId = (insertedTheme as { id: string } | null)?.id;
     if (!themeId) continue;
     clusters_created++;
+    persistedThemes.push({ heat: label.heat, dealCount: cluster.memberIds.length });
 
     // Replace membership atomically
     await sb.from("theme_deals").delete().eq("theme_id", themeId);
@@ -224,6 +231,29 @@ export async function refreshThemes(
     }));
     if (membershipPayload.length > 0) {
       await sb.from("theme_deals").insert(membershipPayload);
+    }
+  }
+
+  // Feed portfolio theme momentum into the cognition layer. A change here fires
+  // the "theme momentum decline drops buyer prioritization" propagation rule.
+  // Non-blocking: a failure must never break the refresh.
+  const momentum = portfolioMomentum(persistedThemes);
+  if (momentum !== null) {
+    try {
+      await reviseAssumption({
+        workspaceId: null,
+        dealId: null,
+        key: COGNITION_KEYS.theme.momentumScore,
+        valueNumeric: momentum,
+        confidence: 0.7,
+        source: "signal",
+        triggeredBy: "signal_ingestion",
+        triggerMeta: { module: "themes", themes_scored: persistedThemes.length },
+        reason: "Portfolio theme momentum from latest pipeline clustering",
+      });
+      console.info("[cognition][themes][momentum]", { momentum, themes: persistedThemes.length });
+    } catch (e) {
+      console.error("[cognition] theme momentum write failed:", e);
     }
   }
 
