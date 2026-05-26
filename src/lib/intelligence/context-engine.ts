@@ -1,3 +1,5 @@
+
+
 export type DealContext = {
   deal_type: "PE Buyout" | "Strategic M&A" | "Merger of Equals" | "VC Investment" | "Carve-out" | "JV";
   deal_archetype: "roll-up" | "turnaround" | "growth" | "synergy" | "capability" | "platform";
@@ -199,7 +201,7 @@ export function buildAdvisorVerdictPrompt(c: DealContext): string {
   const buyerLens = buyerLensMap[c.buyer_type] || buyerLensMap.Strategic;
 
   return `
-You are an MBB senior partner producing an enterprise-grade IC-ready advisory verdict.
+You are a senior partner producing an enterprise-grade IC-ready advisory verdict.
 
 BUYER LENS (apply throughout): ${buyerLens}
 INDUSTRY VALUE LEVERS (use these specifically, not generic): ${c.industry_levers.join(", ")}
