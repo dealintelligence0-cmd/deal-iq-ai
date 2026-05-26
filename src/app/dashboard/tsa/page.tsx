@@ -1,10 +1,12 @@
 
 
+
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
-import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, Cloud, FileText, Users, Truck, BarChart3, Briefcase } from "lucide-react";
+import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, Cloud, FileText, Users, Truck, BarChart3, Briefcase, Plus } from "lucide-react";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
@@ -31,12 +33,14 @@ const DURATIONS = ["6", "12", "18", "24"];
 
 type VizService = {
   id: string;
-  category: "IT" | "Finance" | "HR" | "Logistics";
+  category: string;            // function — editable
   title: string;
   sla_baseline: string;
   duration_months: number;
-  monthly_cost_k: number;
+  monthly_cost_k: number;      // base unit: USD thousands; display converts per currency
 };
+
+type Currency = "USD" | "INR";
 
 const DEFAULT_VIZ_SERVICES: VizService[] = [
   { id: "vs1", category: "IT",        title: "AWS/Azure cloud infrastructure hosting",
@@ -59,20 +63,32 @@ const DEFAULT_VIZ_SERVICES: VizService[] = [
     duration_months: 12, monthly_cost_k: 14 },
 ];
 
+const KNOWN_FUNCTIONS = ["IT", "Finance", "HR", "Logistics", "Legal", "Procurement", "Facilities", "Commercial"];
+
 const CAT_STYLE: Record<string, { badge: string; icon: any }> = {
   IT:        { badge: "bg-cyan-500/20 text-cyan-700 border-cyan-500/40 dark:text-cyan-300",        icon: Cloud },
   Finance:   { badge: "bg-amber-500/20 text-amber-700 border-amber-500/40 dark:text-amber-300",    icon: FileText },
   HR:        { badge: "bg-rose-500/20 text-rose-700 border-rose-500/40 dark:text-rose-300",        icon: Users },
   Logistics: { badge: "bg-emerald-500/20 text-emerald-700 border-emerald-500/40 dark:text-emerald-300", icon: Truck },
 };
+const catStyle = (c: string) => CAT_STYLE[c] ?? { badge: "bg-slate-500/20 text-slate-700 border-slate-500/40 dark:text-slate-300", icon: FileText };
 
-function TSAVisuals({ seller, buyer }: { seller: string; buyer: string }) {
+let __tsaUid = 0;
+const tsaNextId = () => `vs-${Date.now()}-${__tsaUid++}`;
+const tsaClamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+function TSAVisuals({ seller, buyer, sector, geography, dealSize }: { seller: string; buyer: string; sector: string; geography: string; dealSize: string }) {
   const [collapsed, setCollapsed] = useState(false);
   const [carveTarget, setCarveTarget] = useState("");
   const [parentGroup, setParentGroup] = useState("");
   const [buyerGroup, setBuyerGroup] = useState("");
   const [services, setServices] = useState<VizService[]>(DEFAULT_VIZ_SERVICES);
   const [adminOverheadPct, setAdminOverheadPct] = useState(10);
+  const [maxMonths, setMaxMonths] = useState(24);
+  const [currency, setCurrency] = useState<Currency>("USD");
+  const [inrPerUsd, setInrPerUsd] = useState(83);
+  const [copied, setCopied] = useState(false);
+  const [pptBusy, setPptBusy] = useState(false);
 
   // Auto-populate carve-out entities from selected pipeline deal
   useEffect(() => {
@@ -82,17 +98,58 @@ function TSAVisuals({ seller, buyer }: { seller: string; buyer: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller, buyer]);
 
+  // Money is stored in USD thousands; display converts to the selected currency.
+  // USD → "$NK"; INR → lakhs at the editable FX rate ("₹N.N L").
+  const fmt = (usdK: number) => currency === "USD"
+    ? `$${Math.round(usdK).toLocaleString()}K`
+    : `₹${(usdK * inrPerUsd / 100).toLocaleString(undefined, { maximumFractionDigits: 1 })} L`;
+  const toDisplay = (usdK: number) => currency === "USD" ? usdK : Math.round((usdK * inrPerUsd / 100) * 10) / 10;
+  const fromDisplay = (v: number) => currency === "USD" ? v : (v * 100 / inrPerUsd);
+  const unitLabel = currency === "USD" ? "$K / mo" : "₹L / mo";
+
   const totals = useMemo(() => {
     const directBilled = services.reduce((sum, s) => sum + s.duration_months * s.monthly_cost_k, 0);
-    const overhead = Math.round(directBilled * (adminOverheadPct / 100));
+    const overhead = directBilled * (adminOverheadPct / 100);
     return {
       directBilled, overhead, total: directBilled + overhead,
       activeServices: services.filter((s) => s.duration_months > 0).length,
     };
   }, [services, adminOverheadPct]);
 
-  function updateDuration(id: string, months: number) {
-    setServices((prev) => prev.map((s) => s.id === id ? { ...s, duration_months: Math.max(0, Math.min(24, months)) } : s));
+  const update = (id: string, patch: Partial<VizService>) => setServices((prev) => prev.map((s) => s.id === id ? { ...s, ...patch } : s));
+  const addService = () => setServices((prev) => [...prev, { id: tsaNextId(), category: "IT", title: "New transition service", sla_baseline: "Define SLA baseline", duration_months: Math.min(6, maxMonths), monthly_cost_k: 10 }]);
+  const removeService = (id: string) => setServices((prev) => prev.filter((s) => s.id !== id));
+
+  function buildMarkdown(): string {
+    const L: string[] = [];
+    const parties = `${parentGroup || seller || "Parent"} → ${buyerGroup || buyer || "Buyer"}`;
+    L.push(`# TSA Service Catalog — ${parties}`, "");
+    L.push(`**Currency:** ${currency}${currency === "INR" ? ` (₹${inrPerUsd}/USD)` : ""}${sector ? ` · Sector: ${sector}` : ""}${dealSize ? ` · ${dealSize}` : ""}`, "");
+    if (carveTarget) L.push(`**Carve-out entity:** ${carveTarget}`, "");
+    L.push("## Service Catalog", "");
+    L.push(`| Function | Service | SLA Baseline | Duration (mo) | Monthly (${currency}) | Line Total (${currency}) |`);
+    L.push("| --- | --- | --- | --- | --- | --- |");
+    for (const s of services) L.push(`| ${s.category} | ${s.title} | ${s.sla_baseline} | ${s.duration_months} | ${fmt(s.monthly_cost_k)} | ${fmt(s.monthly_cost_k * s.duration_months)} |`);
+    L.push("", "## Budget");
+    L.push(`- Direct billed services: ${fmt(totals.directBilled)}`);
+    L.push(`- Admin overhead (${adminOverheadPct}%): ${fmt(totals.overhead)}`);
+    L.push(`- **Estimated TSA budget: ${fmt(totals.total)}**`);
+    L.push(`- Active services: ${totals.activeServices}`);
+    return L.join("\n");
+  }
+
+  function copyPlan() { navigator.clipboard.writeText(buildMarkdown()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  function printPlan() { openMbbPrintWindow({ contentMarkdown: buildMarkdown(), meta: { moduleLabel: "TSA Catalog", buyer, target: seller, sector, geography, dealSize } }); }
+  async function pptPlan() {
+    setPptBusy(true);
+    try {
+      const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
+      await exportProposalToPptx(buildMarkdown(), { buyer, target: seller, sector, geography, dealSize, moduleLabel: "TSA Catalog" }, undefined, `deal-iq-tsa-catalog-${buyer || "buyer"}-${seller || "target"}.pptx`);
+    } catch (e) {
+      alert("PPTX export failed: " + String(e));
+    } finally {
+      setPptBusy(false);
+    }
   }
 
   return (
@@ -101,14 +158,48 @@ function TSAVisuals({ seller, buyer }: { seller: string; buyer: string }) {
               className="flex w-full items-center justify-between border-b border-slate-100 px-5 py-3 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-emerald-500" />
-          <span className="text-sm font-semibold text-slate-800 dark:text-white">TSA / Carve-Out Visualization (Interactive)</span>
-          <span className="text-[10.5px] italic text-slate-500">Complements AI TSA Framework below · local model only</span>
+          <span className="text-sm font-semibold text-slate-800 dark:text-white">Interactive TSA Catalog (Editable)</span>
+          <span className="hidden text-[10.5px] italic text-slate-500 sm:inline">Functions, SLAs, durations &amp; pricing · USD/INR · exportable</span>
         </div>
         {collapsed ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronUp className="h-4 w-4 text-slate-400" />}
       </button>
 
       {!collapsed && (
         <div className="p-5 space-y-4">
+          {/* Toolbar: currency, period, export */}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Currency</label>
+            <select value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[12px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+              <option value="USD">USD ($)</option>
+              <option value="INR">INR (₹)</option>
+            </select>
+            {currency === "INR" && (
+              <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                ₹/$
+                <input type="number" min={1} step={0.5} value={inrPerUsd}
+                       onChange={(e) => setInrPerUsd(Math.max(1, Number(e.target.value) || 1))}
+                       className="w-16 rounded border border-slate-300 px-1.5 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-900" />
+              </span>
+            )}
+            <label className="ml-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">Max period</label>
+            <input type="number" min={1} max={60} value={maxMonths}
+                   onChange={(e) => { const v = tsaClamp(parseInt(e.target.value || "1", 10) || 1, 1, 60); setMaxMonths(v); setServices((prev) => prev.map((s) => ({ ...s, duration_months: Math.min(s.duration_months, v) }))); }}
+                   className="w-16 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[12px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
+            <span className="text-[11px] text-slate-500">months</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              <button onClick={copyPlan} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] dark:border-slate-700">
+                {copied ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />} {copied ? "Copied" : "Copy"}
+              </button>
+              <button onClick={printPlan} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] dark:border-slate-700">
+                <Printer className="h-3 w-3" /> PDF
+              </button>
+              <button onClick={pptPlan} disabled={pptBusy} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] disabled:opacity-50 dark:border-slate-700">
+                {pptBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
+              </button>
+            </div>
+          </div>
+
           {/* Carve-Out Entities Setup */}
           <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
             <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">Carve-Out Entities Setup</h3>
@@ -142,41 +233,61 @@ function TSAVisuals({ seller, buyer }: { seller: string; buyer: string }) {
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Interactive TSA Catalog</h3>
-                <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">Billable Service Registry</span>
+                <button onClick={addService} className="flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
+                  <Plus className="h-3 w-3" /> Service
+                </button>
               </div>
-              <p className="mb-3 text-[10.5px] text-slate-500">Toggle service months to calculate direct parent billing in real-time. For the formal AI TSA Framework, use the generator panel below.</p>
+              <p className="mb-3 text-[10.5px] text-slate-500">Edit function, service, SLA baseline, monthly price ({unitLabel}) and duration. Costs recalculate live in {currency}.</p>
 
               <div className="space-y-3">
                 {services.map((s) => {
-                  const cat = CAT_STYLE[s.category];
+                  const cat = catStyle(s.category);
                   const Icon = cat.icon;
                   const lineCost = s.duration_months * s.monthly_cost_k;
                   return (
                     <div key={s.id} className="rounded-lg border border-slate-100 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/20">
                       <div className="mb-2 flex items-start gap-2">
-                        <span className={`flex-shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase ${cat.badge}`}>
-                          <Icon className="mr-0.5 inline h-2.5 w-2.5" /> {s.category}
+                        <span className={`mt-0.5 flex-shrink-0 rounded border px-1 py-0.5 text-[9px] font-bold uppercase ${cat.badge}`}>
+                          <Icon className="inline h-2.5 w-2.5" />
                         </span>
-                        <div className="flex-1">
-                          <div className="text-[12.5px] font-semibold text-slate-900 dark:text-white">{s.title}</div>
-                          <div className="text-[10.5px] text-slate-500">SLA Baseline: {s.sla_baseline}</div>
+                        <div className="flex-1 space-y-1">
+                          <input value={s.title} onChange={(e) => update(s.id, { title: e.target.value })}
+                                 className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[12.5px] font-semibold text-slate-900 hover:border-slate-200 focus:border-slate-300 dark:text-white dark:hover:border-slate-700" />
+                          <div className="flex items-center gap-1">
+                            <input list="tsa-functions" value={s.category} onChange={(e) => update(s.id, { category: e.target.value })} placeholder="Function"
+                                   className="w-28 rounded border border-slate-200 px-1.5 py-0.5 text-[10px] dark:border-slate-700 dark:bg-slate-800" />
+                            <span className="text-[10px] text-slate-400">SLA:</span>
+                            <input value={s.sla_baseline} onChange={(e) => update(s.id, { sla_baseline: e.target.value })} placeholder="SLA baseline"
+                                   className="flex-1 rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" />
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Est Cost</div>
-                          <div className="text-[14px] font-bold text-emerald-700 dark:text-emerald-400">${lineCost}K</div>
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="text-[14px] font-bold text-emerald-700 dark:text-emerald-400">{fmt(lineCost)}</div>
+                          <button onClick={() => removeService(s.id)} title="Remove service" className="text-slate-300 hover:text-rose-500"><Trash2 className="h-3 w-3" /></button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                          Price
+                          <input type="number" min={0} step={currency === "USD" ? 1 : 0.1} value={toDisplay(s.monthly_cost_k)}
+                                 onChange={(e) => update(s.id, { monthly_cost_k: Math.max(0, fromDisplay(Number(e.target.value) || 0)) })}
+                                 className="w-20 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] dark:border-slate-700 dark:bg-slate-800" />
+                          <span className="text-slate-400">{unitLabel}</span>
+                        </label>
                         <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">Duration</span>
-                        <input type="range" min="0" max="24" step="1" value={s.duration_months}
-                               onChange={(e) => updateDuration(s.id, Number(e.target.value))}
-                               className="flex-1 accent-emerald-500" />
-                        <span className="w-20 text-right font-mono text-[11px] text-emerald-600">{s.duration_months} Months</span>
+                        <input type="range" min="0" max={maxMonths} step="1" value={Math.min(s.duration_months, maxMonths)}
+                               onChange={(e) => update(s.id, { duration_months: tsaClamp(Number(e.target.value), 0, maxMonths) })}
+                               className="min-w-[120px] flex-1 accent-emerald-500" />
+                        <span className="w-20 text-right font-mono text-[11px] text-emerald-600">{s.duration_months} mo</span>
                       </div>
                     </div>
                   );
                 })}
+                {services.length === 0 && <p className="py-3 text-center text-[11px] italic text-slate-500">No services. Click “+ Service” to add one.</p>}
               </div>
+              <datalist id="tsa-functions">
+                {KNOWN_FUNCTIONS.map((f) => <option key={f} value={f} />)}
+              </datalist>
             </div>
 
             {/* Billing tally */}
@@ -185,26 +296,26 @@ function TSAVisuals({ seller, buyer }: { seller: string; buyer: string }) {
                 <Briefcase className="h-4 w-4 text-emerald-500" />
                 <h3 className="text-sm font-bold text-slate-800 dark:text-white">TSA Billing Tally</h3>
               </div>
-              <p className="mb-3 text-[10.5px] text-slate-500">Provides the compiled Transition Service Agreement budget representing fully calculated billable items to the parent.</p>
+              <p className="mb-3 text-[10.5px] text-slate-500">Compiled Transition Service Agreement budget — all billable items to the parent, in {currency}.</p>
 
               <div className="rounded-lg bg-emerald-50 p-4 text-center dark:bg-emerald-950/30">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Estimated TSA Deal Budget</div>
                 <div className="mt-1 text-3xl font-bold text-emerald-700 dark:text-emerald-400">
-                  ${totals.total}K
+                  {fmt(totals.total)}
                 </div>
                 <div className="mt-1 text-[10.5px] text-slate-600 dark:text-slate-400">
-                  Calculated on active durations over {adminOverheadPct}% standard admin overhead
+                  Active durations + {adminOverheadPct}% admin overhead{currency === "INR" ? ` · ₹${inrPerUsd}/USD` : ""}
                 </div>
               </div>
 
               <div className="mt-3 space-y-1.5 text-[11px]">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">Direct billed services</span>
-                  <span className="font-mono text-slate-800 dark:text-slate-200">${totals.directBilled}K</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">{fmt(totals.directBilled)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">Admin overhead ({adminOverheadPct}%)</span>
-                  <span className="font-mono text-slate-800 dark:text-slate-200">${totals.overhead}K</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">{fmt(totals.overhead)}</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-200 pt-1 dark:border-slate-700">
                   <span className="font-medium text-slate-700 dark:text-slate-300">Active services</span>
@@ -223,7 +334,7 @@ function TSAVisuals({ seller, buyer }: { seller: string; buyer: string }) {
               </div>
 
               <p className="mt-3 text-[10px] italic text-slate-500">
-                ↓ For full AI TSA Framework with service catalog, pricing summary, exit milestones, governance &amp; SLA framework, risks, and negotiation strategy, use the <b>Generate TSA</b> panel below.
+                ↓ For the full AI TSA Framework with exit milestones, governance, risks &amp; negotiation strategy, use the <b>Generate TSA</b> panel below.
               </p>
             </div>
           </div>
@@ -493,7 +604,7 @@ export default function TSAGeneratorPage() {
       </div>
 
      //* v29 Visual Layer — auto-fills from seller/buyer, sits ABOVE the original AI generator
-<TSAVisuals seller={seller} buyer={buyer} />
+<TSAVisuals seller={seller} buyer={buyer} sector={sector} geography={geography} dealSize={dealSize} />
 
 <CognitionIndicators
   dealId={dealId || null}
