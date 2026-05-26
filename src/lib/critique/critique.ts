@@ -1,3 +1,5 @@
+
+
 /**
  * Deal IQ AI — Critique This Pitch
  *
@@ -353,7 +355,7 @@ export async function sharpenProposal(
     p.sharpening_suggestions.map((s) => `- (${p.display_name}) ${s.weakness} → ${s.suggested_revision}`)
   ).slice(0, 12);
 
-  const system = `You are a senior MBB partner rewriting a pitch to address rigorous critique. You must:
+  const system = `You are a senior senior M&A advisor rewriting a pitch to address rigorous critique. You must:
 1. Tighten every assumption — replace vague claims with specific, defensible ones
 2. Remove consulting jargon ("transformational", "strategic value", "robust", "leverage", "synergies")
 3. Add commercial specificity — name benchmarks, name timelines, name risks with mitigations
