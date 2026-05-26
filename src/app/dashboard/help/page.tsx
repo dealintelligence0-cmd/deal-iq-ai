@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 import { useState } from "react";
@@ -101,7 +103,7 @@ const SECTIONS: Section[] = [
     id: "signals", title: "Signal Intelligence — Executive Filing Analysis", icon: AlertTriangle,
     content: [
       { heading: "What it does", body: "Pulls recent SEC filings (10-K, 10-Q, 8-K, DEF 14A) for companies on your watchlist and uses AI to extract 5 categories of advisory signals: margin pressure, transformation pressure, activist activity, acquisition intent, leadership change. Each signal includes a direct quote from the filing, an analyst interpretation, and the specific consulting pitch angle it opens." },
-      { heading: "When to use it", body: "When prepping a proposal for an MBB-grade client. Before any pitch meeting. As Monday-morning briefing. Signals automatically feed into the Proposal Generator when the buyer or target is on your watchlist — proposals become evidence-backed instead of generic." },
+      { heading: "When to use it", body: "When prepping a proposal for a top-tier client. Before any pitch meeting. As Monday-morning briefing. Signals automatically feed into the Proposal Generator when the buyer or target is on your watchlist — proposals become evidence-backed instead of generic." },
       { heading: "How to use", body: "", steps: [
         "Sidebar → Intelligence → Signal Intel",
         "Click 'Add company' — enter the name, SEC ticker (for US-listed companies), and optional sector/country",
@@ -143,7 +145,7 @@ const SECTIONS: Section[] = [
         "Use the sector heatmap to spot strong vs weak sectors per advisor",
         "Scroll to Whitespace deals — click '+ Log advisor' on any deal to add the incumbent yourself (manual entries override AI guesses)",
       ]},
-      { heading: "Tiers", body: "44 advisors are pre-seeded across 6 tiers: Bulge Bracket (GS, MS, JPM, Citi, BofA, Barclays, UBS, DB), Elite Boutique (Lazard, Rothschild, Evercore, Moelis, Centerview…), Big 4 (Deloitte, PwC, EY, KPMG), MBB (McKinsey, BCG, Bain), Mid-Market (Jefferies, Raymond James, William Blair…), Regional (Avendus, Kotak, JM Financial for India)." },
+      { heading: "Tiers", body: "44 advisors are pre-seeded across 6 tiers: Bulge Bracket (GS, MS, JPM, Citi, BofA, Barclays, UBS, DB), Elite Boutique (Lazard, Rothschild, Evercore, Moelis, Centerview…), Big 4 (Deloitte, PwC, EY, KPMG), Strategy Consulting (McKinsey, BCG, Bain), Mid-Market (Jefferies, Raymond James, William Blair…), Regional (Avendus, Kotak, JM Financial for India)." },
       { heading: "Confidence", body: "AI confidence: 70%+ = advisor was named in the heading. 30-50% = inferred from sector/size norms. Manual entries are 100% confidence and supersede AI guesses on the same role." },
       { heading: "Cost", body: "~$0.001 per deal scanned (25 deals × $0.001 ≈ $0.025 per run on NVIDIA NIM smart-tier)." },
     ],
@@ -208,7 +210,7 @@ const SECTIONS: Section[] = [
   {
     id: "storylines", title: "Storyline Templates (PPTX slide intelligence)", icon: FileText,
     content: [
-      { heading: "What it does", body: "Before exporting a proposal to PPTX, pick one of 6 MBB storyline templates. Each template reorders slides to match a specific narrative arc — Pyramid Principle, Strategic Case, Operating Transformation, Synergy Bridge, IC Pack, or Board Narrative. The deck reflects how senior partners actually present, not just what the AI wrote." },
+      { heading: "What it does", body: "Before exporting a proposal to PPTX, pick one of 6 strategy storyline templates. Each template reorders slides to match a specific narrative arc — Pyramid Principle, Strategic Case, Operating Transformation, Synergy Bridge, IC Pack, or Board Narrative. The deck reflects how senior partners actually present, not just what the AI wrote." },
       { heading: "When to use which", body: "", steps: [
         "📊 Executive Summary (6 slides) — partner-internal brief, CEO update, quick committee read",
         "🎯 Strategic Case (10 slides) — IC submission, board approval pack",
