@@ -66,8 +66,6 @@ type VizModel = {
   realize_y1_pct: number; realize_y2_pct: number; realize_y3_pct: number; realize_y4_pct: number; realize_y5_pct: number;
   cost_methods: Record<string, string>;
   rev_methods: Record<string, string>;
-  cost_units: Record<string, string>;
-  rev_units: Record<string, string>;
 };
 
 const DEFAULT_VIZ: VizModel = {
@@ -78,8 +76,6 @@ const DEFAULT_VIZ: VizModel = {
   realize_y1_pct: 25, realize_y2_pct: 50, realize_y3_pct: 80, realize_y4_pct: 95, realize_y5_pct: 100,
   cost_methods: {},
   rev_methods: {},
-  cost_units: {},
-  rev_units: {},
 };
 
 const COST_ROWS: Array<{ key: keyof VizModel; label: string; method: string }> = [
@@ -248,10 +244,10 @@ function SynergyVisuals() {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <BreakdownTable title="Cost Synergies (Target Redundancy Pools)"
                             subtitle="Estimated savings from rationalized back-offices, redundant tools, and scaled procurement."
-                            rows={COST_ROWS} viz={viz} update={update} totalLabel="TOTAL COST" total={output.totalCostRR} accent="emerald" methodsKey="cost_methods" unitsKey="cost_units" />
+                            rows={COST_ROWS} viz={viz} update={update} totalLabel="TOTAL COST" total={output.totalCostRR} accent="emerald" methodsKey="cost_methods" />
             <BreakdownTable title="Revenue Synergies (Commercial Scale)"
                             subtitle="Top-line acceleration via cross-selling existing customer networks."
-                            rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" methodsKey="rev_methods" unitsKey="rev_units" />
+                            rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" methodsKey="rev_methods" />
           </div>
         </div>
       )}
@@ -259,7 +255,7 @@ function SynergyVisuals() {
   );
 }
 
-function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total, accent, methodsKey, unitsKey }: any) {
+function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total, accent, methodsKey }: any) {
   const ccy = currencyMeta(viz.currency);
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -273,9 +269,7 @@ function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total,
         </div>
         {rows.map((r: any) => (
           <div key={r.key} className="grid grid-cols-[1fr,2fr,80px] gap-2 py-1 text-[11.5px]">
-            <input type="text" value={viz[unitsKey]?.[r.key] ?? r.label}
-                   onChange={(e) => update({ [unitsKey]: { ...viz[unitsKey], [r.key]: e.target.value } })}
-                   className="rounded border border-slate-200 px-1 py-0.5 font-medium text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200" />
+            <span className="font-medium text-slate-800 dark:text-slate-200">{r.label}</span>
             <input type="text" value={viz[methodsKey]?.[r.key] ?? r.method}
                    onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } })}
                    className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
