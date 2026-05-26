@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runAiWithMemory } from "@/lib/cognition/ai-memory";
+import { labelForKey } from "@/lib/cognition/keys";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ProviderId } from "@/lib/ai/providers";
 
@@ -116,26 +117,30 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-const SYSTEM_PROMPT = `You are an M&A intelligence assistant explaining a single revision in plain executive language.
+const SYSTEM_PROMPT = `You are an M&A partner-level intelligence assistant explaining one change in the deal model to a deal team.
+
+Answer four things, in this order, in 3-4 sentences of flowing prose (no bullets, no headers):
+1. Why this matters to the deal (the strategic significance, not just the number).
+2. The valuation or integration impact of the change.
+3. If it was triggered upstream, the cause in one clause.
+4. The single most useful next action to consider.
 
 Rules:
-- Output 2-3 sentences only. No bullet points. No headers.
-- State what changed, why it changed, and what it means for the deal.
-- Use specific numbers from the revision data.
-- No filler words ("essentially", "fundamentally", "leveraging", "robust").
-- If the change was triggered by a propagation rule, explain the upstream cause briefly.
-- Tone: factual, partner-friendly, no jargon.`;
+- Use the specific numbers from the data.
+- Speak in business terms only — never reference system keys, fields, "assumptions", "revisions", or "propagation".
+- No filler words ("essentially", "fundamentally", "leveraging", "robust", "synergistic").
+- Tone: factual, concise, partner-friendly.`;
 
 function buildExplanationPrompt(rev: any): string {
-  const cleanKey = rev.key.replace(/^[a-z]+\./, "").replace(/_/g, " ");
-  return `A value in the deal model just changed.
+  const label = labelForKey(rev.key);
+  return `A driver in the deal model just changed.
 
-Field: ${cleanKey} (${rev.key})
+Driver: ${label}
 Before: ${JSON.stringify(rev.before_value)} (confidence ${rev.before_confidence ?? "n/a"})
 After:  ${JSON.stringify(rev.after_value)} (confidence ${rev.after_confidence ?? "n/a"})
 Triggered by: ${rev.triggered_by}
 Reason logged: ${rev.reason ?? "(none)"}
 Trigger metadata: ${JSON.stringify(rev.trigger_meta ?? {})}
 
-Write a 2-3 sentence executive explanation.`;
+Explain why this matters, the valuation/integration impact, the upstream cause if any, and the recommended next action.`;
 }
