@@ -1,5 +1,7 @@
 
 
+
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -123,7 +125,7 @@ export async function POST(req: Request) {
 
   const comparablesBlock = buildComparablesBlock(sector, geography, 5);
 
-  const systemPrompt = `You are an MBB senior partner regenerating ONE section of an existing M&A advisory proposal.
+  const systemPrompt = `You are a senior partner regenerating ONE section of an existing M&A advisory proposal.
 
 CRITICAL RULES:
 1. Output ONLY the new content for the requested section. Do NOT include the "## ${heading}" heading itself — that stays. Do NOT regenerate any other section.
