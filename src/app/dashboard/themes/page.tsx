@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Compass, Flame, RefreshCw, ChevronRight, Loader2, Sparkles, TrendingUp, Key, BarChart3, ChevronDown, ChevronUp, ArrowRight, Building2, Activity, Info } from "lucide-react";
+import { computeMomentum } from "@/lib/themes/momentum";
 
 type Theme = {
   id: string;
@@ -105,14 +106,6 @@ function blendedEvEbitda(sectors: string[]): number {
   return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
 }
 
-const HEAT_BASE: Record<string, number> = { hot: 72, warm: 50, cool: 30 };
-
-function momentumFor(theme: Theme, maxDealCount: number): number {
-  const base = HEAT_BASE[theme.heat] ?? 40;
-  const density = maxDealCount > 0 ? 28 * (theme.deal_count / maxDealCount) : 0;
-  return Math.min(100, Math.round(base + density));
-}
-
 type Axis = {
   themeId: string;
   label: string;
@@ -159,7 +152,7 @@ function ThematicRadar({ themes }: { themes: Theme[] }) {
         themeId: t.id,
         label: t.display_name,
         emoji: t.emoji,
-        momentum: momentumFor(t, maxDeal),
+        momentum: computeMomentum(t.heat, t.deal_count, maxDeal),
         valuation: blendedEvEbitda(t.sectors ?? []),
         dealCount: t.deal_count ?? 0,
         heat: t.heat,
