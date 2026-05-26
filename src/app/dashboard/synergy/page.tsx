@@ -41,14 +41,14 @@ type HistoryItem = {
 
 type CurrencyCode = "USD" | "INR";
 
-const FX_USD_TO_INR = 83;
+const DEFAULT_FX_USD_TO_INR = 83;
 
-function toDisplayFromUsdM(usdM: number, currency: CurrencyCode) {
-  return currency === "USD" ? usdM : usdM * FX_USD_TO_INR;
+function toDisplayFromUsdM(usdM: number, currency: CurrencyCode, fx: number) {
+  return currency === "USD" ? usdM : usdM * fx;
 }
 
-function toUsdMFromDisplay(amount: number, currency: CurrencyCode) {
-  return currency === "USD" ? amount : amount / FX_USD_TO_INR;
+function toUsdMFromDisplay(amount: number, currency: CurrencyCode, fx: number) {
+  return currency === "USD" ? amount : amount / fx;
 }
 
 function currencyMeta(currency: CurrencyCode) {
@@ -59,6 +59,7 @@ function currencyMeta(currency: CurrencyCode) {
 
 type VizModel = {
   currency: CurrencyCode;
+  fxInrUsd: number;
   target_revenue_m: number;
   target_ebitda_m: number;
   wacc_pct: number;
@@ -74,6 +75,7 @@ type VizModel = {
 
 const DEFAULT_VIZ: VizModel = {
   currency: "USD",
+  fxInrUsd: DEFAULT_FX_USD_TO_INR,
   target_revenue_m: 150, target_ebitda_m: 20, wacc_pct: 10, one_time_cost_m: 20,
   cost_hq_ga_m: 7, cost_it_infra_m: 4, cost_procurement_m: 5, cost_facilities_m: 3, cost_other_m: 0,
   rev_cross_sell_m: 9, rev_price_opt_m: 3, rev_territory_m: 5, rev_bundling_m: 2, rev_other_m: 0,
@@ -126,9 +128,22 @@ function SynergyVisuals() {
   const [collapsed, setCollapsed] = useState(false);
   const output = useMemo(() => computeViz(viz), [viz]);
   const ccy = currencyMeta(viz.currency);
+
+  // Default the USD→INR rate from the user's saved setting (Settings → FX Rate).
+  useEffect(() => {
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data: u } = await sb.auth.getUser();
+        if (!u.user) return;
+        const { data } = await sb.from("ai_settings").select("fx_inr_usd").eq("user_id", u.user.id).maybeSingle();
+        if (data?.fx_inr_usd) setViz((v) => ({ ...v, fxInrUsd: Number(data.fx_inr_usd) }));
+      } catch { /* keep default */ }
+    })();
+  }, []);
   const update = (patch: Partial<VizModel>) => setViz((v) => ({ ...v, ...patch }));
   const updateMoney = (key: keyof VizModel, displayValue: number) => {
-    update({ [key]: toUsdMFromDisplay(displayValue, viz.currency) } as Partial<VizModel>);
+    update({ [key]: toUsdMFromDisplay(displayValue, viz.currency, viz.fxInrUsd) } as Partial<VizModel>);
   };
 
   return (
@@ -157,18 +172,27 @@ function SynergyVisuals() {
                     <option value="USD">USD</option>
                     <option value="INR">INR</option>
                   </select>
+                  {viz.currency === "INR" && (
+                    <>
+                      <span className="font-semibold uppercase tracking-wider text-slate-500">₹/$</span>
+                      <input type="number" min={1} step={0.5} value={viz.fxInrUsd}
+                             onChange={(e) => update({ fxInrUsd: Math.max(1, Number(e.target.value) || 1) })}
+                             aria-label="INR per USD rate"
+                             className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium dark:border-slate-700 dark:bg-slate-800" />
+                    </>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Target Revenue ({ccy.symbol}{ccy.unit})</label>
-                  <input type="number" value={toDisplayFromUsdM(viz.target_revenue_m, viz.currency)} onChange={(e) => updateMoney("target_revenue_m", Number(e.target.value))}
+                  <input type="number" value={toDisplayFromUsdM(viz.target_revenue_m, viz.currency, viz.fxInrUsd)} onChange={(e) => updateMoney("target_revenue_m", Number(e.target.value))}
                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" />
                 </div>
                 <div>
                   <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Target EBITDA ({ccy.symbol}{ccy.unit})</label>
-                  <input type="number" value={toDisplayFromUsdM(viz.target_ebitda_m, viz.currency)} onChange={(e) => updateMoney("target_ebitda_m", Number(e.target.value))}
+                  <input type="number" value={toDisplayFromUsdM(viz.target_ebitda_m, viz.currency, viz.fxInrUsd)} onChange={(e) => updateMoney("target_ebitda_m", Number(e.target.value))}
                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" />
                 </div>
               </div>
@@ -186,7 +210,7 @@ function SynergyVisuals() {
               <div className="mt-3">
                 <label className="mb-1 flex items-center justify-between text-[11px] font-medium text-slate-600">
                   <span>One-Time Integration Cost ({ccy.symbol}{ccy.unit})</span>
-                  <span className="font-mono text-rose-600">-{ccy.symbol}{toDisplayFromUsdM(viz.one_time_cost_m, viz.currency).toFixed(2)}{ccy.unit}</span>
+                  <span className="font-mono text-rose-600">-{ccy.symbol}{toDisplayFromUsdM(viz.one_time_cost_m, viz.currency, viz.fxInrUsd).toFixed(2)}{ccy.unit}</span>
                 </label>
                 <input type="range" min="0" max="200" step="5" value={viz.one_time_cost_m}
                        onChange={(e) => update({ one_time_cost_m: Number(e.target.value) })}
@@ -196,10 +220,10 @@ function SynergyVisuals() {
               <div className="mt-4 rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/30">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Estimated Synergy NPV (5-yr)</div>
                 <div className="mt-1 text-3xl font-bold text-emerald-700 dark:text-emerald-400">
-                  {ccy.symbol}{toDisplayFromUsdM(output.npv_after_costs, viz.currency).toFixed(2)}{ccy.unit}
+                  {ccy.symbol}{toDisplayFromUsdM(output.npv_after_costs, viz.currency, viz.fxInrUsd).toFixed(2)}{ccy.unit}
                 </div>
                 <div className="mt-1 text-[10.5px] text-slate-600 dark:text-slate-400">
-                  Gross NPV {ccy.symbol}{toDisplayFromUsdM(output.npv, viz.currency).toFixed(2)}{ccy.unit} · Offset by {ccy.symbol}{toDisplayFromUsdM(viz.one_time_cost_m, viz.currency).toFixed(2)}{ccy.unit} one-time setup costs
+                  Gross NPV {ccy.symbol}{toDisplayFromUsdM(output.npv, viz.currency, viz.fxInrUsd).toFixed(2)}{ccy.unit} · Offset by {ccy.symbol}{toDisplayFromUsdM(viz.one_time_cost_m, viz.currency, viz.fxInrUsd).toFixed(2)}{ccy.unit} one-time setup costs
                 </div>
               </div>
             </div>
@@ -221,11 +245,11 @@ function SynergyVisuals() {
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                 <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30">
                   <div className="text-[9px] font-bold uppercase text-emerald-700 dark:text-emerald-400">Run-Rate Cost Efficiencies</div>
-                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{ccy.symbol}{toDisplayFromUsdM(output.totalCostRR, viz.currency).toFixed(2)}{ccy.unit} <span className="text-[10px] font-normal">/ yr</span></div>
+                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{ccy.symbol}{toDisplayFromUsdM(output.totalCostRR, viz.currency, viz.fxInrUsd).toFixed(2)}{ccy.unit} <span className="text-[10px] font-normal">/ yr</span></div>
                 </div>
                 <div className="rounded-lg bg-sky-50 p-2 dark:bg-sky-950/30">
                   <div className="text-[9px] font-bold uppercase text-sky-700 dark:text-sky-400">Run-Rate Revenue Opportunity</div>
-                  <div className="text-lg font-bold text-sky-700 dark:text-sky-400">{ccy.symbol}{toDisplayFromUsdM(output.totalRevRR, viz.currency).toFixed(2)}{ccy.unit} <span className="text-[10px] font-normal">/ yr</span></div>
+                  <div className="text-lg font-bold text-sky-700 dark:text-sky-400">{ccy.symbol}{toDisplayFromUsdM(output.totalRevRR, viz.currency, viz.fxInrUsd).toFixed(2)}{ccy.unit} <span className="text-[10px] font-normal">/ yr</span></div>
                 </div>
               </div>
 
@@ -299,14 +323,14 @@ function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total,
             <input type="text" value={viz[methodsKey]?.[r.key] ?? r.method}
                    onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } } as Partial<VizModel>)}
                    className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
-            <input type="number" value={toDisplayFromUsdM(viz[r.key] as number, viz.currency)} step="0.5"
-                   onChange={(e) => update({ [r.key]: toUsdMFromDisplay(Number(e.target.value), viz.currency) } as Partial<VizModel>)}
+            <input type="number" value={toDisplayFromUsdM(viz[r.key] as number, viz.currency, viz.fxInrUsd)} step="0.5"
+                   onChange={(e) => update({ [r.key]: toUsdMFromDisplay(Number(e.target.value), viz.currency, viz.fxInrUsd) } as Partial<VizModel>)}
                    className="rounded border border-slate-200 px-1 py-0.5 text-right font-mono text-[11px] dark:border-slate-700 dark:bg-slate-800" />
           </div>
         ))}
         <div className={`flex items-center justify-between border-t-2 border-${accent}-300 pt-1 text-[12px] font-bold dark:border-${accent}-800`}>
           <span className={`text-${accent}-700 dark:text-${accent}-400`}>{totalLabel}</span>
-          <span className={`text-${accent}-700 dark:text-${accent}-400`}>{ccy.symbol}{toDisplayFromUsdM(total, viz.currency).toFixed(2)}{ccy.unit}</span>
+          <span className={`text-${accent}-700 dark:text-${accent}-400`}>{ccy.symbol}{toDisplayFromUsdM(total, viz.currency, viz.fxInrUsd).toFixed(2)}{ccy.unit}</span>
         </div>
       </div>
     </div>
