@@ -1,5 +1,7 @@
 
 
+
+
 /**
  * Deal IQ AI — Visual proposal renderer (MBB / Big4 consulting style).
  *
@@ -278,7 +280,7 @@ function renderParagraphBlock(p: string): string {
 }
 
 // ===========================================================================
-// Section header — MBB-style numbered chip + icon + teal underline
+// Section header — premium numbered chip + icon + teal underline
 // ===========================================================================
 function renderSectionHeader(num: string, heading: string, kind: SectionKind): string {
   const icon = inlineSvgIcon(kind, 18, C.teal);
