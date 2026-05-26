@@ -1,3 +1,5 @@
+
+
 /**
  * Phase 8 — Synergy Quantification math + narrative.
  *
@@ -69,7 +71,7 @@ export function computeSynergy(m: SynergyModel): SynergyOutput {
   };
 }
 
-const NARRATIVE_PROMPT = `You are an MBB partner explaining synergy math to a CFO.
+const NARRATIVE_PROMPT = `You are a senior M&A advisor explaining synergy math to a CFO.
 
 Given a deal's synergy model + computed outputs, write a 5-paragraph narrative:
   1. Headline result (NPV, total run-rate, payback period)
