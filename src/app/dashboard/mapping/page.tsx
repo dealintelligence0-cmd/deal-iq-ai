@@ -2,6 +2,8 @@
 
 
 
+
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -55,6 +57,18 @@ export default function MappingPage() {
   const [savingTpl, setSavingTpl] = useState(false);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+  const [fxRate, setFxRate] = useState(83);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        if (!u.user) return;
+        const { data } = await supabase.from("ai_settings").select("fx_inr_usd").eq("user_id", u.user.id).maybeSingle();
+        if (data?.fx_inr_usd) setFxRate(Number(data.fx_inr_usd));
+      } catch { /* keep default */ }
+    })();
+  }, [supabase]);
 
   useEffect(() => {
     (async () => {
@@ -265,7 +279,7 @@ export default function MappingPage() {
             "Intelligence Size": value_raw ?? undefined,
             Opportunity: notes ?? undefined,
             Heading: heading ?? undefined,
-          });
+          }, fxRate);
 
           return {
             created_by: u.user!.id,
