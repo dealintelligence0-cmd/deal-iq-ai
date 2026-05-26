@@ -2,6 +2,8 @@
 
 
 
+
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -36,6 +38,7 @@ export default function SettingsPage() {
   const [econKey, setEconKey] = useState("");
   const [tavilyVal, setTavilyVal] = useState("");
   const [researchProv, setResearchProv] = useState<string>("tavily");
+  const [fxRate, setFxRate] = useState<string>("83");
 
   const [status, setStatus] = useState<string>("");
   const [keysStatus, setKeysStatus] = useState<KeyStatus[]>([]);
@@ -47,7 +50,7 @@ export default function SettingsPage() {
       if (!u.user) { setErr("Not signed in"); setLoaded(true); return; }
 
       const { data } = await sb.from("ai_settings")
-        .select("bulk_provider,premium_provider,economic_provider,bulk_model,premium_model,economic_model,research_provider")
+        .select("bulk_provider,premium_provider,economic_provider,bulk_model,premium_model,economic_model,research_provider,fx_inr_usd")
         .eq("user_id", u.user.id).maybeSingle();
 
       if (data) {
@@ -58,6 +61,7 @@ export default function SettingsPage() {
         setSmartModel(data.premium_model ?? null);
         setEconModel(data.economic_model ?? null);
         if (data.research_provider) setResearchProv(data.research_provider);
+        if (data.fx_inr_usd != null) setFxRate(String(data.fx_inr_usd));
       } else {
         await sb.from("ai_settings").insert({ user_id: u.user.id });
       }
@@ -364,14 +368,15 @@ async function saveProvider(tier: Tier, p: ProviderId) {
             <input
               type="number"
               id="fxRate"
-              defaultValue={83}
+              value={fxRate}
+              onChange={(e) => setFxRate(e.target.value)}
               min={60} max={120} step={0.1}
               className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
             <span className="text-xs text-slate-600 dark:text-slate-400">INR</span>
             <button
               onClick={async () => {
-                const val = parseFloat((document.getElementById("fxRate") as HTMLInputElement).value);
+                const val = parseFloat(fxRate);
                 if (isNaN(val) || val < 60 || val > 120) { alert("Enter a rate between 60-120"); return; }
                 const sb = (await import("@/lib/supabase/client")).createClient();
                 const { data: { user } } = await sb.auth.getUser();
