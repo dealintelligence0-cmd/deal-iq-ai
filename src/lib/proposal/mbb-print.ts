@@ -1,5 +1,7 @@
+
+
 /**
- * Shared MBB-grade HTML print template.
+ * Shared top-tier HTML print template.
  *
  * Used by the Proposal, PMI, Synergy, and TSA pages to render a consistent,
  * consulting-grade document in a new browser window, which the user then prints
@@ -27,7 +29,7 @@ export type PrintMeta = {
 };
 
 /**
- * Open an MBB-grade printable document in a new tab and trigger the system
+ * Open a top-tier printable document in a new tab and trigger the system
  * print dialog. The user can then save as PDF via the dialog.
  *
  * Safe to call client-side only.
