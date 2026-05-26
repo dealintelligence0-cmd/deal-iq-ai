@@ -1,5 +1,7 @@
 
 
+
+
 /**
  * POST /api/ai/tsa
  *
@@ -28,7 +30,7 @@ type ServiceLine = {
   line_cost_k: number;
 };
 
-const SYSTEM_PROMPT = `You are an MBB-grade carve-out transition partner producing a board-ready TSA rationale memo.
+const SYSTEM_PROMPT = `You are a top-tier carve-out transition partner producing a board-ready TSA rationale memo.
 
 You will receive:
   - Deal context (buyer, target, sector, geography, size)
