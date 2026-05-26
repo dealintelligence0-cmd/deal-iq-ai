@@ -66,6 +66,8 @@ type VizModel = {
   realize_y1_pct: number; realize_y2_pct: number; realize_y3_pct: number; realize_y4_pct: number; realize_y5_pct: number;
   cost_methods: Record<string, string>;
   rev_methods: Record<string, string>;
+  cost_units: Record<string, string>;
+  rev_units: Record<string, string>;
 };
 
 const DEFAULT_VIZ: VizModel = {
@@ -76,16 +78,20 @@ const DEFAULT_VIZ: VizModel = {
   realize_y1_pct: 25, realize_y2_pct: 50, realize_y3_pct: 80, realize_y4_pct: 95, realize_y5_pct: 100,
   cost_methods: {},
   rev_methods: {},
+  cost_units: {},
+  rev_units: {},
 };
 
-const COST_ROWS: Array<{ key: keyof VizModel; label: string; method: string }> = [
+type BreakdownRow = { key: keyof VizModel; label: string; method: string };
+
+const COST_ROWS: BreakdownRow[] = [
   { key: "cost_hq_ga_m",       label: "HQ & Core G&A",   method: "Merge billing systems, dedupe management grids, consolidate legal controllers." },
   { key: "cost_it_infra_m",    label: "IT Infrastructure", method: "Retire duplicate cloud tools, unify databases, merge servers and ERP hosts." },
   { key: "cost_procurement_m", label: "Procurement",     method: "Negotiate bulk scale pricing on joint software partners and contractors." },
   { key: "cost_facilities_m",  label: "Facilities",      method: "Consolidate offices, sublet redundant space, single-network telecom." },
   { key: "cost_other_m",       label: "Other",           method: "Miscellaneous (insurance, legal, audit consolidation)." },
 ];
-const REV_ROWS: Array<{ key: keyof VizModel; label: string; method: string }> = [
+const REV_ROWS: BreakdownRow[] = [
   { key: "rev_cross_sell_m",  label: "Account Cross-Selling", method: "Bundle target services natively into existing buyer strategic networks." },
   { key: "rev_price_opt_m",   label: "Price Optimization",    method: "Unblock unextracted margins via tier adjustments and contract standardizations." },
   { key: "rev_territory_m",   label: "Territory Expansion",   method: "Export products directly using buyer's global sales channels without extra CAC." },
@@ -244,6 +250,10 @@ function SynergyVisuals() {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <BreakdownTable title="Cost Synergies (Target Redundancy Pools)"
                             subtitle="Estimated savings from rationalized back-offices, redundant tools, and scaled procurement."
+                            rows={COST_ROWS} viz={viz} update={update} totalLabel="TOTAL COST" total={output.totalCostRR} accent="emerald" methodsKey="cost_methods" unitsKey="cost_units" />
+            <BreakdownTable title="Revenue Synergies (Commercial Scale)"
+                            subtitle="Top-line acceleration via cross-selling existing customer networks."
+                            rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" methodsKey="rev_methods" unitsKey="rev_units" />
                             rows={COST_ROWS} viz={viz} update={update} totalLabel="TOTAL COST" total={output.totalCostRR} accent="emerald" methodsKey="cost_methods" />
             <BreakdownTable title="Revenue Synergies (Commercial Scale)"
                             subtitle="Top-line acceleration via cross-selling existing customer networks."
@@ -255,6 +265,18 @@ function SynergyVisuals() {
   );
 }
 
+function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total, accent, methodsKey, unitsKey }: {
+  title: string;
+  subtitle: string;
+  rows: BreakdownRow[];
+  viz: VizModel;
+  update: (patch: Partial<VizModel>) => void;
+  totalLabel: string;
+  total: number;
+  accent: "emerald" | "sky";
+  methodsKey: "cost_methods" | "rev_methods";
+  unitsKey: "cost_units" | "rev_units";
+}) {
 function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total, accent, methodsKey }: any) {
   const ccy = currencyMeta(viz.currency);
   return (
@@ -267,9 +289,22 @@ function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total,
           <span>Method / Derivation</span>
           <span className="text-right">Savings ({ccy.symbol}{ccy.unit})</span>
         </div>
-        {rows.map((r: any) => (
+        {rows.map((r) => (
           <div key={r.key} className="grid grid-cols-[1fr,2fr,80px] gap-2 py-1 text-[11.5px]">
-            <span className="font-medium text-slate-800 dark:text-slate-200">{r.label}</span>
+            <input
+              type="text"
+              value={viz[unitsKey][r.key] ?? r.label}
+              onChange={(e) => update({ [unitsKey]: { ...viz[unitsKey], [r.key]: e.target.value } })}
+              placeholder="Edit functional unit"
+              aria-label={`${title} functional unit ${r.label}`}
+              className="w-full rounded border border-slate-300 bg-white px-1 py-0.5 font-medium text-slate-800 outline-none ring-0 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:ring-indigo-900"
+            />
+            <input type="text" value={viz[methodsKey]?.[r.key] ?? r.method}
+                   onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } })}
+                   className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
+            <input type="number" value={toDisplayFromUsdM(viz[r.key] as number, viz.currency)} step="0.5"
+           
+              
             <input type="text" value={viz[methodsKey]?.[r.key] ?? r.method}
                    onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } })}
                    className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
