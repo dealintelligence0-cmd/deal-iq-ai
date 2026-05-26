@@ -1,3 +1,5 @@
+
+
 /**
  * Phase 7 — Narrative engine.
  *
@@ -39,7 +41,7 @@ export type NarrativeResult = {
   error: string | null;
 };
 
-const SYSTEM_PROMPT = `You are an MBB partner writing a 1-page strategic brief on a target account.
+const SYSTEM_PROMPT = `You are a senior M&A advisor writing a 1-page strategic brief on a target account.
 
 You will receive structured intelligence: prior deals, executive signals, thematic context, bolt-on shortlist, and incumbent advisors. Synthesize an 8-section brief.
 
@@ -51,7 +53,7 @@ OUTPUT — strict JSON only:
   "theme_relevance": "≤300 chars. Which emerging themes this company sits inside or against.",
   "bolt_on_summary": "≤300 chars. Acquisition opportunities — name top 1-2 targets.",
   "advisor_landscape": "≤300 chars. Who advises them now; positioning angle to displace or partner.",
-  "pitch_angle": "≤350 chars. The specific MBB consulting angle to lead with.",
+  "pitch_angle": "≤350 chars. The specific consulting angle to lead with.",
   "recommended_next_steps": "≤300 chars. 3 concrete next moves (research, outreach, intro path)."
 }
 
