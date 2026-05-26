@@ -1,5 +1,7 @@
 
 
+
+
 import { cleanCompany, cleanCompanyList, companyKey } from "@/lib/cleansing/companies";
 import { normalizeDate } from "@/lib/cleansing/dates";
 import { cleanSector } from "@/lib/cleansing/sectors";
@@ -115,7 +117,7 @@ function oneLineSummary(buyer: string, target: string, sector: string, country: 
   return s.split(/\s+/).slice(0, 20).join(" ");
 }
 
-export function normalizeSourceRow(row: SourceRow): NormalizedDealRecord {
+export function normalizeSourceRow(row: SourceRow, fx: number = FX): NormalizedDealRecord {
   const buyer = cleanCompanyList(first(row["Bidders"], row["Issuers"])) ?? "Unknown Buyer";
   const target = cleanCompany(first(row["Targets"], row["Vendors"])) ?? "Unknown Target";
   const sector = cleanSector(first(row["Dominant Sector"], row["Sectors"])) ?? "General";
@@ -125,7 +127,7 @@ export function normalizeSourceRow(row: SourceRow): NormalizedDealRecord {
 
   const range = parseInrRange(first(row["Intelligence Size"]), first(row["Value INR(m)"]));
   const inrRange = range ? `INR ${range.minBn.toFixed(range.minBn < 10 ? 1 : 0)}-${range.maxBn.toFixed(range.maxBn < 10 ? 1 : 0)}Bn` : null;
-  const usdRange = range ? `$${Math.round((range.minBn * 1000) / FX)}-${Math.round((range.maxBn * 1000) / FX)}M` : null;
+  const usdRange = range ? `$${Math.round((range.minBn * 1000) / fx)}-${Math.round((range.maxBn * 1000) / fx)}M` : null;
 
   const extracted = extractCountries(first(row["Geography"]));
   const country = dominantCountry(first(row["Dominant Geography"]), extracted);
