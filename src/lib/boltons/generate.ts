@@ -1,3 +1,5 @@
+
+
 /**
  * Phase 5 — Bolt-on shortlist generator.
  *
@@ -41,7 +43,7 @@ export type GenerateOpts = {
   themeContext?: Array<{ display_name: string; sectors: string[]; geographies: string[] }>;
 };
 
-const SYSTEM_PROMPT = `You are an MBB partner generating a buyer bolt-on shortlist.
+const SYSTEM_PROMPT = `You are a senior M&A advisor generating a buyer bolt-on shortlist.
 
 You will receive:
 1. A buyer profile (their actual M&A pattern from your pipeline data)
