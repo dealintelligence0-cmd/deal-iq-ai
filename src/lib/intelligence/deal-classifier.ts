@@ -1,3 +1,5 @@
+
+
 export type DealClassification = {
   category: "full_acquisition" | "majority_stake" | "minority_stake" | "pe_buyout_platform" | "pe_buyout_boltOn" | "vc_investment" | "joint_venture" | "strategic_partnership" | "carve_out" | "ipo" | "distressed";
   control: "full" | "partial" | "minority" | "none";
@@ -199,7 +201,7 @@ export function generateServices(c: DealClassification, d: DealInput): Service[]
   return services;
 }
 
-// Expand one service into full MBB-grade detail
+// Expand one service into full top-tier detail
 export function expandService(s: Service, c: DealClassification, d: DealInput): Service {
   if (s.objective) return s; // already expanded
   const sector = d.sector ?? "the sector";
