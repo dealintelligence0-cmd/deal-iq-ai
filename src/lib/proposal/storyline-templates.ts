@@ -1,5 +1,7 @@
+
+
 /**
- * MBB Storyline Templates.
+ * Strategy Storyline Templates.
  *
  * Each template defines the slide ORDER and ARCHETYPE for an executive deck.
  * The PPTX exporter consumes these templates and reorganizes the markdown
@@ -49,7 +51,7 @@ export type StorylineTemplate = {
 export const STORYLINE_TEMPLATES: StorylineTemplate[] = [
   {
     id: "executive_summary",
-    display_name: "Executive Summary (MBB Pyramid)",
+    display_name: "Executive Summary (Pyramid Principle)",
     emoji: "📊",
     description: "Lead with the answer. 6 slides. For senior partner / managing director review.",
     use_when: "Short partner-internal brief. CEO update. Quick committee read.",
