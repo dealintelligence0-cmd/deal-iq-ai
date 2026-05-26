@@ -603,7 +603,6 @@ export default function TSAGeneratorPage() {
         </div>
       </div>
 
-     //* v29 Visual Layer — auto-fills from seller/buyer, sits ABOVE the original AI generator
 <TSAVisuals seller={seller} buyer={buyer} sector={sector} geography={geography} dealSize={dealSize} />
 
 <CognitionIndicators
