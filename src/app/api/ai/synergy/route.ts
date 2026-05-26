@@ -339,6 +339,10 @@ try {
   if (sidecar.cost_run_rate_m === null) {
     const targetRevMatch = parseFloat(body.target_revenue || "0");
     const costRunRate = Math.max(0, targetRevMatch * 0.035);
+    // Only write a heuristic when we have a real, positive estimate. Writing 0
+    // would look like a deliberate "zero synergies" call and spuriously fire the
+    // valuation re-anchor propagation rule.
+    if (costRunRate > 0) {
     await reviseAssumption({
       workspaceId: ws.workspaceId ?? null,
       dealId: body.deal_id ?? null,
@@ -358,6 +362,7 @@ try {
       },
       reason: "Fallback heuristic synergy run-rate (extractor had null)",
     });
+    }
   }
 } catch (cogErr) {
   console.error("[cognition] synergy spine hook failed:", cogErr);
