@@ -1,10 +1,12 @@
 
 
+
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
-import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, CheckSquare, Square, BarChart3 } from "lucide-react";
+import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, CheckSquare, Square, BarChart3, Plus, X } from "lucide-react";
 import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
@@ -34,31 +36,32 @@ type HistoryItem = {
 
 type VizTask = { id: string; title: string; workstream: string; start: number; end: number; progress: number; deps: string };
 type VizCheck = { id: string; phase: string; title: string; owner: string; done: boolean };
+type TimelineUnit = "weeks" | "months";
+
+const WEEKS_PER_MONTH = 4;
+const DEFAULT_WORKSTREAMS = ["IMO", "HR", "IT", "Finance", "GTM", "Legal", "Ops"];
+const WS_PALETTE = ["bg-purple-500", "bg-rose-500", "bg-cyan-500", "bg-amber-500", "bg-blue-500", "bg-pink-500", "bg-emerald-500", "bg-indigo-500", "bg-teal-500"];
 
 const DEFAULT_TASKS: VizTask[] = [
   { id: "t1", title: "Joint Integration IMO Setup",          workstream: "IMO",     start: 1, end: 4,  progress: 90,  deps: "None" },
   { id: "t2", title: "Day 1 Communications & Announcement",  workstream: "IMO",     start: 1, end: 2,  progress: 100, deps: "None" },
   { id: "t3", title: "HR Payroll Migration & Comp Alignment",workstream: "HR",      start: 3, end: 8,  progress: 40,  deps: "IMO Setup" },
-  { id: "t4", title: "IT Stack Audit & Network Bridging",    workstream: "IT",      start: 2, end: 7,  progress: 25,  deps: "T1" },
-  { id: "t5", title: "Financial Reporting Consolidation",    workstream: "Finance", start: 5, end: 12, progress: 15,  deps: "T3" },
-  { id: "t6", title: "GTM Channel Launch & Sales Pairing",   workstream: "GTM",     start: 8, end: 16, progress: 0,   deps: "T3" },
-  { id: "t7", title: "ERP Systems & Cloud Stack Cutover",    workstream: "IT",      start: 10, end: 20,progress: 0,   deps: "T4, T5" },
+  { id: "t4", title: "IT Stack Audit & Network Bridging",    workstream: "IT",      start: 2, end: 7,  progress: 25,  deps: "IMO Setup" },
+  { id: "t5", title: "Financial Reporting Consolidation",    workstream: "Finance", start: 5, end: 12, progress: 15,  deps: "HR Payroll Migration" },
+  { id: "t6", title: "GTM Channel Launch & Sales Pairing",   workstream: "GTM",     start: 8, end: 16, progress: 0,   deps: "HR Payroll Migration" },
+  { id: "t7", title: "ERP Systems & Cloud Stack Cutover",    workstream: "IT",      start: 10, end: 20,progress: 0,   deps: "IT Stack Audit, Financial Reporting" },
 ];
 
 const DEFAULT_CHECK: VizCheck[] = [
   { id: "c1", phase: "pre_close", title: "Regulatory antitrust approvals secured", owner: "Legal Counsel", done: false },
   { id: "c2", phase: "pre_close", title: "SLA approvals and antitrust checks",     owner: "Legal Counsel", done: false },
-  { id: "c3", phase: "day_1_core",title: "Synchronize Global Public Announcements", owner: "Communications Lead | CEO-level draft", done: true },
-  { id: "c4", phase: "day_1_core",title: "Enforce Technology Code & Database Freeze", owner: "IT & Engineering Lead | Securing platform continuity", done: true },
+  { id: "c3", phase: "day_1_core",title: "Synchronize Global Public Announcements", owner: "Communications Lead", done: true },
+  { id: "c4", phase: "day_1_core",title: "Enforce Technology Code & Database Freeze", owner: "IT & Engineering Lead", done: true },
   { id: "c5", phase: "day_1_core",title: "Corporate notifications and tech freezes", owner: "CFO", done: false },
   { id: "c6", phase: "day_30",    title: "Payroll cutover verified, zero errors",  owner: "HR Lead", done: false },
   { id: "c7", phase: "day_100",   title: "Financial reporting on single ERP",      owner: "CFO", done: false },
 ];
 
-const WS_COLORS: Record<string, string> = {
-  IMO: "bg-purple-500", HR: "bg-rose-500", IT: "bg-cyan-500",
-  Finance: "bg-amber-500", GTM: "bg-blue-500", Legal: "bg-pink-500", Ops: "bg-emerald-500",
-};
 const PHASES = [
   { key: "pre_close",  label: "Pre-Close / Day 0", desc: "SLA approvals and antitrust checks" },
   { key: "day_1_core", label: "Day 1 Core",        desc: "Corporate notifications and tech freezes" },
@@ -67,22 +70,95 @@ const PHASES = [
   { key: "post_close", label: "Post-Close",        desc: "Synergy review and lessons learned" },
 ];
 
-function PMIVisuals() {
+let __ganttUid = 0;
+const nextId = (p: string) => `${p}-${Date.now()}-${__ganttUid++}`;
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: string; target: string; sector: string; geography: string; dealSize: string }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [unit, setUnit] = useState<TimelineUnit>("weeks");
+  const [periods, setPeriods] = useState(20);
   const [tasks, setTasks] = useState<VizTask[]>(DEFAULT_TASKS);
   const [check, setCheck] = useState<VizCheck[]>(DEFAULT_CHECK);
-  const [collapsed, setCollapsed] = useState(false);
+  const [workstreams, setWorkstreams] = useState<string[]>(DEFAULT_WORKSTREAMS);
+  const [newWs, setNewWs] = useState("");
   const [phaseTab, setPhaseTab] = useState("day_1_core");
+  const [copied, setCopied] = useState(false);
+  const [pptBusy, setPptBusy] = useState(false);
 
-  function bump(id: string, delta: number) {
-    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, progress: Math.max(0, Math.min(100, t.progress + delta)) } : t));
-  }
-  function toggleCheck(id: string) {
-    setCheck((prev) => prev.map((c) => c.id === id ? { ...c, done: !c.done } : c));
+  const unitLabel = unit === "weeks" ? "Wk" : "Mo";
+  const wsColor = (ws: string) => WS_PALETTE[Math.max(0, workstreams.indexOf(ws)) % WS_PALETTE.length];
+
+  function switchUnit(next: TimelineUnit) {
+    if (next === unit) return;
+    const conv = (v: number) => next === "months" ? Math.max(1, Math.round(v / WEEKS_PER_MONTH)) : v * WEEKS_PER_MONTH;
+    setTasks((prev) => prev.map((t) => {
+      const s = conv(t.start);
+      return { ...t, start: s, end: Math.max(s, conv(t.end)) };
+    }));
+    setPeriods((p) => Math.max(1, conv(p)));
+    setUnit(next);
   }
 
-  const totalWeeks = 20;
-  const weekHeaders = Array.from({ length: totalWeeks }, (_, i) => i + 1);
+  function updateTask(id: string, patch: Partial<VizTask>) {
+    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, ...patch } : t));
+  }
+  function addTask() {
+    setTasks((prev) => [...prev, { id: nextId("t"), title: "New activity", workstream: workstreams[0] ?? "IMO", start: 1, end: Math.min(periods, unit === "weeks" ? 4 : 1), progress: 0, deps: "None" }]);
+  }
+  const removeTask = (id: string) => setTasks((prev) => prev.filter((t) => t.id !== id));
+
+  function addWorkstream() {
+    const name = newWs.trim();
+    if (!name || workstreams.includes(name)) return;
+    setWorkstreams((prev) => [...prev, name]);
+    setNewWs("");
+  }
+  function removeWorkstream(ws: string) {
+    if (tasks.some((t) => t.workstream === ws)) return; // keep workstreams that are in use
+    setWorkstreams((prev) => prev.filter((w) => w !== ws));
+  }
+
+  const updateCheck = (id: string, patch: Partial<VizCheck>) => setCheck((prev) => prev.map((c) => c.id === id ? { ...c, ...patch } : c));
+  const addCheck = () => setCheck((prev) => [...prev, { id: nextId("c"), phase: phaseTab, title: "New checklist item", owner: "", done: false }]);
+  const removeCheck = (id: string) => setCheck((prev) => prev.filter((c) => c.id !== id));
+
+  const periodHeaders = Array.from({ length: periods }, (_, i) => i + 1);
   const phaseFiltered = useMemo(() => check.filter((c) => c.phase === phaseTab), [check, phaseTab]);
+
+  function buildMarkdown(): string {
+    const L: string[] = [];
+    const who = (buyer || target) ? ` — ${buyer || "Buyer"} → ${target || "Target"}` : "";
+    L.push(`# Integration Plan${who}`, "");
+    L.push(`**Timeline:** ${periods} ${unit}${sector ? ` · Sector: ${sector}` : ""}${dealSize ? ` · ${dealSize}` : ""}`, "");
+    L.push(`**Workstreams:** ${workstreams.join(" · ")}`, "");
+    L.push("## Transition Activities", "");
+    L.push("| Activity | Workstream | Start | End | Progress | Dependencies |");
+    L.push("| --- | --- | --- | --- | --- | --- |");
+    for (const t of tasks) L.push(`| ${t.title} | ${t.workstream} | ${unitLabel} ${t.start} | ${unitLabel} ${t.end} | ${t.progress}% | ${t.deps || "None"} |`);
+    L.push("", "## Integration Checklist");
+    for (const p of PHASES) {
+      const items = check.filter((c) => c.phase === p.key);
+      if (items.length === 0) continue;
+      L.push("", `### ${p.label}`);
+      for (const c of items) L.push(`- [${c.done ? "x" : " "}] ${c.title}${c.owner ? ` _(Owner: ${c.owner})_` : ""}`);
+    }
+    return L.join("\n");
+  }
+
+  function copyPlan() { navigator.clipboard.writeText(buildMarkdown()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  function printPlan() { openMbbPrintWindow({ contentMarkdown: buildMarkdown(), meta: { moduleLabel: "Integration Plan", buyer, target, sector, geography, dealSize } }); }
+  async function pptPlan() {
+    setPptBusy(true);
+    try {
+      const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
+      await exportProposalToPptx(buildMarkdown(), { buyer, target, sector, geography, dealSize, moduleLabel: "Integration Plan" }, undefined, `deal-iq-integration-plan-${buyer || "buyer"}-${target || "target"}.pptx`);
+    } catch (e) {
+      alert("PPTX export failed: " + String(e));
+    } finally {
+      setPptBusy(false);
+    }
+  }
 
   return (
     <div className="card mb-4 overflow-hidden">
@@ -90,66 +166,120 @@ function PMIVisuals() {
               className="flex w-full items-center justify-between border-b border-slate-100 px-5 py-3 text-left transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-purple-500" />
-          <span className="text-sm font-semibold text-slate-800 dark:text-white">Integration Gantt & Checklist (Interactive)</span>
-          <span className="text-[10.5px] italic text-slate-500">Complements AI playbook below · 20-week visual</span>
+          <span className="text-sm font-semibold text-slate-800 dark:text-white">Integration Gantt &amp; Checklist (Interactive)</span>
+          <span className="hidden text-[10.5px] italic text-slate-500 sm:inline">Editable timeline, workstreams, dependencies &amp; checklist · exportable</span>
         </div>
         {collapsed ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronUp className="h-4 w-4 text-slate-400" />}
       </button>
 
       {!collapsed && (
         <div className="p-5">
+          {/* Toolbar: timeline controls + export */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">View by</label>
+            <select value={unit} onChange={(e) => switchUnit(e.target.value as TimelineUnit)}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[12px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+              <option value="weeks">Weeks</option>
+              <option value="months">Months</option>
+            </select>
+            <label className="ml-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">Duration</label>
+            <input type="number" min={1} max={unit === "weeks" ? 104 : 36} value={periods}
+                   onChange={(e) => setPeriods(clamp(parseInt(e.target.value || "1", 10) || 1, 1, unit === "weeks" ? 104 : 36))}
+                   className="w-16 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[12px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
+            <span className="text-[11px] text-slate-500">{unit}</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              <button onClick={copyPlan} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] dark:border-slate-700">
+                {copied ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />} {copied ? "Copied" : "Copy"}
+              </button>
+              <button onClick={printPlan} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] dark:border-slate-700">
+                <Printer className="h-3 w-3" /> PDF
+              </button>
+              <button onClick={pptPlan} disabled={pptBusy} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] disabled:opacity-50 dark:border-slate-700">
+                {pptBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
+              </button>
+            </div>
+          </div>
+
+          {/* Workstreams editor */}
+          <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
+            <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Workstreams</span>
+            {workstreams.map((ws) => (
+              <span key={ws} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-white ${wsColor(ws)}`}>
+                {ws}
+                {!tasks.some((t) => t.workstream === ws) && (
+                  <button onClick={() => removeWorkstream(ws)} title="Remove unused workstream" className="opacity-80 hover:opacity-100"><X className="h-2.5 w-2.5" /></button>
+                )}
+              </span>
+            ))}
+            <input value={newWs} onChange={(e) => setNewWs(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addWorkstream(); }}
+                   placeholder="Add workstream" className="ml-1 w-28 rounded border border-slate-300 px-1.5 py-0.5 text-[10.5px] dark:border-slate-700 dark:bg-slate-800" />
+            <button onClick={addWorkstream} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"><Plus className="inline h-2.5 w-2.5" /> Add</button>
+          </div>
+
           {/* Gantt */}
           <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Interactive Integration Gantt (Weeks 1 - {totalWeeks})</h3>
-              <span className="rounded border border-purple-200 bg-purple-50 px-2 py-0.5 text-[9px] font-bold uppercase text-purple-700 dark:border-purple-900 dark:bg-purple-950/30 dark:text-purple-400">Active IMO Track</span>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Interactive Integration Gantt ({unitLabel} 1 – {periods})</h3>
+              <button onClick={addTask} className="flex items-center gap-1 rounded border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-bold uppercase text-purple-700 hover:bg-purple-100 dark:border-purple-900 dark:bg-purple-950/30 dark:text-purple-400">
+                <Plus className="h-3 w-3" /> Activity
+              </button>
             </div>
-            <p className="mb-3 text-[10.5px] text-slate-500">Edit task completion directly on current workstream bars.</p>
+            <p className="mb-3 text-[10.5px] text-slate-500">Edit each activity — title, workstream, start/end, % complete and dependencies. Bars update live.</p>
 
             <div className="overflow-x-auto">
-              <div style={{ minWidth: 900 }}>
-                <div className="grid gap-1 border-b border-slate-200 pb-1 text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700"
-                     style={{ gridTemplateColumns: `2fr 60px 50px 80px repeat(${totalWeeks}, 1fr)` }}>
-                  <span>Active Transition Activity</span>
-                  <span className="text-center">WS</span>
-                  <span className="text-center">Prog</span>
-                  <span className="text-center">±</span>
-                  {weekHeaders.map((w) => <span key={w} className="text-center">{w}</span>)}
+              <div style={{ minWidth: 860 }}>
+                {/* header */}
+                <div className="flex items-end gap-2 border-b border-slate-200 pb-1 dark:border-slate-700">
+                  <div style={{ width: 372 }} className="flex-shrink-0 text-[9.5px] font-bold uppercase tracking-wider text-slate-500">Active Transition Activity</div>
+                  <div className="flex flex-1">
+                    {periodHeaders.map((w) => <div key={w} className="flex-1 text-center text-[9px] text-slate-400">{w}</div>)}
+                  </div>
                 </div>
 
                 {tasks.map((t) => {
-                  const start = t.start - 1;
-                  const span = t.end - t.start + 1;
-                  const wsColor = WS_COLORS[t.workstream] ?? "bg-slate-500";
+                  const col = wsColor(t.workstream);
+                  const left = ((clamp(t.start, 1, periods) - 1) / periods) * 100;
+                  const width = ((clamp(t.end, t.start, periods) - clamp(t.start, 1, periods) + 1) / periods) * 100;
                   return (
-                    <div key={t.id} className="grid gap-1 border-b border-slate-100 py-2 text-[11px] hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30"
-                         style={{ gridTemplateColumns: `2fr 60px 50px 80px repeat(${totalWeeks}, 1fr)` }}>
-                      <div>
-                        <div className="font-medium text-slate-900 dark:text-white">{t.title}</div>
-                        <div className="text-[9.5px] text-slate-500">Dependency: {t.deps}</div>
+                    <div key={t.id} className="flex items-center gap-2 border-b border-slate-100 py-2 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-800/30">
+                      <div style={{ width: 372 }} className="flex-shrink-0 space-y-1">
+                        <input value={t.title} onChange={(e) => updateTask(t.id, { title: e.target.value })}
+                               className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[11px] font-medium text-slate-900 hover:border-slate-200 focus:border-slate-300 dark:text-white dark:hover:border-slate-700" />
+                        <div className="flex items-center gap-1">
+                          <select value={t.workstream} onChange={(e) => updateTask(t.id, { workstream: e.target.value })}
+                                  className="rounded border border-slate-200 px-1 py-0.5 text-[9.5px] dark:border-slate-700 dark:bg-slate-800">
+                            {workstreams.map((ws) => <option key={ws} value={ws}>{ws}</option>)}
+                          </select>
+                          <input type="number" min={1} max={periods} value={t.start} title="Start"
+                                 onChange={(e) => { const s = clamp(parseInt(e.target.value || "1", 10) || 1, 1, periods); updateTask(t.id, { start: s, end: Math.max(s, t.end) }); }}
+                                 className="w-11 rounded border border-slate-200 px-1 py-0.5 text-[9.5px] dark:border-slate-700 dark:bg-slate-800" />
+                          <span className="text-[9px] text-slate-400">→</span>
+                          <input type="number" min={t.start} max={periods} value={t.end} title="End"
+                                 onChange={(e) => updateTask(t.id, { end: clamp(parseInt(e.target.value || "1", 10) || 1, t.start, periods) })}
+                                 className="w-11 rounded border border-slate-200 px-1 py-0.5 text-[9.5px] dark:border-slate-700 dark:bg-slate-800" />
+                          <input type="number" min={0} max={100} value={t.progress} title="% complete"
+                                 onChange={(e) => updateTask(t.id, { progress: clamp(parseInt(e.target.value || "0", 10) || 0, 0, 100) })}
+                                 className="w-12 rounded border border-slate-200 px-1 py-0.5 text-[9.5px] dark:border-slate-700 dark:bg-slate-800" />
+                          <span className="text-[9px] text-slate-400">%</span>
+                          <button onClick={() => removeTask(t.id)} title="Remove activity" className="ml-auto text-slate-300 hover:text-rose-500"><Trash2 className="h-3 w-3" /></button>
+                        </div>
+                        <input value={t.deps} onChange={(e) => updateTask(t.id, { deps: e.target.value })} placeholder="Dependencies (comma-separated)"
+                               className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[9.5px] text-slate-500 hover:border-slate-200 focus:border-slate-300 dark:hover:border-slate-700" />
                       </div>
-                      <div className="text-center">
-                        <span className={`rounded px-1 py-0.5 text-[9px] font-bold uppercase ${wsColor}/30 text-slate-700 dark:text-slate-100`}>{t.workstream}</span>
-                      </div>
-                      <div className="text-center font-mono text-[10.5px]">{t.progress}%</div>
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => bump(t.id, -10)} className="text-[10px] text-slate-400 hover:text-slate-700">−</button>
-                        <button onClick={() => bump(t.id, +10)} className="text-[10px] text-slate-400 hover:text-slate-700">+</button>
-                      </div>
-                      <div className="relative" style={{ gridColumn: `5 / span ${totalWeeks}`, height: "20px" }}>
-                        <div className="absolute inset-y-1 rounded-sm" style={{
-                          left: `${(start / totalWeeks) * 100}%`,
-                          width: `${(span / totalWeeks) * 100}%`,
-                        }}>
-                          <div className={`h-full rounded-sm ${wsColor}/40 relative overflow-hidden`}>
-                            <div className={`absolute inset-y-0 left-0 ${wsColor} opacity-80`}
-                                 style={{ width: `${t.progress}%` }} />
+                      <div className="relative flex-1" style={{ height: 22 }}>
+                        {periodHeaders.map((w) => (
+                          <div key={w} className="absolute inset-y-0 border-l border-slate-100 dark:border-slate-800/60" style={{ left: `${((w - 1) / periods) * 100}%` }} />
+                        ))}
+                        <div className="absolute inset-y-1 rounded-sm" style={{ left: `${left}%`, width: `${width}%` }} title={`${t.title}: ${unitLabel} ${t.start}–${t.end} · ${t.progress}%`}>
+                          <div className={`h-full rounded-sm ${col}/40 relative overflow-hidden`}>
+                            <div className={`absolute inset-y-0 left-0 ${col} opacity-80`} style={{ width: `${t.progress}%` }} />
                           </div>
                         </div>
                       </div>
                     </div>
                   );
                 })}
+                {tasks.length === 0 && <p className="py-4 text-center text-[11px] italic text-slate-500">No activities. Click “+ Activity” to add one.</p>}
               </div>
             </div>
           </div>
@@ -169,7 +299,7 @@ function PMIVisuals() {
                         <div className={`text-[12px] font-bold ${phaseTab === p.key ? "text-purple-700 dark:text-purple-400" : "text-slate-700 dark:text-slate-300"}`}>{p.label}</div>
                         <div className="text-[10px] text-slate-500">{p.desc}</div>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-500">{done}/{count}</span>
+                      <span className="font-mono text-[10px] text-slate-500">{done}/{count}</span>
                     </button>
                   );
                 })}
@@ -179,20 +309,23 @@ function PMIVisuals() {
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">{PHASES.find((p) => p.key === phaseTab)?.label}</h3>
-                <span className="text-[9.5px] uppercase tracking-wider text-slate-400">Checklist</span>
+                <button onClick={addCheck} className="flex items-center gap-1 rounded border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"><Plus className="h-3 w-3" /> Item</button>
               </div>
               <div className="space-y-2">
                 {phaseFiltered.length === 0 ? (
-                  <p className="text-[11px] italic text-slate-500">No checklist items in this phase yet.</p>
+                  <p className="text-[11px] italic text-slate-500">No checklist items in this phase yet — click “+ Item” to add one.</p>
                 ) : phaseFiltered.map((c) => (
-                  <div key={c.id} className="flex items-start gap-2 rounded border border-slate-100 p-2 text-[12px] dark:border-slate-800">
-                    <button onClick={() => toggleCheck(c.id)} className="mt-0.5 flex-shrink-0">
+                  <div key={c.id} className="flex items-start gap-2 rounded border border-slate-100 p-2 dark:border-slate-800">
+                    <button onClick={() => updateCheck(c.id, { done: !c.done })} className="mt-1 flex-shrink-0">
                       {c.done ? <CheckSquare className="h-4 w-4 text-emerald-600" /> : <Square className="h-4 w-4 text-slate-400" />}
                     </button>
-                    <div className="flex-1">
-                      <div className={`font-medium ${c.done ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>{c.title}</div>
-                      {c.owner && <div className="text-[10px] text-slate-500">Owner: {c.owner}</div>}
+                    <div className="flex-1 space-y-1">
+                      <input value={c.title} onChange={(e) => updateCheck(c.id, { title: e.target.value })}
+                             className={`w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[12px] font-medium hover:border-slate-200 focus:border-slate-300 dark:hover:border-slate-700 ${c.done ? "text-slate-400 line-through" : "text-slate-900 dark:text-white"}`} />
+                      <input value={c.owner} onChange={(e) => updateCheck(c.id, { owner: e.target.value })} placeholder="Owner"
+                             className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-[10px] text-slate-500 hover:border-slate-200 focus:border-slate-300 dark:hover:border-slate-700" />
                     </div>
+                    <button onClick={() => removeCheck(c.id)} title="Remove item" className="mt-1 text-slate-300 hover:text-rose-500"><Trash2 className="h-3 w-3" /></button>
                   </div>
                 ))}
               </div>
@@ -642,7 +775,7 @@ export default function PmiStudioPage() {
 
         <main className="flex-1 overflow-y-auto bg-slate-50 p-6 dark:bg-[#0a0a14]">
   {/* v29 Visual Layer — Gantt + checklist above AI output */}
-  <PMIVisuals />
+  <PMIVisuals buyer={buyer} target={target} sector={sector} geography={geography} dealSize={dealSize} />
 
   <CognitionIndicators
     dealId={dealId || null}
