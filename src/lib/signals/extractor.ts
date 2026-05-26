@@ -1,7 +1,9 @@
+
+
 /**
  * Signal extractor — turns raw filing text into 5 typed signals.
  *
- * Five signal categories, each tied to a specific MBB advisory opportunity:
+ * Five signal categories, each tied to a specific advisory opportunity:
  *   margin_pressure        — cost-out / operating model engagements
  *   transformation_pressure — digital / ERP / cloud migration mandates
  *   activist_activity      — defense, governance, strategic review work
@@ -30,7 +32,7 @@ export type ExtractResult = {
   cost_usd: number;
 };
 
-const SYSTEM_PROMPT = `You are an MBB partner reading a corporate filing to identify advisory opportunities.
+const SYSTEM_PROMPT = `You are a senior M&A advisor reading a corporate filing to identify advisory opportunities.
 
 Extract concrete signals across 5 categories ONLY:
 
@@ -50,7 +52,7 @@ OUTPUT — STRICT JSON only, no markdown:
       "headline": "≤120 chars — what's the signal in one line",
       "evidence_quote": "≤250 chars — exact phrase from filing supporting this (in quotes)",
       "context": "≤300 chars — 2 sentence analyst interpretation",
-      "pitch_angle": "≤200 chars — the specific MBB advisory angle this opens"
+      "pitch_angle": "≤200 chars — the specific advisory angle this opens"
     }
   ]
 }
