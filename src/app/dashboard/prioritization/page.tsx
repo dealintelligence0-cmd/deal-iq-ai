@@ -1,5 +1,7 @@
 
 
+
+
 "use client";
 
 /**
@@ -66,7 +68,7 @@ function computePursueScore(deal: Deal, weights: Weights, maxSize: number): numb
 }
 
 function recommendationFor(score: number): { label: string; color: string } {
-  // Tuned to the actual MBB-grade distribution: top ~5% of deals are PURSUE,
+  // Tuned to the actual top-tier distribution: top ~5% of deals are PURSUE,
   // next ~25% are HOLD (watch-list), rest is REJECT.
   if (score >= 60) return { label: "PURSUE", color: "bg-emerald-100 text-emerald-700 border-emerald-200" };
   if (score >= 40) return { label: "HOLD", color: "bg-amber-100 text-amber-700 border-amber-200" };
