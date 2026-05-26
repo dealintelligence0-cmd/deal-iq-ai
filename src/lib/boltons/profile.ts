@@ -1,3 +1,5 @@
+
+
 /**
  * Phase 5 — Buyer profile synthesizer.
  *
@@ -26,7 +28,7 @@ export type BuyerProfile = {
   acquisition_thesis: string | null;
 };
 
-const SYSTEM_PROMPT = `You are an MBB partner profiling an acquirer's M&A pattern.
+const SYSTEM_PROMPT = `You are a senior M&A advisor profiling an acquirer's M&A pattern.
 
 Given the buyer's recent deal history (target names + sectors + geographies + sizes),
 synthesize a 2-3 sentence ACQUISITION THESIS that captures WHY this buyer keeps acquiring
