@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -52,7 +54,7 @@ const TIER_LABELS: Record<string, string> = {
   bulge_bracket: "Bulge Bracket",
   elite_boutique: "Elite Boutique",
   big4: "Big 4",
-  mbb: "MBB",
+  mbb: "Strategy Consulting",
   mid_market: "Mid-Market",
   regional: "Regional",
   other: "Other",
