@@ -37,7 +37,26 @@ type HistoryItem = {
 // give an interactive numerical view alongside the AI narrative.
 // =====================================================================
 
+type CurrencyCode = "USD" | "INR";
+
+const FX_USD_TO_INR = 83;
+
+function toDisplayFromUsdM(usdM: number, currency: CurrencyCode) {
+  return currency === "USD" ? usdM : usdM * FX_USD_TO_INR;
+}
+
+function toUsdMFromDisplay(amount: number, currency: CurrencyCode) {
+  return currency === "USD" ? amount : amount / FX_USD_TO_INR;
+}
+
+function currencyMeta(currency: CurrencyCode) {
+  return currency === "USD"
+    ? { symbol: "$", unit: "M", label: "USD" }
+    : { symbol: "₹", unit: "M", label: "INR" };
+}
+
 type VizModel = {
+  currency: CurrencyCode;
   target_revenue_m: number;
   target_ebitda_m: number;
   wacc_pct: number;
@@ -45,13 +64,22 @@ type VizModel = {
   cost_hq_ga_m: number; cost_it_infra_m: number; cost_procurement_m: number; cost_facilities_m: number; cost_other_m: number;
   rev_cross_sell_m: number; rev_price_opt_m: number; rev_territory_m: number; rev_bundling_m: number; rev_other_m: number;
   realize_y1_pct: number; realize_y2_pct: number; realize_y3_pct: number; realize_y4_pct: number; realize_y5_pct: number;
+  cost_methods: Record<string, string>;
+  rev_methods: Record<string, string>;
+  cost_units: Record<string, string>;
+  rev_units: Record<string, string>;
 };
 
 const DEFAULT_VIZ: VizModel = {
+  currency: "USD",
   target_revenue_m: 150, target_ebitda_m: 20, wacc_pct: 10, one_time_cost_m: 20,
   cost_hq_ga_m: 7, cost_it_infra_m: 4, cost_procurement_m: 5, cost_facilities_m: 3, cost_other_m: 0,
   rev_cross_sell_m: 9, rev_price_opt_m: 3, rev_territory_m: 5, rev_bundling_m: 2, rev_other_m: 0,
   realize_y1_pct: 25, realize_y2_pct: 50, realize_y3_pct: 80, realize_y4_pct: 95, realize_y5_pct: 100,
+  cost_methods: {},
+  rev_methods: {},
+  cost_units: {},
+  rev_units: {},
 };
 
 const COST_ROWS: Array<{ key: keyof VizModel; label: string; method: string }> = [
@@ -93,7 +121,11 @@ function SynergyVisuals() {
   const [viz, setViz] = useState<VizModel>(DEFAULT_VIZ);
   const [collapsed, setCollapsed] = useState(false);
   const output = useMemo(() => computeViz(viz), [viz]);
+  const ccy = currencyMeta(viz.currency);
   const update = (patch: Partial<VizModel>) => setViz((v) => ({ ...v, ...patch }));
+  const updateMoney = (key: keyof VizModel, displayValue: number) => {
+    update({ [key]: toUsdMFromDisplay(displayValue, viz.currency) } as Partial<VizModel>);
+  };
 
   return (
     <div className="card mb-4 overflow-hidden">
@@ -112,17 +144,27 @@ function SynergyVisuals() {
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Modeler */}
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">EBITDA Synergies Modeler</h3>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">EBITDA Synergies Modeler</h3>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="font-semibold uppercase tracking-wider text-slate-500">Currency</span>
+                  <select value={viz.currency} onChange={(e) => update({ currency: e.target.value as CurrencyCode })}
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium dark:border-slate-700 dark:bg-slate-800">
+                    <option value="USD">USD</option>
+                    <option value="INR">INR</option>
+                  </select>
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Target Revenue ($M)</label>
-                  <input type="number" value={viz.target_revenue_m} onChange={(e) => update({ target_revenue_m: Number(e.target.value) })}
+                  <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Target Revenue ({ccy.symbol}{ccy.unit})</label>
+                  <input type="number" value={toDisplayFromUsdM(viz.target_revenue_m, viz.currency)} onChange={(e) => updateMoney("target_revenue_m", Number(e.target.value))}
                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" />
                 </div>
                 <div>
-                  <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Target EBITDA ($M)</label>
-                  <input type="number" value={viz.target_ebitda_m} onChange={(e) => update({ target_ebitda_m: Number(e.target.value) })}
+                  <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Target EBITDA ({ccy.symbol}{ccy.unit})</label>
+                  <input type="number" value={toDisplayFromUsdM(viz.target_ebitda_m, viz.currency)} onChange={(e) => updateMoney("target_ebitda_m", Number(e.target.value))}
                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" />
                 </div>
               </div>
@@ -139,8 +181,8 @@ function SynergyVisuals() {
 
               <div className="mt-3">
                 <label className="mb-1 flex items-center justify-between text-[11px] font-medium text-slate-600">
-                  <span>One-Time Integration Cost ($M)</span>
-                  <span className="font-mono text-rose-600">-${viz.one_time_cost_m}M</span>
+                  <span>One-Time Integration Cost ({ccy.symbol}{ccy.unit})</span>
+                  <span className="font-mono text-rose-600">-{ccy.symbol}{toDisplayFromUsdM(viz.one_time_cost_m, viz.currency).toFixed(2)}{ccy.unit}</span>
                 </label>
                 <input type="range" min="0" max="200" step="5" value={viz.one_time_cost_m}
                        onChange={(e) => update({ one_time_cost_m: Number(e.target.value) })}
@@ -150,10 +192,10 @@ function SynergyVisuals() {
               <div className="mt-4 rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/30">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Estimated Synergy NPV (5-yr)</div>
                 <div className="mt-1 text-3xl font-bold text-emerald-700 dark:text-emerald-400">
-                  ${output.npv_after_costs}M
+                  {ccy.symbol}{toDisplayFromUsdM(output.npv_after_costs, viz.currency).toFixed(2)}{ccy.unit}
                 </div>
                 <div className="mt-1 text-[10.5px] text-slate-600 dark:text-slate-400">
-                  Gross NPV ${output.npv}M · Offset by ${viz.one_time_cost_m}M one-time setup costs
+                  Gross NPV {ccy.symbol}{toDisplayFromUsdM(output.npv, viz.currency).toFixed(2)}{ccy.unit} · Offset by {ccy.symbol}{toDisplayFromUsdM(viz.one_time_cost_m, viz.currency).toFixed(2)}{ccy.unit} one-time setup costs
                 </div>
               </div>
             </div>
@@ -164,7 +206,7 @@ function SynergyVisuals() {
               <ResponsiveContainer width="100%" height={220}>
                 <AreaChart data={output.year_curve}>
                   <XAxis dataKey="year" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} label={{ value: "$M", angle: -90, position: "insideLeft", fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} label={{ value: `${ccy.symbol}${ccy.unit}`, angle: -90, position: "insideLeft", fontSize: 10 }} />
                   <Tooltip contentStyle={{ fontSize: 11 }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Area type="monotone" dataKey="Cost" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
@@ -175,11 +217,11 @@ function SynergyVisuals() {
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                 <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30">
                   <div className="text-[9px] font-bold uppercase text-emerald-700 dark:text-emerald-400">Run-Rate Cost Efficiencies</div>
-                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">${output.totalCostRR}M <span className="text-[10px] font-normal">/ yr</span></div>
+                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{ccy.symbol}{toDisplayFromUsdM(output.totalCostRR, viz.currency).toFixed(2)}{ccy.unit} <span className="text-[10px] font-normal">/ yr</span></div>
                 </div>
                 <div className="rounded-lg bg-sky-50 p-2 dark:bg-sky-950/30">
                   <div className="text-[9px] font-bold uppercase text-sky-700 dark:text-sky-400">Run-Rate Revenue Opportunity</div>
-                  <div className="text-lg font-bold text-sky-700 dark:text-sky-400">${output.totalRevRR}M <span className="text-[10px] font-normal">/ yr</span></div>
+                  <div className="text-lg font-bold text-sky-700 dark:text-sky-400">{ccy.symbol}{toDisplayFromUsdM(output.totalRevRR, viz.currency).toFixed(2)}{ccy.unit} <span className="text-[10px] font-normal">/ yr</span></div>
                 </div>
               </div>
 
@@ -206,10 +248,10 @@ function SynergyVisuals() {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <BreakdownTable title="Cost Synergies (Target Redundancy Pools)"
                             subtitle="Estimated savings from rationalized back-offices, redundant tools, and scaled procurement."
-                            rows={COST_ROWS} viz={viz} update={update} totalLabel="TOTAL COST" total={output.totalCostRR} accent="emerald" />
+                            rows={COST_ROWS} viz={viz} update={update} totalLabel="TOTAL COST" total={output.totalCostRR} accent="emerald" methodsKey="cost_methods" unitsKey="cost_units" />
             <BreakdownTable title="Revenue Synergies (Commercial Scale)"
                             subtitle="Top-line acceleration via cross-selling existing customer networks."
-                            rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" />
+                            rows={REV_ROWS} viz={viz} update={update} totalLabel="TOTAL REVENUE" total={output.totalRevRR} accent="sky" methodsKey="rev_methods" unitsKey="rev_units" />
           </div>
         </div>
       )}
@@ -217,7 +259,8 @@ function SynergyVisuals() {
   );
 }
 
-function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total, accent }: any) {
+function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total, accent, methodsKey, unitsKey }: any) {
+  const ccy = currencyMeta(viz.currency);
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
       <h3 className="text-[11.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{title}</h3>
@@ -226,20 +269,24 @@ function BreakdownTable({ title, subtitle, rows, viz, update, totalLabel, total,
         <div className="grid grid-cols-[1fr,2fr,80px] gap-2 border-b border-slate-200 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700">
           <span>Functional Unit</span>
           <span>Method / Derivation</span>
-          <span className="text-right">Savings ($M)</span>
+          <span className="text-right">Savings ({ccy.symbol}{ccy.unit})</span>
         </div>
         {rows.map((r: any) => (
           <div key={r.key} className="grid grid-cols-[1fr,2fr,80px] gap-2 py-1 text-[11.5px]">
-            <span className="font-medium text-slate-800 dark:text-slate-200">{r.label}</span>
-            <span className="text-[10.5px] text-slate-500">{r.method}</span>
-            <input type="number" value={viz[r.key]} step="0.5"
-                   onChange={(e) => update({ [r.key]: Number(e.target.value) })}
+            <input type="text" value={viz[unitsKey]?.[r.key] ?? r.label}
+                   onChange={(e) => update({ [unitsKey]: { ...viz[unitsKey], [r.key]: e.target.value } })}
+                   className="rounded border border-slate-200 px-1 py-0.5 font-medium text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200" />
+            <input type="text" value={viz[methodsKey]?.[r.key] ?? r.method}
+                   onChange={(e) => update({ [methodsKey]: { ...viz[methodsKey], [r.key]: e.target.value } })}
+                   className="rounded border border-slate-200 px-1 py-0.5 text-[10.5px] text-slate-600 dark:border-slate-700 dark:bg-slate-800" />
+            <input type="number" value={toDisplayFromUsdM(viz[r.key], viz.currency)} step="0.5"
+                   onChange={(e) => update({ [r.key]: toUsdMFromDisplay(Number(e.target.value), viz.currency) })}
                    className="rounded border border-slate-200 px-1 py-0.5 text-right font-mono text-[11px] dark:border-slate-700 dark:bg-slate-800" />
           </div>
         ))}
         <div className={`flex items-center justify-between border-t-2 border-${accent}-300 pt-1 text-[12px] font-bold dark:border-${accent}-800`}>
           <span className={`text-${accent}-700 dark:text-${accent}-400`}>{totalLabel}</span>
-          <span className={`text-${accent}-700 dark:text-${accent}-400`}>${total}M</span>
+          <span className={`text-${accent}-700 dark:text-${accent}-400`}>{ccy.symbol}{toDisplayFromUsdM(total, viz.currency).toFixed(2)}{ccy.unit}</span>
         </div>
       </div>
     </div>
@@ -466,8 +513,8 @@ export default function SynergyEnginePage() {
     ["Sector", sector, setSec, "e.g. SaaS / Technology"],
     ["Geography", geography, setGeo, "e.g. USA, Europe"],
     ["Deal Size *", dealSize, setDS, "e.g. $2.5B"],
-    ["Target Revenue ($M)", targetRevenue, setTR, "Optional"],
-    ["Target EBITDA ($M)", targetEbitda, setTE, "Optional"],
+    ["Target Revenue ({ccy.symbol}{ccy.unit})", targetRevenue, setTR, "Optional"],
+    ["Target EBITDA ({ccy.symbol}{ccy.unit})", targetEbitda, setTE, "Optional"],
     ["Buyer Revenue ($M)", buyerRevenue, setBR, "Optional"],
   ];
   return (
