@@ -1,3 +1,5 @@
+
+
 export const COGNITION_KEYS = {
   synergy: {
     costRunRateM: "synergy.cost_run_rate_m",
@@ -21,6 +23,9 @@ export const COGNITION_KEYS = {
   buyer: {
     priorityBand: "buyer.priority_band",
   },
+  theme: {
+    momentumScore: "theme.momentum_score",
+  },
 } as const;
 
 export const COGNITION_PREFIXES = ["synergy", "pmi", "tsa", "valuation", "buyer"] as const;
@@ -43,6 +48,7 @@ export const COGNITION_LABELS: Record<string, string> = {
   [COGNITION_KEYS.tsa.totalBudgetK]: "TSA transition budget",
   [COGNITION_KEYS.valuation.anchorMultiple]: "Valuation anchor",
   [COGNITION_KEYS.buyer.priorityBand]: "Buyer prioritization",
+  [COGNITION_KEYS.theme.momentumScore]: "Theme momentum",
 };
 
 /**
