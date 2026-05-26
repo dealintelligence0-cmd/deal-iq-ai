@@ -1,10 +1,12 @@
 
 
+
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { Compass, Flame, RefreshCw, ChevronRight, Loader2, Sparkles, TrendingUp, Key, BarChart3, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
+import { Compass, Flame, RefreshCw, ChevronRight, Loader2, Sparkles, TrendingUp, Key, BarChart3, ChevronDown, ChevronUp, ArrowRight, Building2, Activity, Info } from "lucide-react";
 
 type Theme = {
   id: string;
@@ -20,6 +22,7 @@ type Theme = {
   sectors: string[];
   geographies: string[];
   heat: "hot" | "warm" | "cool";
+  velocity_score?: number | null;
   last_refreshed_at: string;
 };
 
@@ -48,68 +51,168 @@ const MODEL_OPTIONS_BY_PROVIDER: Record<string, string[]> = {
 };
 
 // =====================================================================
-// v29 Visual Layer — 6-dim Institutional Sector Thematic Radar
+// Interactive Sector Thematic Radar
 // =====================================================================
-// Renders a polygon radar chart with two overlaid layers:
-//   Green area = sector consumer momentum score
-//   Blue area  = historical M&A valuation multiple (EV/EBITDA)
-// Each axis represents a sector/theme dimension. Selectable themes
-// drive an Identified Acquisition Targets panel on the right.
+// Fully driven by the live themes (clustered from the deal pipeline on
+// each refresh). Pick a sector → the themes in that sector become radar
+// axes. Two overlaid layers:
+//   Green = momentum score (derived from heat tier + deal-count density)
+//   Blue  = historical M&A EV/EBITDA multiple, blended from each theme's
+//           sector mix using sector benchmark references.
+// Selecting a theme loads the identified accounts (member deals) on the right.
 // =====================================================================
 
-type RadarAxis = { label: string; momentum: number; valuation: number; emoji: string };
-type AcquisitionTarget = { id: string; acquirer: string; target: string; rev_cr: number; ebitda_cr: number; ev_ebitda: string; rationale: string };
+type Member = {
+  id: string;
+  heading?: string | null;
+  buyer?: string | null;
+  target?: string | null;
+  dominant_sector?: string | null;
+  dominant_geography?: string | null;
+  intelligence_size?: string | number | null;
+  deal_date?: string | null;
+  similarity?: number | null;
+};
 
-const DEFAULT_AXES: RadarAxis[] = [
-  { label: "Clean Label & Traceable",  momentum: 94, valuation: 28, emoji: "ߌ" },
-  { label: "D2C FMCG Premiumization",  momentum: 88, valuation: 35, emoji: "ߛ️" },
-  { label: "Farm-to-Consumer Sourcing", momentum: 96, valuation: 24, emoji: "ߌ" },
-  { label: "Nutraceutical Products",   momentum: 82, valuation: 32, emoji: "ߒ" },
-  { label: "Active Nutrition & Vegan", momentum: 78, valuation: 26, emoji: "ߥ" },
-  { label: "Agritech IoT & Logistics", momentum: 71, valuation: 18, emoji: "ߚ" },
+// Approximate historical M&A EV/EBITDA multiples by sector (benchmark reference,
+// not pipeline-derived — the pipeline does not carry EBITDA). Matched by keyword;
+// a theme's blue value is the average across the sectors it spans.
+const SECTOR_EV_EBITDA: { match: RegExp; x: number }[] = [
+  { match: /software|saas|cloud|computer: ?software|it services/i, x: 22 },
+  { match: /internet|tech|\bai\b|data|semiconduc|computer: ?hardware/i, x: 20 },
+  { match: /real estate|property/i, x: 19 },
+  { match: /biotech|pharma|medical|health|life scien/i, x: 18 },
+  { match: /consumer: ?foods|food|beverage|fmcg/i, x: 16 },
+  { match: /financial|fintech|insurance|bank|services \(other\)/i, x: 14 },
+  { match: /consumer/i, x: 14 },
+  { match: /media|entertainment|leisure/i, x: 13 },
+  { match: /defen[cs]e|aerospace/i, x: 13 },
+  { match: /industrial|electronics|manufactur|products and services/i, x: 11 },
+  { match: /automotive|auto|mobility|transport/i, x: 10 },
+  { match: /energy|utilit|infrastructure|power/i, x: 9 },
+  { match: /telecom/i, x: 8 },
 ];
 
-const DEFAULT_TARGETS: AcquisitionTarget[] = [
-  { id: "at1", acquirer: "Nestlé India",         target: "Organic India",  rev_cr: 380,  ebitda_cr: 52,  ev_ebitda: "18x", rationale: "Strategic backward merger to command high-margin organic tea list" },
-  { id: "at2", acquirer: "PI Investment Advisory", target: "Safe Harvest",  rev_cr: 49.7, ebitda_cr: 2.5, ev_ebitda: "18x", rationale: "backward integration sourcing platform leveraging 100k pesticide-free farmer block" },
-  { id: "at3", acquirer: "Tata Consumer",        target: "Soulfull",       rev_cr: 145,  ebitda_cr: 18,  ev_ebitda: "18x", rationale: "Millet-first portfolio aligned to government grain mission" },
-  { id: "at4", acquirer: "Hindustan Unilever",   target: "Yoga Bar",       rev_cr: 95,   ebitda_cr: 12,  ev_ebitda: "22x", rationale: "Active nutrition vegan tier-1 city brand acquisition" },
-];
+function evEbitdaForSector(sector?: string | null): number {
+  if (!sector) return 12;
+  for (const r of SECTOR_EV_EBITDA) if (r.match.test(sector)) return r.x;
+  return 12;
+}
 
-function ThematicRadar() {
+function blendedEvEbitda(sectors: string[]): number {
+  if (!sectors || sectors.length === 0) return 12;
+  const vals = sectors.map(evEbitdaForSector);
+  return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+}
+
+const HEAT_BASE: Record<string, number> = { hot: 72, warm: 50, cool: 30 };
+
+function momentumFor(theme: Theme, maxDealCount: number): number {
+  const base = HEAT_BASE[theme.heat] ?? 40;
+  const density = maxDealCount > 0 ? 28 * (theme.deal_count / maxDealCount) : 0;
+  return Math.min(100, Math.round(base + density));
+}
+
+type Axis = {
+  themeId: string;
+  label: string;
+  emoji: string;
+  momentum: number;
+  valuation: number;
+  dealCount: number;
+  heat: string;
+  buyers: string[];
+};
+
+const VAL_MAX = 25; // EV/EBITDA scale ceiling for the blue layer
+
+function ThematicRadar({ themes }: { themes: Theme[] }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedAxis, setSelectedAxis] = useState<string>(DEFAULT_AXES[0].label);
+  const [sector, setSector] = useState<string>("");
+  const [selectedThemeId, setSelectedThemeId] = useState<string>("");
+  const [hover, setHover] = useState<number | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+
+  // Sectors present across live themes, ranked by how many themes touch them.
+  const sectorOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of themes) for (const s of t.sectors ?? []) counts.set(s, (counts.get(s) ?? 0) + 1);
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({ name, count }));
+  }, [themes]);
+
+  // Default the dropdown to the densest sector once themes load.
+  useEffect(() => {
+    if (!sector && sectorOptions.length > 0) setSector(sectorOptions[0].name);
+  }, [sectorOptions, sector]);
+
+  const axes: Axis[] = useMemo(() => {
+    if (!sector) return [];
+    const inSector = themes.filter((t) => (t.sectors ?? []).includes(sector));
+    const maxDeal = Math.max(1, ...inSector.map((t) => t.deal_count ?? 0));
+    return inSector
+      .sort((a, b) => (b.deal_count ?? 0) - (a.deal_count ?? 0))
+      .slice(0, 8)
+      .map((t) => ({
+        themeId: t.id,
+        label: t.display_name,
+        emoji: t.emoji,
+        momentum: momentumFor(t, maxDeal),
+        valuation: blendedEvEbitda(t.sectors ?? []),
+        dealCount: t.deal_count ?? 0,
+        heat: t.heat,
+        buyers: t.active_buyers ?? [],
+      }));
+  }, [themes, sector]);
+
+  // Keep a selected theme in sync with the current sector's axes.
+  useEffect(() => {
+    if (axes.length === 0) { setSelectedThemeId(""); return; }
+    if (!axes.some((a) => a.themeId === selectedThemeId)) setSelectedThemeId(axes[0].themeId);
+  }, [axes, selectedThemeId]);
+
+  // Load the identified accounts (member deals) for the selected theme.
+  useEffect(() => {
+    if (!selectedThemeId) { setMembers([]); return; }
+    let cancelled = false;
+    setMembersLoading(true);
+    fetch(`/api/themes/${selectedThemeId}`)
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled) setMembers((j.members ?? []).slice(0, 12)); })
+      .catch(() => { if (!cancelled) setMembers([]); })
+      .finally(() => { if (!cancelled) setMembersLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedThemeId]);
 
   const size = 400;
   const center = size / 2;
-  const maxRadius = size / 2 - 60;
-  const n = DEFAULT_AXES.length;
+  const maxRadius = size / 2 - 70;
+  const n = axes.length;
 
   const polarPoint = (radius: number, angleIdx: number) => {
-    const angle = (Math.PI * 2 * angleIdx) / n - Math.PI / 2;
+    const angle = (Math.PI * 2 * angleIdx) / Math.max(1, n) - Math.PI / 2;
     return { x: center + radius * Math.cos(angle), y: center + radius * Math.sin(angle) };
   };
 
-  const momentumPath = DEFAULT_AXES.map((a, i) => {
-    const r = (a.momentum / 100) * maxRadius;
-    const p = polarPoint(r, i);
-    return `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
-  }).join(" ") + " Z";
-
-  const valuationPath = DEFAULT_AXES.map((a, i) => {
-    const r = (a.valuation / 40) * maxRadius; // valuation scaled to 0-40x range
-    const p = polarPoint(r, i);
-    return `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
-  }).join(" ") + " Z";
-
-  // grid rings
-  const rings = [0.25, 0.5, 0.75, 1].map((pct) => {
-    const path = DEFAULT_AXES.map((_, i) => {
-      const p = polarPoint(maxRadius * pct, i);
+  const buildPath = (valueFn: (a: Axis) => number, scaleMax: number) =>
+    axes.map((a, i) => {
+      const r = Math.min(1, valueFn(a) / scaleMax) * maxRadius;
+      const p = polarPoint(r, i);
       return `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
     }).join(" ") + " Z";
-    return path;
-  });
+
+  const momentumPath = n >= 3 ? buildPath((a) => a.momentum, 100) : "";
+  const valuationPath = n >= 3 ? buildPath((a) => a.valuation, VAL_MAX) : "";
+  const rings = [0.25, 0.5, 0.75, 1].map((pct) =>
+    axes.map((_, i) => {
+      const p = polarPoint(maxRadius * pct, i);
+      return `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+    }).join(" ") + " Z"
+  );
+
+  const selectedAxis = axes.find((a) => a.themeId === selectedThemeId) ?? null;
 
   return (
     <div className="card mb-4 overflow-hidden">
@@ -118,96 +221,186 @@ function ThematicRadar() {
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-emerald-500" />
           <span className="text-sm font-semibold text-slate-800 dark:text-white">Thematic Radar Hub (Interactive)</span>
-          <span className="text-[10.5px] italic text-slate-500">Thematic Radar: Momentum shifts, sector average EV/EBITDA multiples, and high-density targets</span>
+          <span className="hidden text-[10.5px] italic text-slate-500 sm:inline">Momentum vs. sector EV/EBITDA, and the accounts driving each theme</span>
         </div>
         {collapsed ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronUp className="h-4 w-4 text-slate-400" />}
       </button>
 
       {!collapsed && (
         <div className="p-5">
-          <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
-            {/* Radar chart */}
-            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white">
-                <Compass className="h-4 w-4 text-emerald-500" /> Institutional Sector Thematic Radar
-              </h3>
-              <div className="flex items-center justify-center">
-                <svg viewBox={`0 0 ${size} ${size}`} className="max-w-full" style={{ maxHeight: 400 }}>
-                  {/* Grid rings */}
-                  {rings.map((path, i) => (
-                    <path key={i} d={path} fill="none" stroke="rgb(148, 163, 184)" strokeWidth="0.5" strokeOpacity="0.3" />
-                  ))}
-                  {/* Axis spokes */}
-                  {DEFAULT_AXES.map((_, i) => {
-                    const p = polarPoint(maxRadius, i);
-                    return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="rgb(148, 163, 184)" strokeWidth="0.5" strokeOpacity="0.3" />;
-                  })}
-                  {/* Valuation layer (blue) */}
-                  <path d={valuationPath} fill="rgb(59, 130, 246)" fillOpacity="0.2" stroke="rgb(59, 130, 246)" strokeWidth="1.5" />
-                  {/* Momentum layer (green) */}
-                  <path d={momentumPath} fill="rgb(16, 185, 129)" fillOpacity="0.3" stroke="rgb(16, 185, 129)" strokeWidth="1.5" />
-                  {/* Axis labels */}
-                  {DEFAULT_AXES.map((a, i) => {
-                    const p = polarPoint(maxRadius + 28, i);
-                    return (
-                      <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
-                            className="fill-slate-700 dark:fill-slate-300" style={{ fontSize: 10, fontWeight: 500 }}>
-                        {a.label}
-                      </text>
-                    );
-                  })}
-                </svg>
-              </div>
-              <p className="mt-2 text-center text-[10.5px] italic text-slate-500">
-                <span className="inline-block h-2 w-2 rounded bg-emerald-500 mr-1" /> Green Area: Sector consumer momentum score
-                <span className="ml-3 inline-block h-2 w-2 rounded bg-blue-500 mr-1" /> Blue Area: Historical M&A valuation multiple (EV/EBITDA)
-              </p>
+          {themes.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-[12.5px] text-slate-500 dark:border-slate-700">
+              No themes yet. Click <b>Refresh themes</b> to cluster your deal pipeline — the radar populates from the result.
             </div>
-
-            {/* Theme selector + acquisition targets */}
-            <div className="space-y-3">
-              <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Select Active Theme</h3>
-                <div className="space-y-1">
-                  {DEFAULT_AXES.map((a) => (
-                    <button key={a.label} onClick={() => setSelectedAxis(a.label)}
-                            className={`flex w-full items-center justify-between rounded p-2 text-left transition ${selectedAxis === a.label
-                              ? "bg-emerald-100 dark:bg-emerald-950/40"
-                              : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
-                      <span className={`text-[11.5px] font-medium ${selectedAxis === a.label ? "text-emerald-700 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"}`}>
-                        {a.label}
-                      </span>
-                      <span className="font-mono text-[10.5px] text-emerald-600">{a.momentum}%</span>
-                    </button>
+          ) : (
+            <>
+              {/* Sector selector */}
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Sector</label>
+                <select
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[12.5px] text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {sectorOptions.map((s) => (
+                    <option key={s.name} value={s.name}>{s.name} ({s.count})</option>
                   ))}
-                </div>
+                </select>
+                <span className="text-[11px] text-slate-500">{axes.length} active theme{axes.length === 1 ? "" : "s"} in this sector</span>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Identified Acquisition Targets</h3>
-                  <span className="text-[10px] italic text-emerald-600">Theme: Selected</span>
-                </div>
-                <div className="space-y-2">
-                  {DEFAULT_TARGETS.map((t) => (
-                    <div key={t.id} className="rounded border border-slate-200 p-2 dark:border-slate-700">
-                      <div className="mb-0.5 flex items-center justify-between">
-                        <div className="text-[11.5px] font-bold text-slate-900 dark:text-white">
-                          {t.acquirer} <ArrowRight className="inline h-2.5 w-2.5 text-emerald-500" /> <span className="text-emerald-700 dark:text-emerald-400">{t.target}</span>
-                        </div>
-                        <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-mono text-slate-600 dark:bg-slate-800 dark:text-slate-400">EV/EBITDA: {t.ev_ebitda}</span>
-                      </div>
-                      <p className="mb-1 text-[10.5px] text-slate-600 dark:text-slate-400">{t.rationale}</p>
-                      <div className="flex items-center justify-between text-[10px] text-slate-500">
-                        <span>Rev: ₹{t.rev_cr} Cr · EBITDA: ₹{t.ebitda_cr} Cr</span>
-                        <button className="font-medium text-emerald-600 hover:underline">Workspace Seed →</button>
-                      </div>
+              <div className="grid gap-4 lg:grid-cols-[1.6fr,1fr]">
+                {/* Radar chart */}
+                <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white">
+                    <Compass className="h-4 w-4 text-emerald-500" /> {sector || "Sector"} — Thematic Radar
+                  </h3>
+
+                  {n >= 3 ? (
+                    <div className="relative flex items-center justify-center">
+                      <svg viewBox={`0 0 ${size} ${size}`} className="max-w-full" style={{ maxHeight: 420 }}>
+                        {rings.map((path, i) => (
+                          <path key={i} d={path} fill="none" stroke="rgb(148, 163, 184)" strokeWidth="0.5" strokeOpacity="0.3" />
+                        ))}
+                        {axes.map((_, i) => {
+                          const p = polarPoint(maxRadius, i);
+                          return <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="rgb(148, 163, 184)" strokeWidth="0.5" strokeOpacity="0.3" />;
+                        })}
+                        <path d={valuationPath} fill="rgb(59, 130, 246)" fillOpacity="0.18" stroke="rgb(59, 130, 246)" strokeWidth="1.5" />
+                        <path d={momentumPath} fill="rgb(16, 185, 129)" fillOpacity="0.28" stroke="rgb(16, 185, 129)" strokeWidth="1.5" />
+
+                        {/* Interactive momentum vertices */}
+                        {axes.map((a, i) => {
+                          const r = (a.momentum / 100) * maxRadius;
+                          const p = polarPoint(r, i);
+                          const isSel = a.themeId === selectedThemeId;
+                          return (
+                            <circle key={a.themeId} cx={p.x} cy={p.y} r={isSel ? 5 : 3.5}
+                              fill={isSel ? "rgb(5, 150, 105)" : "rgb(16, 185, 129)"} stroke="white" strokeWidth="1.5"
+                              style={{ cursor: "pointer" }}
+                              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+                              onClick={() => setSelectedThemeId(a.themeId)} />
+                          );
+                        })}
+
+                        {/* Axis labels */}
+                        {axes.map((a, i) => {
+                          const p = polarPoint(maxRadius + 30, i);
+                          const short = a.label.length > 22 ? a.label.slice(0, 21) + "…" : a.label;
+                          return (
+                            <text key={a.themeId} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
+                                  className="fill-slate-700 dark:fill-slate-300" style={{ fontSize: 9.5, fontWeight: a.themeId === selectedThemeId ? 700 : 500, cursor: "pointer" }}
+                                  onClick={() => setSelectedThemeId(a.themeId)}>
+                              {short}
+                            </text>
+                          );
+                        })}
+
+                        {/* Hover tooltip */}
+                        {hover !== null && axes[hover] && (() => {
+                          const a = axes[hover];
+                          const p = polarPoint((a.momentum / 100) * maxRadius, hover);
+                          const tx = Math.min(size - 92, Math.max(4, p.x + 8));
+                          const ty = Math.min(size - 40, Math.max(4, p.y - 38));
+                          return (
+                            <g pointerEvents="none">
+                              <rect x={tx} y={ty} width={150} height={40} rx={5} fill="rgb(15, 23, 42)" opacity="0.94" />
+                              <text x={tx + 8} y={ty + 15} style={{ fontSize: 9.5, fontWeight: 700 }} fill="white">{a.emoji} Momentum {a.momentum}%</text>
+                              <text x={tx + 8} y={ty + 29} style={{ fontSize: 9 }} fill="rgb(147, 197, 253)">EV/EBITDA ~{a.valuation}x · {a.dealCount} deals</text>
+                            </g>
+                          );
+                        })()}
+                      </svg>
                     </div>
-                  ))}
+                  ) : (
+                    // Fallback for <3 themes (radar polygon needs at least 3 axes)
+                    <div className="space-y-2 py-2">
+                      {axes.map((a) => (
+                        <button key={a.themeId} onClick={() => setSelectedThemeId(a.themeId)}
+                                className={`block w-full rounded-lg border p-2.5 text-left ${a.themeId === selectedThemeId ? "border-emerald-300 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-950/30" : "border-slate-200 dark:border-slate-700"}`}>
+                          <div className="mb-1 text-[12px] font-semibold text-slate-800 dark:text-white">{a.label}</div>
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Momentum {a.momentum}%</span>
+                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-800 dark:bg-blue-950 dark:text-blue-300">EV/EBITDA ~{a.valuation}x</span>
+                          </div>
+                        </button>
+                      ))}
+                      {axes.length === 0 && <p className="text-[12px] italic text-slate-500">No themes in this sector.</p>}
+                    </div>
+                  )}
+
+                  <div className="mt-2 space-y-1 text-center">
+                    <p className="text-[10.5px] italic text-slate-500">
+                      <span className="mr-1 inline-block h-2 w-2 rounded bg-emerald-500" /> Green: momentum (heat × deal density)
+                      <span className="ml-3 mr-1 inline-block h-2 w-2 rounded bg-blue-500" /> Blue: sector EV/EBITDA benchmark
+                    </p>
+                    <p className="flex items-center justify-center gap-1 text-[9.5px] text-slate-400">
+                      <Info className="h-2.5 w-2.5" /> EV/EBITDA uses historical sector benchmark multiples (pipeline carries no EBITDA); momentum is derived from live theme heat and deal count.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Theme list + identified accounts */}
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                    <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Active themes — {sector}</h3>
+                    <div className="space-y-1">
+                      {axes.map((a) => (
+                        <button key={a.themeId} onClick={() => setSelectedThemeId(a.themeId)}
+                                className={`flex w-full items-center justify-between rounded p-2 text-left transition ${a.themeId === selectedThemeId
+                                  ? "bg-emerald-100 dark:bg-emerald-950/40"
+                                  : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}>
+                          <span className={`flex items-center gap-1.5 text-[11.5px] font-medium ${a.themeId === selectedThemeId ? "text-emerald-700 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"}`}>
+                            <Activity className="h-3 w-3" /> {a.label.length > 26 ? a.label.slice(0, 25) + "…" : a.label}
+                          </span>
+                          <span className="font-mono text-[10.5px] text-emerald-600">{a.momentum}%</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <Building2 className="h-3 w-3" /> Identified Accounts
+                      </h3>
+                      {selectedAxis && (
+                        <Link href={`/dashboard/themes/${selectedAxis.themeId}`} className="text-[10px] font-medium text-emerald-600 hover:underline">
+                          View theme →
+                        </Link>
+                      )}
+                    </div>
+                    {membersLoading ? (
+                      <div className="flex items-center gap-2 py-3 text-[11px] text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading accounts…</div>
+                    ) : members.length === 0 ? (
+                      <p className="py-2 text-[11px] italic text-slate-500">No accounts linked to this theme yet.</p>
+                    ) : (
+                      <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
+                        {members.map((m) => (
+                          <div key={m.id} className="rounded border border-slate-200 p-2 dark:border-slate-700">
+                            <div className="mb-0.5 flex items-start justify-between gap-2">
+                              <div className="text-[11.5px] font-semibold text-slate-900 dark:text-white">
+                                {m.buyer ? <>{m.buyer} <ArrowRight className="inline h-2.5 w-2.5 text-emerald-500" /> </> : null}
+                                <span className="text-emerald-700 dark:text-emerald-400">{m.target || m.heading || "Target"}</span>
+                              </div>
+                              {m.intelligence_size != null && (
+                                <span className="flex-shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[9px] font-mono text-slate-600 dark:bg-slate-800 dark:text-slate-400">{String(m.intelligence_size)}</span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[9.5px] text-slate-500">
+                              {m.dominant_sector && <span className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">{m.dominant_sector}</span>}
+                              {m.dominant_geography && <span className="rounded bg-emerald-50 px-1 py-0.5 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{m.dominant_geography}</span>}
+                              {m.deal_date && <span>{new Date(m.deal_date).getFullYear()}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -215,7 +408,7 @@ function ThematicRadar() {
 }
 
 // =====================================================================
-// Main page — your original implementation
+// Main page
 // =====================================================================
 
 export default function ThemesPage() {
@@ -293,8 +486,8 @@ export default function ThemesPage() {
         </button>
       </div>
 
-      {/* v29 Visual Layer — interactive thematic radar */}
-      <ThematicRadar />
+      {/* Interactive thematic radar — driven by live themes */}
+      <ThematicRadar themes={themes} />
 
       {keys.length > 0 && (
         <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
