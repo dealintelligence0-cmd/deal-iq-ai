@@ -1,11 +1,13 @@
 
 
+
+
 /**
  * Server-side, dependency-free PDF builder for Deal IQ AI.
  *
  * The /api/deals/export?format=pdf route uses this to emit a one-shot PDF
  * from a markdown string. This file is a PURE PRESENTATION UPGRADE: we add
- * an MBB-style cover band, deep navy header, teal accent rule, and a running
+ * a premium cover band, deep navy header, teal accent rule, and a running
  * footer. No content logic changed — input markdown is rendered as-is.
  *
  * Implementation notes:
@@ -70,7 +72,7 @@ function wrapLine(line: string, width = 92): string[] {
 
 /**
  * Build a branded PDF from a markdown string.
- * The first page carries the MBB-style cover header. Subsequent pages get a
+ * The first page carries the premium cover header. Subsequent pages get a
  * compact running header.
  */
 export function buildSimplePdf(markdown: string, title = "Deal IQ Export"): Buffer {
