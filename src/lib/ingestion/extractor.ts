@@ -1,3 +1,5 @@
+
+
 /**
  * Deal IQ AI — Ingestion v2 — deterministic extractor.
  *
@@ -123,6 +125,14 @@ type Pattern = {
 };
 
 const HEADING_PATTERNS: Pattern[] = [
+  // JV patterns first — a joint venture must not be mis-parsed as an acquisition
+  // by the "acquires"/"forms" verbs that appear in the same headline.
+  { name: "jv_form_with", conf: 0.93,
+    re: /^(.+?)\s+(?:to\s+form|forms?|to\s+set\s+up|sets?\s+up|to\s+establish|establishes?|to\s+launch|launches?)\s+(?:a\s+)?(?:\d{1,3}\s*[:\/]\s*\d{1,3}\s+)?(?:joint\s+venture|jv)\s+(?:with|alongside|together\s+with)\s+(.+?)(?:\s+for\s|\s+to\s+|\s*[-—–]|\s*\.|\s*\(|$)/i,
+    pick: (m) => ({ buyer: m[1], target: m[2] }) },
+  { name: "jv_between", conf: 0.9,
+    re: /^(?:\d{1,3}\s*[:\/]\s*\d{1,3}\s+)?(?:joint\s+venture|jv)\s+between\s+(.+?)\s+and\s+(.+?)(?:\s+for\s|\s+to\s+|\s*[-—–]|\s*\.|\s*\(|$)/i,
+    pick: (m) => ({ buyer: m[1], target: m[2] }) },
   { name: "sells_to", conf: 0.92,
     re: /^(.+?)\s+(?:sells?|sold|divests?|divested)\s+(.+?)\s+to\s+(.+?)(?:\s+for\s|\s*[-—–]|\s*\.|$)/i,
     pick: (m) => ({ buyer: m[3], target: m[2] }) },
