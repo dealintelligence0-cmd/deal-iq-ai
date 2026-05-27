@@ -1,8 +1,10 @@
 
 
+
+
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw, X, Save, FileText } from "lucide-react";
 
 type Task = {
@@ -78,6 +80,23 @@ export default function ResolutionTasksPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const [sectorF, setSectorF] = useState("");
+  const [countryF, setCountryF] = useState("");
+  const sectorOptions = useMemo(
+    () => Array.from(new Set(tasks.map((t) => String(t.ai_suggestions?.dominant_sector ?? "")).filter(Boolean))).sort(),
+    [tasks],
+  );
+  const countryOptions = useMemo(
+    () => Array.from(new Set(tasks.map((t) => String(t.ai_suggestions?.dominant_geography ?? "")).filter(Boolean))).sort(),
+    [tasks],
+  );
+  const filtered = useMemo(
+    () => tasks.filter((t) =>
+      (!sectorF || String(t.ai_suggestions?.dominant_sector ?? "") === sectorF) &&
+      (!countryF || String(t.ai_suggestions?.dominant_geography ?? "") === countryF)),
+    [tasks, sectorF, countryF],
+  );
 
   function openTask(t: Task) {
     setActive(t);
@@ -175,19 +194,36 @@ export default function ResolutionTasksPage() {
       )}
 
       <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="border-b border-slate-200 p-3 dark:border-slate-800">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
           <div className="text-xs text-slate-500">
-            {total} open task{total === 1 ? "" : "s"} · showing latest {tasks.length}
+            {total} open task{total === 1 ? "" : "s"} · showing {filtered.length} of {tasks.length}
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <select value={sectorF} onChange={(e) => setSectorF(e.target.value)}
+                    className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              <option value="">All sectors</option>
+              {sectorOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={countryF} onChange={(e) => setCountryF(e.target.value)}
+                    className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              <option value="">All countries</option>
+              {countryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {(sectorF || countryF) && (
+              <button onClick={() => { setSectorF(""); setCountryF(""); }} className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">Clear</button>
+            )}
           </div>
         </div>
-        {tasks.length === 0 && !loading ? (
+        {filtered.length === 0 && !loading ? (
           <div className="p-8 text-center text-sm text-slate-500">
             <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
-            No open resolution tasks. All ingested rows are flowing cleanly to the deal pipeline.
+            {tasks.length === 0
+              ? "No open resolution tasks. All ingested rows are flowing cleanly to the deal pipeline."
+              : "No tasks match the selected filters."}
           </div>
         ) : (
           <ul className="divide-y divide-slate-200 dark:divide-slate-800">
-            {tasks.map((t) => (
+            {filtered.map((t) => (
               <li key={t.id}>
                 <button
                   onClick={() => openTask(t)}
