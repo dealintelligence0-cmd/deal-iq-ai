@@ -98,6 +98,19 @@ function TSAVisuals({ seller, buyer, sector, geography, dealSize }: { seller: st
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seller, buyer]);
 
+  // Default the USD→INR rate from the user's saved setting (still editable inline).
+  useEffect(() => {
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data: u } = await sb.auth.getUser();
+        if (!u.user) return;
+        const { data } = await sb.from("ai_settings").select("fx_inr_usd").eq("user_id", u.user.id).maybeSingle();
+        if (data?.fx_inr_usd) setInrPerUsd(Number(data.fx_inr_usd));
+      } catch { /* keep default */ }
+    })();
+  }, []);
+
   // Money is stored in USD thousands; display converts to the selected currency.
   // USD → "$NK"; INR → lakhs at the editable FX rate ("₹N.N L").
   const fmt = (usdK: number) => currency === "USD"
@@ -514,6 +527,10 @@ export default function TSAGeneratorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           seller, buyer, sector, deal_size: dealSize, geography,
+          target: seller,
+          carve_target: `${seller} carve-out entity`,
+          parent_group: seller,
+          buyer_group: buyer,
           deal_id: dealId || undefined,
           close_date: closeDate, functions: selectedFns,
           duration, pricing_basis: pricing, constraints, tier,
