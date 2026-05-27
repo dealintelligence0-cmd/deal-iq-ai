@@ -43,12 +43,17 @@ type CurrencyCode = "USD" | "INR";
 
 const DEFAULT_FX_USD_TO_INR = 83;
 
-function toDisplayFromUsdM(usdM: number, currency: CurrencyCode, fx: number) {
-  return currency === "USD" ? usdM : usdM * fx;
+const r2 = (n: number) => Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
+
+// Money is stored in the currently-selected display currency. The FX rate only
+// converts values at the moment the currency is toggled (see changeCurrency);
+// editing the rate afterwards must NOT move the numbers the user already typed.
+function toDisplayFromUsdM(amount: number, _currency?: CurrencyCode, _fx?: number) {
+  return r2(amount);
 }
 
-function toUsdMFromDisplay(amount: number, currency: CurrencyCode, fx: number) {
-  return currency === "USD" ? amount : amount / fx;
+function toUsdMFromDisplay(amount: number, _currency?: CurrencyCode, _fx?: number) {
+  return r2(amount);
 }
 
 function currencyMeta(currency: CurrencyCode) {
@@ -85,6 +90,12 @@ const DEFAULT_VIZ: VizModel = {
   cost_units: {},
   rev_units: {},
 };
+
+const MONEY_KEYS: (keyof VizModel)[] = [
+  "target_revenue_m", "target_ebitda_m", "one_time_cost_m",
+  "cost_hq_ga_m", "cost_it_infra_m", "cost_procurement_m", "cost_facilities_m", "cost_other_m",
+  "rev_cross_sell_m", "rev_price_opt_m", "rev_territory_m", "rev_bundling_m", "rev_other_m",
+];
 
 type BreakdownRow = { key: keyof VizModel; label: string; method: string };
 
@@ -143,7 +154,18 @@ function SynergyVisuals() {
   }, []);
   const update = (patch: Partial<VizModel>) => setViz((v) => ({ ...v, ...patch }));
   const updateMoney = (key: keyof VizModel, displayValue: number) => {
-    update({ [key]: toUsdMFromDisplay(displayValue, viz.currency, viz.fxInrUsd) } as Partial<VizModel>);
+    update({ [key]: r2(displayValue) } as Partial<VizModel>);
+  };
+  // Convert all money fields once, only when the currency is switched.
+  const changeCurrency = (next: CurrencyCode) => {
+    setViz((v) => {
+      if (v.currency === next) return v;
+      const factor = next === "INR" ? v.fxInrUsd : 1 / v.fxInrUsd;
+      const converted = Object.fromEntries(
+        MONEY_KEYS.map((k) => [k, r2((v[k] as number) * factor)]),
+      ) as Partial<VizModel>;
+      return { ...v, ...converted, currency: next };
+    });
   };
 
   return (
@@ -167,7 +189,7 @@ function SynergyVisuals() {
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">EBITDA Synergies Modeler</h3>
                 <div className="flex items-center gap-2 text-[10px]">
                   <span className="font-semibold uppercase tracking-wider text-slate-500">Currency</span>
-                  <select value={viz.currency} onChange={(e) => update({ currency: e.target.value as CurrencyCode })}
+                  <select value={viz.currency} onChange={(e) => changeCurrency(e.target.value as CurrencyCode)}
                           className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium dark:border-slate-700 dark:bg-slate-800">
                     <option value="USD">USD</option>
                     <option value="INR">INR</option>
@@ -212,7 +234,10 @@ function SynergyVisuals() {
                   <span>One-Time Integration Cost ({ccy.symbol}{ccy.unit})</span>
                   <span className="font-mono text-rose-600">-{ccy.symbol}{toDisplayFromUsdM(viz.one_time_cost_m, viz.currency, viz.fxInrUsd).toFixed(2)}{ccy.unit}</span>
                 </label>
-                <input type="range" min="0" max="200" step="5" value={viz.one_time_cost_m}
+                <input type="range" min="0"
+                       max={viz.currency === "INR" ? Math.round(200 * viz.fxInrUsd) : 200}
+                       step={viz.currency === "INR" ? Math.max(1, Math.round(5 * viz.fxInrUsd)) : 5}
+                       value={viz.one_time_cost_m}
                        onChange={(e) => update({ one_time_cost_m: Number(e.target.value) })}
                        className="w-full accent-rose-500" />
               </div>
