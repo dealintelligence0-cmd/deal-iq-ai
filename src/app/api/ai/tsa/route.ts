@@ -105,6 +105,12 @@ export async function POST(req: NextRequest) {
     notes?: string; tier?: "premium" | "economic"; model_override?: string;
   };
 
+  // Carve-out entities — derive sensible defaults from buyer/target so the memo
+  // never reports them as "not defined" when the caller omits the explicit fields.
+  const sellingParent = parent_group || target || "";
+  const acquiringBuyer = buyer_group || buyer || "";
+  const carveEntity = carve_target || (target ? `${target} carve-out entity` : "");
+
   // Resolve AI key via the same path as synergy/pmi
   const admin = createAdminClient();
   let resolved = await resolveKey(admin, user.id, tier === "premium" ? "smart" : "economic");
@@ -143,9 +149,9 @@ Deal size: ${deal_size || "—"}
 
 CARVE-OUT ENTITIES
 ==================
-Target special entity: ${carve_target || "—"}
-Selling parent group: ${parent_group || "—"}
-Acquiring buyer group: ${buyer_group || "—"}
+Target special entity: ${carveEntity || "—"}
+Selling parent group: ${sellingParent || "—"}
+Acquiring buyer group: ${acquiringBuyer || "—"}
 
 INTERACTIVE TSA CATALOG
 =======================
