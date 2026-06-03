@@ -61,6 +61,25 @@ const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   },
 ];
 
+function SidebarHeader({ isAdmin, isGuest }: { isAdmin: boolean; isGuest: boolean }) {
+  return (
+    <div className="border-b border-white/5 px-4 py-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-sm shadow-black/20">
+          <BrainCircuit className="h-5 w-5 text-white" />
+        </div>
+        <span className="min-w-0 flex-1 whitespace-nowrap text-base font-semibold tracking-tight text-white">Deal IQ AI</span>
+        {isAdmin && <span className="shrink-0 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-300">Admin</span>}
+        {isGuest && <span className="shrink-0 rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-300">Guest</span>}
+      </div>
+      <div className="mt-2 flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-2 py-1">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-white/40">Appearance</span>
+        <ThemeToggle />
+      </div>
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [perms, setPerms] = useState<Record<string, boolean> | null>(null);
@@ -128,23 +147,7 @@ export default function Sidebar() {
 
   return (
     <aside className="platform-sidebar fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-[#0f0e1a] lg:flex">
-      <div className="border-b border-white/5 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-sm shadow-black/20">
-            <BrainCircuit className="h-5 w-5 text-white" />
-          </div>
-          <span className="min-w-0 flex-1 whitespace-nowrap text-base font-semibold tracking-tight text-white">Deal IQ AI</span>
-          {isAdmin && <span className="shrink-0 rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-300">Admin</span>}
-          {isGuest && <span className="shrink-0 rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-300">Guest</span>}
-        </div>
-        <div className="mt-2 flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-white/40">Appearance</span>
-          <ThemeToggle />
-      <div className="flex h-16 items-center gap-2 border-b border-white/5 px-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-          <BrainCircuit className="h-5 w-5 text-white" />
-        </div>
-      </div>
+      <SidebarHeader isAdmin={isAdmin} isGuest={isGuest} />
 
       {/* Workspace picker — visible for authed (non-guest) users */}
       {!isGuest && activeWs && workspaces.length > 0 && (
