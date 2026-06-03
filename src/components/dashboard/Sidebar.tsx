@@ -127,7 +127,7 @@ export default function Sidebar() {
     .filter((g) => g.items.length > 0);
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-[#0f0e1a] lg:flex">
+    <aside className="platform-sidebar fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-[#0f0e1a] lg:flex">
       <div className="flex h-16 items-center gap-2 border-b border-white/5 px-6">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
           <BrainCircuit className="h-5 w-5 text-white" />
