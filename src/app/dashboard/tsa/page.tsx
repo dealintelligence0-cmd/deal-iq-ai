@@ -152,12 +152,12 @@ function TSAVisuals({ seller, buyer, sector, geography, dealSize }: { seller: st
   }
 
   function copyPlan() { navigator.clipboard.writeText(buildMarkdown()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-  function printPlan() { openMbbPrintWindow({ contentMarkdown: buildMarkdown(), meta: { moduleLabel: "TSA Catalog", buyer, target: seller, sector, geography, dealSize } }); }
+  function printPlan() { openMbbPrintWindow({ contentMarkdown: buildMarkdown(), meta: { moduleLabel: "Interactive TSA Catalog", buyer, target: seller, sector, geography, dealSize } }); }
   async function pptPlan() {
     setPptBusy(true);
     try {
       const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
-      await exportProposalToPptx(buildMarkdown(), { buyer, target: seller, sector, geography, dealSize, moduleLabel: "TSA Catalog" }, undefined, `deal-iq-tsa-catalog-${buyer || "buyer"}-${seller || "target"}.pptx`);
+      await exportProposalToPptx(buildMarkdown(), { buyer, target: seller, sector, geography, dealSize, moduleLabel: "Interactive TSA Catalog" }, undefined, `deal-iq-interactive-tsa-catalog-${buyer || "buyer"}-${seller || "target"}.pptx`);
     } catch (e) {
       alert("PPTX export failed: " + String(e));
     } finally {
