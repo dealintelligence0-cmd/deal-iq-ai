@@ -50,12 +50,14 @@ export default function ThemeToggle() {
           aria-label="Platform color plate"
           value={colorPlate}
           onChange={(event) => changeColorPlate(event.target.value as ColorPlate)}
+          className="h-7 w-[82px] appearance-none rounded-md border border-white/10 bg-white/5 py-1 pl-7 pr-2 text-[11px] font-medium text-white/80 outline-none hover:bg-white/10 focus:border-white/20"
           className="h-8 appearance-none rounded-lg border border-slate-200 bg-white py-1 pl-7 pr-2 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
         >
           {COLOR_PLATES.map((plate) => <option key={plate.id} value={plate.id}>{plate.label}</option>)}
         </select>
       </label>
       <button onClick={toggle} aria-label="Toggle theme"
+        className="rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white">
         className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10">
         {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
       </button>
