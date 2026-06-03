@@ -126,33 +126,26 @@ function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: str
   const periodHeaders = Array.from({ length: periods }, (_, i) => i + 1);
   const phaseFiltered = useMemo(() => check.filter((c) => c.phase === phaseTab), [check, phaseTab]);
 
-  function buildMarkdown(): string {
+  function buildGanttMarkdown(): string {
     const L: string[] = [];
     const who = (buyer || target) ? ` — ${buyer || "Buyer"} → ${target || "Target"}` : "";
-    L.push(`# Integration Plan${who}`, "");
+    L.push(`# Interactive Integration Gantt${who}`, "");
     L.push(`**Timeline:** ${periods} ${unit}${sector ? ` · Sector: ${sector}` : ""}${dealSize ? ` · ${dealSize}` : ""}`, "");
     L.push(`**Workstreams:** ${workstreams.join(" · ")}`, "");
-    L.push("## Transition Activities", "");
+    L.push("## Editable Gantt Activities", "");
     L.push("| Activity | Workstream | Start | End | Progress | Dependencies |");
     L.push("| --- | --- | --- | --- | --- | --- |");
     for (const t of tasks) L.push(`| ${t.title} | ${t.workstream} | ${unitLabel} ${t.start} | ${unitLabel} ${t.end} | ${t.progress}% | ${t.deps || "None"} |`);
-    L.push("", "## Integration Checklist");
-    for (const p of PHASES) {
-      const items = check.filter((c) => c.phase === p.key);
-      if (items.length === 0) continue;
-      L.push("", `### ${p.label}`);
-      for (const c of items) L.push(`- [${c.done ? "x" : " "}] ${c.title}${c.owner ? ` _(Owner: ${c.owner})_` : ""}`);
-    }
     return L.join("\n");
   }
 
-  function copyPlan() { navigator.clipboard.writeText(buildMarkdown()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-  function printPlan() { openMbbPrintWindow({ contentMarkdown: buildMarkdown(), meta: { moduleLabel: "Integration Plan", buyer, target, sector, geography, dealSize } }); }
+  function copyPlan() { navigator.clipboard.writeText(buildGanttMarkdown()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  function printPlan() { openMbbPrintWindow({ contentMarkdown: buildGanttMarkdown(), meta: { moduleLabel: "Interactive Integration Gantt", buyer, target, sector, geography, dealSize } }); }
   async function pptPlan() {
     setPptBusy(true);
     try {
       const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
-      await exportProposalToPptx(buildMarkdown(), { buyer, target, sector, geography, dealSize, moduleLabel: "Integration Plan" }, undefined, `deal-iq-integration-plan-${buyer || "buyer"}-${target || "target"}.pptx`);
+      await exportProposalToPptx(buildGanttMarkdown(), { buyer, target, sector, geography, dealSize, moduleLabel: "Interactive Integration Gantt" }, undefined, `deal-iq-integration-gantt-${buyer || "buyer"}-${target || "target"}.pptx`);
     } catch (e) {
       alert("PPTX export failed: " + String(e));
     } finally {
