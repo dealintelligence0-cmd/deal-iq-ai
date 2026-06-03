@@ -140,6 +140,9 @@ export default function Sidebar() {
         <div className="mt-2 flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1">
           <span className="text-[9px] font-bold uppercase tracking-widest text-white/40">Appearance</span>
           <ThemeToggle />
+      <div className="flex h-16 items-center gap-2 border-b border-white/5 px-6">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
+          <BrainCircuit className="h-5 w-5 text-white" />
         </div>
       </div>
 
