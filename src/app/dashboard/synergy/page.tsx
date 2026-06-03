@@ -134,9 +134,11 @@ function computeViz(m: VizModel) {
   };
 }
 
-function SynergyVisuals() {
+function SynergyVisuals({ buyer, target, sector, geography, dealSize }: { buyer: string; target: string; sector: string; geography: string; dealSize: string }) {
   const [viz, setViz] = useState<VizModel>(DEFAULT_VIZ);
   const [collapsed, setCollapsed] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [pptBusy, setPptBusy] = useState(false);
   const output = useMemo(() => computeViz(viz), [viz]);
   const ccy = currencyMeta(viz.currency);
 
@@ -168,6 +170,47 @@ function SynergyVisuals() {
     });
   };
 
+  function buildInteractiveMarkdown(): string {
+    const money = (value: number) => `${ccy.symbol}${r2(value).toFixed(2)}${ccy.unit}`;
+    const L: string[] = [];
+    const who = (buyer || target) ? ` — ${buyer || "Buyer"} → ${target || "Target"}` : "";
+    L.push(`# Interactive Synergy Model${who}`, "");
+    L.push(`**Currency:** ${viz.currency}${viz.currency === "INR" ? ` (₹${viz.fxInrUsd}/USD)` : ""}${sector ? ` · Sector: ${sector}` : ""}${dealSize ? ` · ${dealSize}` : ""}`, "");
+    L.push("## Model Assumptions", "");
+    L.push(`- Target revenue: ${money(viz.target_revenue_m)}`);
+    L.push(`- Target EBITDA: ${money(viz.target_ebitda_m)}`);
+    L.push(`- WACC / discount rate: ${viz.wacc_pct}%`);
+    L.push(`- One-time integration cost: ${money(viz.one_time_cost_m)}`, "");
+    L.push("## Editable Run-Rate Synergies", "");
+    L.push("| Type | Initiative | Run-rate value | Methodology |");
+    L.push("| --- | --- | --- | --- |");
+    for (const row of COST_ROWS) L.push(`| Cost | ${row.label} | ${money(viz[row.key] as number)} | ${viz.cost_methods[row.key] || row.method} |`);
+    for (const row of REV_ROWS) L.push(`| Revenue | ${row.label} | ${money(viz[row.key] as number)} | ${viz.rev_methods[row.key] || row.method} |`);
+    L.push("", "## Value Summary", "");
+    L.push(`- Cost synergy run-rate: ${money(output.totalCostRR)}`);
+    L.push(`- Revenue synergy run-rate: ${money(output.totalRevRR)}`);
+    L.push(`- Five-year NPV after one-time costs: ${money(output.npv_after_costs)}`, "");
+    L.push("## Realization Curve", "");
+    L.push("| Year | Cost synergies | Revenue synergies | Total realized | Cumulative |");
+    L.push("| --- | --- | --- | --- | --- |");
+    for (const year of output.year_curve) L.push(`| ${year.year} | ${money(year.Cost)} | ${money(year.Revenue)} | ${money(year.total_m)} | ${money(year.cumulative)} |`);
+    return L.join("\n");
+  }
+
+  function copyInteractive() { navigator.clipboard.writeText(buildInteractiveMarkdown()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  function printInteractive() { openMbbPrintWindow({ contentMarkdown: buildInteractiveMarkdown(), meta: { moduleLabel: "Interactive Synergy Model", buyer, target, sector, geography, dealSize } }); }
+  async function pptInteractive() {
+    setPptBusy(true);
+    try {
+      const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
+      await exportProposalToPptx(buildInteractiveMarkdown(), { buyer, target, sector, geography, dealSize, moduleLabel: "Interactive Synergy Model" }, undefined, `deal-iq-interactive-synergy-${buyer || "buyer"}-${target || "target"}.pptx`);
+    } catch (e) {
+      alert("PPTX export failed: " + String(e));
+    } finally {
+      setPptBusy(false);
+    }
+  }
+
   return (
     <div className="card mb-4 overflow-hidden">
       <button onClick={() => setCollapsed(!collapsed)}
@@ -182,6 +225,17 @@ function SynergyVisuals() {
 
       {!collapsed && (
         <div className="p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-1.5">
+            <button onClick={copyInteractive} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] dark:border-slate-700">
+              {copied ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />} {copied ? "Copied" : "Copy"}
+            </button>
+            <button onClick={printInteractive} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] dark:border-slate-700">
+              <Printer className="h-3 w-3" /> PDF
+            </button>
+            <button onClick={pptInteractive} disabled={pptBusy} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] disabled:opacity-50 dark:border-slate-700">
+              {pptBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
+            </button>
+          </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Modeler */}
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -615,7 +669,7 @@ export default function SynergyEnginePage() {
       </div>
 
       {/* v29 Visual Layer — sits above main grid, complements AI text */}
-      <SynergyVisuals />
+      <SynergyVisuals buyer={buyer} target={target} sector={sector} geography={geography} dealSize={dealSize} />
 
       {/* Strategic insight changes — positioned between visualization and generated report */}
       <CognitionIndicators

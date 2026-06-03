@@ -225,3 +225,40 @@ html.dark { color-scheme: dark; }
   .recharts-wrapper { page-break-inside: avoid; }
 }
 
+
+/* Platform color plates --------------------------------------------------
+   Indigo remains the default. The selected plate remaps the shared accent
+   utilities so navigation, buttons, cards, headers, and highlights change
+   consistently without affecting semantic success/warning/error colors. */
+html[data-color-plate="indigo"] { --plate-500: #6366f1; --plate-600: #4f46e5; --plate-700: #4338ca; --plate-soft: #eef2ff; --plate-dark: #1e1b4b; }
+html[data-color-plate="teal"]   { --plate-500: #14b8a6; --plate-600: #0d9488; --plate-700: #0f766e; --plate-soft: #f0fdfa; --plate-dark: #134e4a; }
+html[data-color-plate="blue"]   { --plate-500: #3b82f6; --plate-600: #2563eb; --plate-700: #1d4ed8; --plate-soft: #eff6ff; --plate-dark: #1e3a8a; }
+html[data-color-plate="green"]  { --plate-500: #10b981; --plate-600: #059669; --plate-700: #047857; --plate-soft: #ecfdf5; --plate-dark: #064e3b; }
+
+html[data-color-plate] {
+  --accent: var(--plate-500);
+  --accent-light: color-mix(in srgb, var(--plate-500) 10%, transparent);
+}
+html[data-color-plate]:not([data-color-plate="indigo"]) .text-indigo-400 { color: color-mix(in srgb, var(--plate-500) 70%, white) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .text-indigo-500,
+html[data-color-plate]:not([data-color-plate="indigo"]) .text-indigo-600 { color: var(--plate-600) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .text-indigo-700 { color: var(--plate-700) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .bg-indigo-50,
+html[data-color-plate]:not([data-color-plate="indigo"]) .bg-indigo-100 { background-color: var(--plate-soft) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .bg-indigo-500 { background-color: var(--plate-500) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .bg-indigo-600,
+html[data-color-plate]:not([data-color-plate="indigo"]) .hover\:bg-indigo-600:hover { background-color: var(--plate-600) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .hover\:bg-indigo-700:hover { background-color: var(--plate-700) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .border-indigo-100,
+html[data-color-plate]:not([data-color-plate="indigo"]) .border-indigo-200,
+html[data-color-plate]:not([data-color-plate="indigo"]) .border-indigo-500 { border-color: var(--plate-500) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .border-l-indigo-500 { border-left-color: var(--plate-500) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .from-indigo-500 { --tw-gradient-from: var(--plate-500) var(--tw-gradient-from-position) !important; --tw-gradient-to: color-mix(in srgb, var(--plate-500) 0%, transparent) var(--tw-gradient-to-position) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .from-indigo-600 { --tw-gradient-from: var(--plate-600) var(--tw-gradient-from-position) !important; --tw-gradient-to: color-mix(in srgb, var(--plate-600) 0%, transparent) var(--tw-gradient-to-position) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .to-purple-600 { --tw-gradient-to: var(--plate-500) var(--tw-gradient-to-position) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .platform-sidebar { background: linear-gradient(180deg, #0f172a, var(--plate-dark)) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .page-header { background: linear-gradient(135deg, #0f172a, var(--plate-dark)) !important; }
+html[data-color-plate]:not([data-color-plate="indigo"]) .badge-ai { background: linear-gradient(135deg, var(--plate-600), var(--plate-500)); }
+html[data-color-plate]:not([data-color-plate="indigo"]) .nav-advisory-dot { background: var(--plate-500); }
+html[data-color-plate]:not([data-color-plate="indigo"]) .card,
+html[data-color-plate]:not([data-color-plate="indigo"]) .card-enterprise { border-color: color-mix(in srgb, var(--plate-500) 20%, transparent); }
