@@ -139,6 +139,7 @@ function SynergyVisuals({ buyer, target, sector, geography, dealSize }: { buyer:
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pptBusy, setPptBusy] = useState(false);
+  const [deckBusy, setDeckBusy] = useState(false);
   const output = useMemo(() => computeViz(viz), [viz]);
   const ccy = currencyMeta(viz.currency);
 
@@ -210,6 +211,27 @@ function SynergyVisuals({ buyer, target, sector, geography, dealSize }: { buyer:
       setPptBusy(false);
     }
   }
+  // Consulting-grade deck built directly from the structured model (not prose).
+  async function consultingDeck() {
+    setDeckBusy(true);
+    try {
+      const { exportSynergyConsultingDeck } = await import("@/lib/proposal/module-decks");
+      await exportSynergyConsultingDeck({
+        meta: { buyer, target, sector, geography, dealSize },
+        currencySymbol: ccy.symbol, currencyUnit: ccy.unit,
+        totalCostRR: output.totalCostRR, totalRevRR: output.totalRevRR,
+        npv: output.npv, npvAfterCosts: output.npv_after_costs,
+        oneTimeCost: viz.one_time_cost_m, waccPct: viz.wacc_pct,
+        yearCurve: output.year_curve.map((y) => ({ year: y.year, cost: y.Cost, revenue: y.Revenue, total: y.total_m, cumulative: y.cumulative })),
+        costInitiatives: COST_ROWS.map((r) => ({ label: r.label, value: viz[r.key] as number, method: viz.cost_methods[r.key] || r.method })),
+        revInitiatives: REV_ROWS.map((r) => ({ label: r.label, value: viz[r.key] as number, method: viz.rev_methods[r.key] || r.method })),
+      }, `deal-iq-synergy-deck-${buyer || "buyer"}-${target || "target"}.pptx`);
+    } catch (e) {
+      alert("Consulting deck export failed: " + String(e));
+    } finally {
+      setDeckBusy(false);
+    }
+  }
 
   return (
     <div className="card mb-4 overflow-hidden">
@@ -234,6 +256,10 @@ function SynergyVisuals({ buyer, target, sector, geography, dealSize }: { buyer:
             </button>
             <button onClick={pptInteractive} disabled={pptBusy} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] disabled:opacity-50 dark:border-slate-700">
               {pptBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
+            </button>
+            <button onClick={consultingDeck} disabled={deckBusy} title="Big4-grade deck built from this model"
+              className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+              {deckBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Consulting Deck
             </button>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">

@@ -85,6 +85,7 @@ function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: str
   const [phaseTab, setPhaseTab] = useState("day_1_core");
   const [copied, setCopied] = useState(false);
   const [pptBusy, setPptBusy] = useState(false);
+  const [deckBusy, setDeckBusy] = useState(false);
 
   const unitLabel = unit === "weeks" ? "Wk" : "Mo";
   const wsColor = (ws: string) => WS_PALETTE[Math.max(0, workstreams.indexOf(ws)) % WS_PALETTE.length];
@@ -152,6 +153,24 @@ function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: str
       setPptBusy(false);
     }
   }
+  // Consulting-grade deck built directly from the integration model.
+  async function consultingDeck() {
+    setDeckBusy(true);
+    try {
+      const { exportPmiConsultingDeck } = await import("@/lib/proposal/module-decks");
+      await exportPmiConsultingDeck({
+        meta: { buyer, target, sector, geography, dealSize },
+        unitLabel, periods, workstreams,
+        tasks: tasks.map((t) => ({ title: t.title, workstream: t.workstream, start: t.start, end: t.end, progress: t.progress, deps: t.deps })),
+        checks: check.map((c) => ({ phase: c.phase, title: c.title, owner: c.owner, done: c.done })),
+        phases: PHASES.map((p) => ({ key: p.key, label: p.label, desc: p.desc })),
+      }, `deal-iq-pmi-deck-${buyer || "buyer"}-${target || "target"}.pptx`);
+    } catch (e) {
+      alert("Consulting deck export failed: " + String(e));
+    } finally {
+      setDeckBusy(false);
+    }
+  }
 
   return (
     <div className="card mb-4 overflow-hidden">
@@ -189,6 +208,10 @@ function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: str
               </button>
               <button onClick={pptPlan} disabled={pptBusy} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] disabled:opacity-50 dark:border-slate-700">
                 {pptBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
+              </button>
+              <button onClick={consultingDeck} disabled={deckBusy} title="Big4-grade deck built from this integration model"
+                className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+                {deckBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Consulting Deck
               </button>
             </div>
           </div>
