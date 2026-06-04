@@ -174,157 +174,101 @@ td{padding:7px 10px;border-bottom:1px solid #${MBB.rule};color:#${MBB.body};vert
 }
 
 // ============================== PPTX =============================
+// Consulting-grade pipeline deck — same design system (deck-tokens) and 16:9
+// canvas as every other PPTX the platform generates, for a single visual bar.
 export async function exportPptx(deals: Deal[], title = "Deal Pipeline"): Promise<void> {
   const PptxGenJS = (await import("pptxgenjs")).default;
+  const { DECK_TOKENS: DT, DECK_FONTS: DF } = await import("@/lib/proposal/deck-tokens");
+  const TPL = await import("@/lib/proposal/deck-templates");
+
   const pptx = new PptxGenJS();
-  pptx.layout = "LAYOUT_WIDE";
+  pptx.defineLayout({ name: "DECK_16x9", width: 10.0, height: 5.625 });
+  pptx.layout = "DECK_16x9";
   pptx.author = MBB.name;
   pptx.company = MBB.name;
   pptx.title = title;
 
+  const W = 10.0, H = 5.625, mX = 0.38, cW = W - 2 * mX;
   const total = deals.reduce((s, d) => s + (d.normalized_value_usd ?? 0), 0);
   const live = deals.filter((d) => d.status === "live" || d.status === "announced").length;
+  const avg = deals.length ? total / deals.length : 0;
 
-  // ── Slide 1: Cover (navy with teal/green strips)
-  const s1 = pptx.addSlide();
-  s1.background = { color: MBB.navy };
-  s1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.18, fill: { color: MBB.teal }, line: { color: MBB.teal } });
-  s1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33 * 0.4, h: 0.18, fill: { color: MBB.green }, line: { color: MBB.green } });
-  s1.addText("DEAL IQ AI  ·  PIPELINE REPORT", {
-    x: 0.6, y: 0.5, w: 12, h: 0.4,
-    fontSize: 10, color: MBB.teal, bold: true, fontFace: "Arial", charSpacing: 4,
+  // ── Slide 1: Cover (shared consulting cover) ──────────────────────────────
+  TPL.renderCoverSlide(pptx as never, {
+    docLabel: "Portfolio Pipeline Report",
+    buyer: title,
+    target: undefined,
+    subtitle: `${deals.length} deals  ·  ${formatUsdShort(total)} aggregate value`,
+    metrics: [
+      { value: String(deals.length), label: "Total Deals" },
+      { value: formatUsdShort(total), label: "Aggregate Value" },
+      { value: String(live), label: "Live / Announced" },
+    ],
+    preparedBy: `Prepared by ${MBB.name}  ·  ${new Date().toLocaleDateString(undefined, { year: "numeric", month: "long" })}  ·  Confidential`,
   });
-  s1.addText(title, {
-    x: 0.6, y: 2.4, w: 12, h: 1.6,
-    fontSize: 48, color: "FFFFFF", bold: true, fontFace: "Arial",
-  });
-  s1.addText(MBB.tagline, {
-    x: 0.6, y: 4.1, w: 12, h: 0.5,
-    fontSize: 16, color: MBB.teal, fontFace: "Arial",
-  });
-  s1.addText(`${new Date().toLocaleDateString()}  ·  CONFIDENTIAL`, {
-    x: 0.6, y: 6.8, w: 12, h: 0.3,
-    fontSize: 10, color: "B7CEDC", fontFace: "Arial", charSpacing: 2,
-  });
-  s1.addShape(pptx.ShapeType.rect, { x: 0, y: 7.3, w: 13.33, h: 0.2, fill: { color: MBB.teal }, line: { color: MBB.teal } });
 
-  // ── Slide 2: KPI overview with cards + sector chart
+  // ── Slide 2: Executive overview — callouts + native sector chart ──────────
   const s2 = pptx.addSlide();
-  // Top thin navy bar
-  s2.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.08, fill: { color: MBB.navy }, line: { color: MBB.navy } });
-  s2.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.22, h: 0.22, fill: { color: MBB.teal }, line: { color: MBB.teal } });
-  s2.addText("Executive Overview", {
-    x: 0.5, y: 0.4, w: 12, h: 0.6,
-    fontSize: 26, bold: true, color: MBB.navy, fontFace: "Arial",
-  });
-  s2.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.0, w: 1.2, h: 0.04, fill: { color: MBB.teal }, line: { color: MBB.teal } });
+  s2.background = { color: DT.white };
+  s2.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: 0.05, fill: { color: DT.navy } });
+  s2.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 0.16, fill: { color: DT.teal } });
+  TPL.renderSectionHeader(s2 as never, "Executive Overview");
+  TPL.renderSlideTitle(s2 as never, `${formatUsdShort(total)} across ${deals.length} deals — ${live} live`);
 
   const stats = [
-    { label: "TOTAL DEALS", value: String(deals.length), accent: MBB.teal },
-    { label: "TOTAL VALUE", value: formatUsdShort(total), accent: MBB.blue },
-    { label: "ACTIVE / LIVE", value: String(live), accent: MBB.green },
-    { label: "AVG DEAL SIZE", value: deals.length ? formatUsdShort(total / deals.length) : "—", accent: MBB.tealDark },
+    { value: String(deals.length), label: "Total Deals" },
+    { value: formatUsdShort(total), label: "Total Value" },
+    { value: String(live), label: "Active / Live" },
+    { value: formatUsdShort(avg), label: "Avg Deal Size" },
   ];
-  stats.forEach((st, i) => {
-    const x = 0.5 + i * 3.1;
-    s2.addShape(pptx.ShapeType.rect, { x, y: 1.35, w: 2.9, h: 0.06, fill: { color: st.accent }, line: { color: st.accent } });
-    s2.addShape(pptx.ShapeType.rect, { x, y: 1.41, w: 2.9, h: 1.45, fill: { color: "FFFFFF" }, line: { color: MBB.rule, width: 0.5 } });
-    s2.addText(st.label, {
-      x: x + 0.18, y: 1.5, w: 2.6, h: 0.25,
-      fontSize: 9, color: MBB.muted, bold: true, charSpacing: 2,
-    });
-    s2.addText(st.value, {
-      x: x + 0.18, y: 1.8, w: 2.6, h: 0.9,
-      fontSize: 26, color: MBB.ink, bold: true, fontFace: "Arial",
-    });
-  });
+  const gap = 0.15, mw = (cW - 3 * gap) / 4;
+  stats.forEach((st, i) => TPL.addMetricCallout(s2 as never, mX + i * (mw + gap), 1.25, mw, 1.0, st, DT.teal));
 
-  // Top sectors chart
   const sectorMap = new Map<string, number>();
-  deals.forEach((d) => {
-    const k = d.sector ?? "Unknown";
-    sectorMap.set(k, (sectorMap.get(k) ?? 0) + (d.normalized_value_usd ?? 0));
-  });
+  deals.forEach((d) => { const k = d.sector ?? "Unknown"; sectorMap.set(k, (sectorMap.get(k) ?? 0) + (d.normalized_value_usd ?? 0)); });
   const topSectors = Array.from(sectorMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
-
-  if (topSectors.length > 0) {
-    s2.addText("Top Sectors by Deal Value ($M)", {
-      x: 0.5, y: 3.05, w: 12, h: 0.3,
-      fontSize: 11, bold: true, color: MBB.tealDark, fontFace: "Arial", charSpacing: 1,
+  if (topSectors.length) {
+    s2.addText("TOP SECTORS BY DEAL VALUE ($M)", {
+      x: mX, y: 2.45, w: cW, h: 0.22, fontFace: DF.face, fontSize: 8.5, bold: true, color: DT.muted, charSpacing: 1,
     });
     s2.addChart(pptx.ChartType.bar, [{
-      name: "Value ($M)",
-      labels: topSectors.map((x) => x[0]),
-      values: topSectors.map((x) => Math.round(x[1] / 1e6)),
+      name: "Value ($M)", labels: topSectors.map((x) => x[0]), values: topSectors.map((x) => Math.round(x[1] / 1e6)),
     }], {
-      x: 0.5, y: 3.4, w: 12, h: 3.6,
-      chartColors: [MBB.teal, MBB.blue, MBB.green, MBB.tealDark, MBB.navy],
-      showLegend: false,
-      catAxisLabelFontSize: 10, valAxisLabelFontSize: 10,
-      catAxisLabelColor: MBB.body, valAxisLabelColor: MBB.body,
-    });
+      x: mX, y: 2.7, w: cW, h: 2.45, barDir: "col",
+      chartColors: [DT.teal, DT.navyMd, DT.amber, DT.green, DT.gray400, DT.navy],
+      showLegend: false, showValue: false,
+      catAxisLabelFontFace: DF.face, catAxisLabelFontSize: 8,
+      valAxisLabelFontFace: DF.face, valAxisLabelFontSize: 7, valGridLine: { style: "none" },
+    } as never);
   }
 
-  // ── Slide 3: Top 15 table
+  // ── Slide 3: Top deals table ──────────────────────────────────────────────
   const s3 = pptx.addSlide();
-  s3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.08, fill: { color: MBB.navy }, line: { color: MBB.navy } });
-  s3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.22, h: 0.22, fill: { color: MBB.teal }, line: { color: MBB.teal } });
-  s3.addText("Top 15 Deals by Value", {
-    x: 0.5, y: 0.4, w: 12, h: 0.6,
-    fontSize: 26, bold: true, color: MBB.navy, fontFace: "Arial",
-  });
-  s3.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.0, w: 1.2, h: 0.04, fill: { color: MBB.teal }, line: { color: MBB.teal } });
+  s3.background = { color: DT.white };
+  s3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: 0.05, fill: { color: DT.navy } });
+  s3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 0.16, fill: { color: DT.teal } });
+  TPL.renderSectionHeader(s3 as never, "Pipeline Detail");
+  const top15 = [...deals].filter((d) => d.normalized_value_usd).sort((a, b) => (b.normalized_value_usd ?? 0) - (a.normalized_value_usd ?? 0)).slice(0, 12);
+  TPL.renderSlideTitle(s3 as never, `Top ${top15.length} deals by value`);
 
-  const top15 = [...deals]
-    .filter((d) => d.normalized_value_usd)
-    .sort((a, b) => (b.normalized_value_usd ?? 0) - (a.normalized_value_usd ?? 0))
-    .slice(0, 15);
-
-  const headerCell = (text: string, alignR = false) => ({
-    text,
-    options: { bold: true, color: "FFFFFF", fill: { color: MBB.navy }, fontSize: 10, fontFace: "Arial", align: (alignR ? "right" : "left") as any, valign: "middle" as const, margin: 0.08 },
-  });
-  const tblRows = [
-    [
-      headerCell("Date"),
-      headerCell("Buyer"),
-      headerCell("Target"),
-      headerCell("Sector"),
-      headerCell("Value", true),
-    ],
-    ...top15.map((d, i) => [
-      { text: d.deal_date ?? "—", options: { fontSize: 10, fill: { color: i % 2 === 0 ? MBB.tealPale : "FFFFFF" }, color: MBB.body, margin: 0.08 } },
-      { text: d.buyer ?? "—", options: { fontSize: 10, bold: true, fill: { color: i % 2 === 0 ? MBB.tealPale : "FFFFFF" }, color: MBB.ink, margin: 0.08 } },
-      { text: d.target ?? "—", options: { fontSize: 10, fill: { color: i % 2 === 0 ? MBB.tealPale : "FFFFFF" }, color: MBB.body, margin: 0.08 } },
-      { text: d.sector ?? "—", options: { fontSize: 10, fill: { color: i % 2 === 0 ? MBB.tealPale : "FFFFFF" }, color: MBB.body, margin: 0.08 } },
-      { text: formatDealValueForExport(d), options: { fontSize: 10, align: "right" as const, fill: { color: i % 2 === 0 ? MBB.tealPale : "FFFFFF" }, color: MBB.ink, margin: 0.08 } },
-    ]),
+  const hdr = (t: string, r = false) => ({ text: t, options: { bold: true, color: DT.white, fill: { color: DT.navy }, fontSize: 8.5, fontFace: DF.face, align: (r ? "right" : "left") as "right" | "left", valign: "middle" as const, margin: 3, border: { type: "solid" as const, pt: 0.5, color: DT.navy } } });
+  const rows = [
+    [hdr("Date"), hdr("Buyer"), hdr("Target"), hdr("Sector"), hdr("Value", true)],
+    ...top15.map((d, i) => {
+      const bg = i % 2 === 0 ? DT.gray50 : DT.white;
+      const c = (t: string, b = false, r = false, ink = false) => ({ text: t, options: { fontSize: 8, fontFace: DF.face, bold: b, fill: { color: bg }, color: ink ? DT.navy : DT.text, align: (r ? "right" : "left") as "right" | "left", valign: "middle" as const, margin: 3, border: { type: "solid" as const, pt: 0.5, color: DT.gray200 } } });
+      return [c(d.deal_date ?? "—"), c(d.buyer ?? "—", true, false, true), c(d.target ?? "—"), c(d.sector ?? "—"), c(formatDealValueForExport(d), true, true, true)];
+    }),
   ];
-  s3.addTable(tblRows as never, {
-    x: 0.5, y: 1.3, w: 12.33,
-    fontFace: "Arial",
-    border: { type: "solid", pt: 0.5, color: MBB.rule },
-    colW: [1.5, 3, 3, 2.5, 2.33],
-  });
+  s3.addTable(rows as never, { x: mX, y: 1.3, w: cW, colW: [1.1, 2.7, 2.7, 1.84, 0.9], autoPage: false });
 
-  // ── Slide 4: Closing
+  // ── Slide 4: Closing (dark) ───────────────────────────────────────────────
   const s4 = pptx.addSlide();
-  s4.background = { color: MBB.navyDeep };
-  s4.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.22, fill: { color: MBB.navy }, line: { color: MBB.navy } });
-  s4.addShape(pptx.ShapeType.rect, { x: 0, y: 0.22, w: 13.33 * 0.62, h: 0.16, fill: { color: MBB.teal }, line: { color: MBB.teal } });
-  s4.addShape(pptx.ShapeType.rect, { x: 0, y: 0.22, w: 13.33 * 0.25, h: 0.16, fill: { color: MBB.green }, line: { color: MBB.green } });
-  s4.addText("Thank you.", {
-    x: 0.5, y: 2.8, w: 12, h: 1.2,
-    fontSize: 54, bold: true, color: "FFFFFF", align: "center", fontFace: "Arial",
-  });
-  s4.addText(MBB.name + "  ·  " + MBB.tagline, {
-    x: 0.5, y: 4.1, w: 12, h: 0.5,
-    fontSize: 14, color: MBB.teal, align: "center", fontFace: "Arial",
-  });
-  s4.addText("CONFIDENTIAL  ·  " + new Date().toLocaleDateString(), {
-    x: 0.5, y: 6.8, w: 12, h: 0.3,
-    fontSize: 9, color: "B7CEDC", align: "center", fontFace: "Arial", charSpacing: 4,
-  });
+  s4.background = { color: DT.navy };
+  s4.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.55, h: H, fill: { color: DT.teal } });
+  s4.addText("Deal IQ AI", { x: 0.85, y: 2.0, w: W - 1.2, h: 0.9, fontFace: DF.face, fontSize: 34, bold: true, color: DT.white, valign: "middle" });
+  s4.addText(MBB.tagline, { x: 0.85, y: 2.95, w: W - 1.2, h: 0.4, fontFace: DF.face, fontSize: 13, color: DT.teal });
+  s4.addText(`CONFIDENTIAL  ·  ${new Date().toLocaleDateString()}`, { x: 0.85, y: H - 0.4, w: W - 1.2, h: 0.25, fontFace: DF.face, fontSize: 8, color: DT.steelBl, charSpacing: 2 });
 
   await pptx.writeFile({ fileName: `deal-iq-pipeline-${today()}.pptx` });
 }

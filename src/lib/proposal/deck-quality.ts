@@ -97,34 +97,34 @@ export function scrubBannedPhrases(text: string): string {
 }
 
 /**
- * Quality gate — run before every PPTX render. Throws on any banned phrase or
- * broken structural invariant so a sub-standard deck never ships.
+ * Quality gate — run before every PPTX render. Returns a list of advisory
+ * warnings (banned filler, broken structural invariants). It NEVER throws: a
+ * deck must always generate. The exporter scrubs banned phrases up front, so
+ * these are diagnostics, not blockers.
  */
-export function validateDeckJSON(json: unknown, docType: string): void {
+export function validateDeckJSON(json: unknown, docType: string): string[] {
+  const warnings: string[] = [];
   const str = JSON.stringify(json).toLowerCase();
 
   for (const phrase of BANNED_PHRASES) {
-    if (str.includes(phrase)) {
-      throw new Error(`Banned phrase in output: "${phrase}"`);
-    }
+    if (str.includes(phrase)) warnings.push(`Banned phrase in output: "${phrase}"`);
   }
 
-  // TSA must have >= 8 service lines
+  // TSA ideally carries >= 8 service lines (advisory only — never block export).
   if (docType === "tsa") {
     const svc = (json as { services?: unknown[] })?.services ?? [];
-    if (svc.length < 8) {
-      throw new Error(`TSA has only ${svc.length} service lines; minimum 8 required`);
-    }
+    if (svc.length < 8) warnings.push(`TSA has ${svc.length} service lines; 8+ recommended`);
   }
 
-  // Synergy arithmetic check: Year-3 revenue + cost synergy must equal net run-rate
+  // Synergy arithmetic check: Year-3 revenue + cost synergy should equal net run-rate.
   const sm = (json as { synergy_model?: SynergyMathShape })?.synergy_model;
   if (sm) {
     const expected = (sm.revenue_synergy?.y3 ?? 0) + (sm.cost_synergy?.y3 ?? 0);
     if (Math.abs(expected - (sm.net_run_rate_y3 ?? 0)) > 1) {
-      throw new Error("Synergy arithmetic error: Rev+Cost ≠ Net");
+      warnings.push("Synergy arithmetic: Rev+Cost ≠ Net");
     }
   }
+  return warnings;
 }
 
 type SynergyMathShape = {

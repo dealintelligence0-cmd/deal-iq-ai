@@ -84,7 +84,6 @@ function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: str
   const [newWs, setNewWs] = useState("");
   const [phaseTab, setPhaseTab] = useState("day_1_core");
   const [copied, setCopied] = useState(false);
-  const [pptBusy, setPptBusy] = useState(false);
   const [deckBusy, setDeckBusy] = useState(false);
 
   const unitLabel = unit === "weeks" ? "Wk" : "Mo";
@@ -142,17 +141,6 @@ function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: str
 
   function copyPlan() { navigator.clipboard.writeText(buildGanttMarkdown()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   function printPlan() { openMbbPrintWindow({ contentMarkdown: buildGanttMarkdown(), meta: { moduleLabel: "Interactive Integration Gantt", buyer, target, sector, geography, dealSize } }); }
-  async function pptPlan() {
-    setPptBusy(true);
-    try {
-      const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
-      await exportProposalToPptx(buildGanttMarkdown(), { buyer, target, sector, geography, dealSize, moduleLabel: "Interactive Integration Gantt" }, undefined, `deal-iq-integration-gantt-${buyer || "buyer"}-${target || "target"}.pptx`);
-    } catch (e) {
-      alert("PPTX export failed: " + String(e));
-    } finally {
-      setPptBusy(false);
-    }
-  }
   // Consulting-grade deck built directly from the integration model.
   async function consultingDeck() {
     setDeckBusy(true);
@@ -206,12 +194,9 @@ function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: str
               <button onClick={printPlan} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] dark:border-slate-700">
                 <Printer className="h-3 w-3" /> PDF
               </button>
-              <button onClick={pptPlan} disabled={pptBusy} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] disabled:opacity-50 dark:border-slate-700">
-                {pptBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
-              </button>
-              <button onClick={consultingDeck} disabled={deckBusy} title="Big4-grade deck built from this integration model"
+              <button onClick={consultingDeck} disabled={deckBusy} title="Big4 consulting-grade deck built from this integration model"
                 className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
-                {deckBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Consulting Deck
+                {deckBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Consulting Deck (PPTX)
               </button>
             </div>
           </div>
