@@ -362,7 +362,7 @@ async function saveProvider(tier: Tier, p: ProviderId) {
                 <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
                   <p className="mb-2 text-[11px] font-medium text-slate-600 dark:text-slate-400">
                     {activeModels[tier].live
-                      ? `Active models offered by ${meta.label} — recommended first (click to pin):`
+                      ? `Recommended for ${meta.label} (newest first — click to pin):`
                       : `${meta.label} list unavailable — recommended defaults:`}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -377,10 +377,27 @@ async function saveProvider(tier: Tier, p: ProviderId) {
                       </button>
                     ))}
                   </div>
-                  {activeModels[tier].live && activeModels[tier].all.length > activeModels[tier].candidates.length && (
-                    <p className="mt-2 text-[10px] text-slate-400">
-                      {activeModels[tier].all.length} models live total · retired models are removed automatically.
-                    </p>
+                  {activeModels[tier].live && activeModels[tier].all.length > 0 && (
+                    <details className="mt-2 group">
+                      <summary className="cursor-pointer text-[10.5px] text-indigo-600 hover:underline dark:text-indigo-400">
+                        Show all {activeModels[tier].all.length} live models from {meta.label}
+                      </summary>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {activeModels[tier].all.map((m) => (
+                          <button key={m} onClick={() => selectModel(tier, m)}
+                            className={`rounded border px-2 py-1 font-mono text-[10px] transition ${
+                              model === m
+                                ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                            }`}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[10px] text-slate-400">
+                        Live from the provider — retired models are removed automatically; new models (e.g. next-gen releases) appear here without an update.
+                      </p>
+                    </details>
                   )}
                 </div>
               )}
