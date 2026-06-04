@@ -15,9 +15,16 @@
 
 import pptxgen from "pptxgenjs";
 import { DECK_TOKENS as T, DECK_FONTS as F, DECK_LAYOUT as L, probabilityBand } from "./deck-tokens";
-import { fitText, VisualGuard } from "./deck-quality";
+import { fitText, clean, VisualGuard } from "./deck-quality";
 
 const CONTENT_W = L.W - 2 * L.marginX;
+
+/** Truncate to at most `n` words at a word boundary (ellipsis when trimmed). */
+function capWords(text: string, n: number): string {
+  const words = (text ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length <= n) return words.join(" ");
+  return words.slice(0, n).join(" ") + "…";
+}
 
 // ===========================================================================
 // Typed content objects
@@ -172,7 +179,7 @@ function newContentSlide(pres: pptxgen): pptxgen.Slide {
 /** Section label (uppercase teal eyebrow). */
 export function renderSectionHeader(slide: pptxgen.Slide, sectionLabel: string): void {
   slide.addShape("rect" as pptxgen.ShapeType, { x: L.marginX, y: 0.24, w: 0.22, h: 0.1, fill: { color: T.teal }, line: { type: "none" } });
-  slide.addText(sectionLabel.toUpperCase(), {
+  slide.addText(clean(sectionLabel).toUpperCase(), {
     x: L.marginX + 0.3, y: 0.17, w: CONTENT_W - 0.3, h: 0.24,
     fontFace: F.face, fontSize: F.sectionSize, bold: true, color: T.teal, charSpacing: 2, valign: "middle",
   });
@@ -228,6 +235,14 @@ export function addCardGrid(
   const gap = 0.12;
   const cardW = (w - (cols - 1) * gap) / cols;
   const cardH = (h - (rows - 1) * gap) / rows;
+  // Adaptive sizing so body text never overflows its card.
+  const bodyFont = cardH >= 1.7 ? 9.5 : cardH >= 1.2 ? 8.5 : 8;
+  const titleH = 0.34;
+  const innerW = cardW - 0.24;
+  const charsPerLine = Math.max(12, (innerW * 72) / (bodyFont * 0.52));
+  const lineH = (bodyFont * 1.22) / 72;
+  const bodyLines = Math.max(1, Math.floor((cardH - titleH - 0.18) / lineH));
+  const maxBodyWords = Math.max(6, Math.floor((charsPerLine * bodyLines) / 6.3));
   cards.forEach((c, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -236,14 +251,14 @@ export function addCardGrid(
     const accent = c.accent ?? T.teal;
     slide.addShape("rect" as pptxgen.ShapeType, { x: cx, y: cy, w: cardW, h: 0.05, fill: { color: accent }, line: { type: "none" } });
     slide.addShape("rect" as pptxgen.ShapeType, { x: cx, y: cy + 0.05, w: cardW, h: cardH - 0.05, fill: { color: T.white }, line: { color: T.gray200, width: 0.75 } });
-    slide.addText(fitText(c.title, "bulletPoint"), {
-      x: cx + 0.12, y: cy + 0.13, w: cardW - 0.24, h: 0.34,
-      fontFace: F.face, fontSize: 10, bold: true, color: T.navy, valign: "top",
+    slide.addText(capWords(clean(c.title), 9), {
+      x: cx + 0.12, y: cy + 0.12, w: innerW, h: titleH,
+      fontFace: F.face, fontSize: 9.5, bold: true, color: T.navy, valign: "top",
     });
     if (c.body) {
-      slide.addText(fitText(c.body, "cardBody"), {
-        x: cx + 0.12, y: cy + 0.47, w: cardW - 0.24, h: cardH - 0.55,
-        fontFace: F.face, fontSize: F.bulletSize, color: T.text, valign: "top",
+      slide.addText(capWords(clean(c.body), maxBodyWords), {
+        x: cx + 0.12, y: cy + 0.12 + titleH, w: innerW, h: cardH - titleH - 0.16,
+        fontFace: F.face, fontSize: bodyFont, color: T.text, valign: "top",
       });
     }
   });
@@ -281,7 +296,7 @@ export function addPhaseTimeline(
     const accent = toneColor[p.tone];
     // header block
     slide.addShape("rect" as pptxgen.ShapeType, { x: cx, y: top, w: pw, h: 0.4, fill: { color: accent }, line: { type: "none" } });
-    slide.addText(`${p.name}  ·  ${p.window}`, {
+    slide.addText(`${clean(p.name)}  ·  ${clean(p.window)}`, {
       x: cx + 0.1, y: top, w: pw - 0.2, h: 0.4,
       fontFace: F.face, fontSize: 9, bold: true, color: T.white, valign: "middle",
     });
@@ -308,25 +323,25 @@ export function renderCoverSlide(pres: pptxgen, content: CoverContent): void {
   // left teal accent bar
   slide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.55, h: L.H, fill: { color: T.teal }, line: { type: "none" } });
 
-  slide.addText(content.docLabel.toUpperCase(), {
+  slide.addText(clean(content.docLabel).toUpperCase(), {
     x: 0.85, y: 0.5, w: L.W - 1.2, h: 0.3,
     fontFace: F.face, fontSize: 10, bold: true, color: T.teal, charSpacing: 3,
   });
 
-  slide.addText(content.buyer || "—", {
+  slide.addText(clean(content.buyer) || "—", {
     x: 0.85, y: 1.35, w: L.W - 1.2, h: 0.8,
     fontFace: F.face, fontSize: 32, bold: true, color: T.white, valign: "middle",
   });
   if (content.target) {
     slide.addText([
       { text: "→  ", options: { color: T.teal, bold: true } },
-      { text: content.target, options: { color: T.white, bold: true } },
+      { text: clean(content.target), options: { color: T.white, bold: true } },
     ], {
       x: 0.85, y: 2.15, w: L.W - 1.2, h: 0.5,
       fontFace: F.face, fontSize: 20,
     });
   }
-  slide.addText(content.subtitle, {
+  slide.addText(clean(content.subtitle), {
     x: 0.85, y: 2.75, w: L.W - 1.2, h: 0.3,
     fontFace: F.face, fontSize: 12, color: T.steelBl,
   });
@@ -355,7 +370,7 @@ export function renderCoverSlide(pres: pptxgen, content: CoverContent): void {
     }
   });
 
-  slide.addText(content.preparedBy, {
+  slide.addText(clean(content.preparedBy), {
     x: 0.85, y: L.H - 0.35, w: L.W - 1.2, h: 0.22,
     fontFace: F.face, fontSize: 8.5, color: T.steelBl,
   });
@@ -376,13 +391,13 @@ export function renderVerdictSplitSlide(pres: pptxgen, content: VerdictContent):
     x: 0.35, y: 0.4, w: pw - 0.6, h: 0.24,
     fontFace: F.face, fontSize: 10, bold: true, color: T.teal, charSpacing: 3,
   });
-  slide.addText(content.verdict.toUpperCase(), {
+  slide.addText(clean(content.verdict).toUpperCase(), {
     x: 0.35, y: 0.7, w: pw - 0.6, h: 0.9,
     fontFace: F.face, fontSize: 26, bold: true, color: T.white, valign: "top",
   });
   if (content.confidence) {
     slide.addShape(pres.ShapeType.roundRect, { x: 0.35, y: 1.62, w: 1.7, h: 0.3, fill: { color: T.teal }, line: { type: "none" }, rectRadius: 0.05 } as never);
-    slide.addText(content.confidence, {
+    slide.addText(clean(content.confidence), {
       x: 0.35, y: 1.62, w: 1.7, h: 0.3,
       fontFace: F.face, fontSize: 9, bold: true, color: T.white, align: "center", valign: "middle",
     });
@@ -604,14 +619,14 @@ export function renderThreeScenarioSlide(pres: pptxgen, content: ScenarioContent
     const x = L.marginX + i * (colW + gap);
     const accent = toneColor[s.tone];
     slide.addShape(pres.ShapeType.rect, { x, y: top, w: colW, h: 0.42, fill: { color: accent }, line: { type: "none" } });
-    slide.addText(s.name.toUpperCase(), {
+    slide.addText(clean(s.name).toUpperCase(), {
       x: x + 0.14, y: top, w: colW - 0.28, h: 0.42,
       fontFace: F.face, fontSize: 11, bold: true, color: T.white, valign: "middle",
     });
     slide.addShape(pres.ShapeType.rect, { x, y: top + 0.42, w: colW, h: colH - 0.42, fill: { color: T.gray50 }, line: { color: T.gray200, width: 0.5 } });
     let ry = top + 0.56;
     s.rows.slice(0, 4).forEach((r) => {
-      slide.addText(r.label.toUpperCase(), {
+      slide.addText(clean(r.label).toUpperCase(), {
         x: x + 0.14, y: ry, w: colW - 0.28, h: 0.18,
         fontFace: F.face, fontSize: 7, bold: true, color: T.muted, charSpacing: 1,
       });
@@ -762,13 +777,13 @@ export function renderRecommendationSlide(pres: pptxgen, content: Recommendation
     x: 0.85, y: 0.45, w: 5.5, h: 0.26,
     fontFace: F.face, fontSize: 10, bold: true, color: T.teal, charSpacing: 3,
   });
-  slide.addText(content.verdict, {
+  slide.addText(clean(content.verdict), {
     x: 0.85, y: 0.9, w: 5.5, h: 1.1,
     fontFace: F.face, fontSize: 40, bold: true, color: T.white, valign: "middle",
   });
   if (content.confidence) {
     slide.addShape(pres.ShapeType.roundRect, { x: 0.85, y: 2.05, w: 1.9, h: 0.34, fill: { color: T.teal }, line: { type: "none" }, rectRadius: 0.05 } as never);
-    slide.addText(content.confidence, {
+    slide.addText(clean(content.confidence), {
       x: 0.85, y: 2.05, w: 1.9, h: 0.34,
       fontFace: F.face, fontSize: 10, bold: true, color: T.white, align: "center", valign: "middle",
     });
@@ -831,15 +846,25 @@ export function renderGenericContentSlide(pres: pptxgen, content: GenericCardCon
   }
 
   if (content.table && content.table.length) {
-    const colCount = Math.max(...content.table.map((r) => r.length));
-    const colW = Array(colCount).fill(CONTENT_W / colCount);
-    const tableData = content.table.map((row, r) => row.map((cell) => ({
+    const rows = content.table.slice(0, 8); // cap rows so the table never overruns
+    const colCount = Math.max(...rows.map((r) => r.length));
+    // Weight column widths by average content length (text columns get more room).
+    const avgLen = Array.from({ length: colCount }, (_, c) => {
+      const lens = rows.map((r) => (r[c] ?? "").length);
+      return Math.max(4, lens.reduce((a, b) => a + b, 0) / lens.length);
+    });
+    const totalLen = avgLen.reduce((a, b) => a + b, 0);
+    const minW = 0.7;
+    const flexW = CONTENT_W - minW * colCount;
+    const colW = avgLen.map((l) => minW + flexW * (l / totalLen));
+    const manyRows = rows.length > 6;
+    const tableData = rows.map((row, r) => row.map((cell) => ({
       text: fitText(cell, "tableCell"),
       options: {
         fill: { color: r === 0 ? T.navy : (r % 2 === 1 ? T.gray50 : T.white) },
         color: r === 0 ? T.white : T.text,
         bold: r === 0,
-        fontSize: 8.5, fontFace: F.face, valign: "middle" as const, margin: 3,
+        fontSize: manyRows ? 7.5 : 8.5, fontFace: F.face, valign: "middle" as const, margin: 3,
         border: { type: "solid" as const, pt: 0.5, color: T.gray200 },
       },
     })));
@@ -848,7 +873,7 @@ export function renderGenericContentSlide(pres: pptxgen, content: GenericCardCon
     top += 0.5;
   } else if (content.cards && content.cards.length) {
     const cards = content.cards.slice(0, 6).map((c) => ({ title: c.title, body: c.body, accent: T.teal }));
-    const cols = cards.length <= 2 ? 1 : (cards.length <= 4 ? 2 : 3);
+    const cols = cards.length <= 2 ? 1 : (cards.length <= 6 ? 2 : 3);
     addCardGrid(slide, L.marginX, top, CONTENT_W, L.H - top - 0.4, cards, cols, guard);
   }
 
@@ -859,5 +884,71 @@ export function renderGenericContentSlide(pres: pptxgen, content: GenericCardCon
     });
   }
 
+  guard.assert(content.title);
+}
+
+// ===========================================================================
+// Scorecard — dimension bars + composite callout (Deal Score).
+// ===========================================================================
+export interface ScoreDimension {
+  name: string;
+  score: number;        // 0-10
+  rationale: string;
+}
+export interface ScorecardContent {
+  sectionLabel: string;
+  title: string;
+  composite?: string;   // e.g. "7.25 / 10"
+  verdict?: string;     // e.g. "Moderate"
+  dimensions: ScoreDimension[];
+}
+
+export function renderScorecardSlide(pres: pptxgen, content: ScorecardContent): void {
+  const guard = new VisualGuard();
+  const slide = newContentSlide(pres);
+  renderSectionHeader(slide, content.sectionLabel);
+  renderSlideTitle(slide, content.title);
+
+  const top = L.contentTop + 0.2;
+  const dims = content.dimensions.slice(0, 6);
+
+  // Left: composite callout
+  const calloutW = 2.2;
+  if (content.composite) {
+    addMetricCallout(slide, L.marginX, top, calloutW, 1.5,
+      { value: content.composite, label: "Composite Score", sub: content.verdict }, T.teal, guard);
+  }
+
+  // Right: horizontal score bars per dimension
+  const bx = content.composite ? L.marginX + calloutW + 0.3 : L.marginX;
+  const bw = L.W - bx - L.marginX;
+  const availH = L.H - top - 0.4;
+  const rowH = Math.min(0.62, availH / Math.max(dims.length, 1));
+  const labelW = 1.5;
+  const trackX = bx + labelW + 0.1;
+  const trackW = bw - labelW - 0.6;
+
+  dims.forEach((d, i) => {
+    const y = top + i * rowH;
+    const frac = Math.max(0, Math.min(1, d.score / 10));
+    const bandColor = d.score >= 7.5 ? T.green : d.score >= 5 ? T.teal : T.amber;
+    slide.addText(clean(d.name), {
+      x: bx, y, w: labelW, h: rowH * 0.55,
+      fontFace: F.face, fontSize: 8.5, bold: true, color: T.navy, valign: "middle",
+    });
+    // track + fill
+    slide.addShape(pres.ShapeType.rect, { x: trackX, y: y + rowH * 0.12, w: trackW, h: 0.16, fill: { color: T.gray200 }, line: { type: "none" } });
+    slide.addShape(pres.ShapeType.rect, { x: trackX, y: y + rowH * 0.12, w: Math.max(0.04, trackW * frac), h: 0.16, fill: { color: bandColor }, line: { type: "none" } });
+    slide.addText(`${d.score}`, {
+      x: trackX + trackW + 0.06, y: y + rowH * 0.02, w: 0.5, h: 0.26,
+      fontFace: F.face, fontSize: 9.5, bold: true, color: bandColor, valign: "middle",
+    });
+    // rationale under the bar (one short line)
+    slide.addText(capWords(clean(d.rationale), 14), {
+      x: bx, y: y + rowH * 0.5, w: bw - 0.1, h: rowH * 0.48,
+      fontFace: F.face, fontSize: 7.5, color: T.muted, valign: "top",
+    });
+  });
+  guard.mark();
   guard.assert(content.title);
 }

@@ -22,7 +22,7 @@ import pptxgen from "pptxgenjs";
 import { splitIntoSections, type ProposalSection } from "@/lib/proposal/visual-renderer";
 import { classifyHeading, type SectionKind } from "@/lib/proposal/mbb/section-classifier";
 import { getStoryline, type StorylineTemplate } from "@/lib/proposal/storyline-templates";
-import { fitText, scrubBannedPhrases, validateDeckJSON } from "@/lib/proposal/deck-quality";
+import { fitText, clean, scrubBannedPhrases, validateDeckJSON } from "@/lib/proposal/deck-quality";
 import * as TPL from "@/lib/proposal/deck-templates";
 
 export type DealMeta = {
@@ -137,6 +137,7 @@ type ModelSlide =
   | { t: "risk"; c: TPL.RiskContent }
   | { t: "timeline"; c: TPL.TimelineContent }
   | { t: "workstream"; c: TPL.WorkstreamContent }
+  | { t: "scorecard"; c: TPL.ScorecardContent }
   | { t: "generic"; c: TPL.GenericCardContent };
 
 interface DeckModel {
@@ -156,6 +157,7 @@ function renderModelSlide(pres: pptxgen, s: ModelSlide): void {
     case "risk":       return TPL.renderRiskTableSlide(pres, s.c);
     case "timeline":   return TPL.renderTimelineSlide(pres, s.c);
     case "workstream": return TPL.renderFunctionGridSlide(pres, s.c);
+    case "scorecard":  return TPL.renderScorecardSlide(pres, s.c);
     case "generic":    return TPL.renderGenericContentSlide(pres, s.c);
   }
 }
@@ -170,7 +172,9 @@ function buildDeckModel(
   const sectionLabel = (kind: SectionKind, heading: string) => LABELS[kind] ?? heading.toUpperCase();
 
   // ---- headline metrics for cover / verdict ----
-  const ev = meta.dealSize?.trim() || findEnterpriseValue(proposalMd);
+  // Prefer the clean currency value parsed from the narrative; fall back to the
+  // (sanitized) user-entered deal size. Avoids stray markdown like ">" leaking.
+  const ev = findEnterpriseValue(proposalMd) || sanitizeValue(meta.dealSize) || undefined;
   const netSyn = findMetric(proposalMd, /net\s+(?:run[-\s]?rate\s+)?synergy[^₹$\d]*([₹$€£]?\s?[\d.,]+\s*[BMK])/i)
     || findMetric(proposalMd, /total\s+value[^₹$\d]*([₹$€£]?\s?[\d.,]+\s*[BMK])/i);
   const verdict = findVerdict(proposalMd);
@@ -186,7 +190,7 @@ function buildDeckModel(
     docLabel: docLabelFor(docType, meta.moduleLabel),
     buyer: meta.buyer,
     target: meta.target,
-    subtitle: [meta.sector, meta.geography, ev ? `${ev} EV` : meta.dealSize].filter(Boolean).join("  ·  "),
+    subtitle: [meta.sector, meta.geography, ev ? `${ev} EV` : sanitizeValue(meta.dealSize)].filter(Boolean).join("  ·  "),
     metrics: coverMetrics.length ? coverMetrics : [{ value: "—", label: "Engagement", sub: meta.moduleLabel }],
     preparedBy: `Prepared by ${meta.clientName || "Deal IQ AI"}  ·  ${new Date().toLocaleDateString(undefined, { year: "numeric", month: "long" })}  ·  Confidential`,
   };
@@ -233,10 +237,30 @@ function buildDeckModel(
       continue;
     }
 
+    if (kind === "score") {
+      const sc = buildScorecard(label, body);
+      if (sc) { slides.push({ t: "scorecard", c: sc }); continue; }
+    }
+
     if (kind === "thesis") {
       const pillars = extractPillars(body);
       if (pillars.length >= 2) {
-        slides.push({ t: "pillar", c: { sectionLabel: label, title: assertTitle(sec.heading, body, kind), pillars } });
+        slides.push({ t: "pillar", c: { sectionLabel: label, title: assertTitle(sec.heading, body, kind, thesisAssertion(pillars, meta)), pillars } });
+        continue;
+      }
+    }
+
+    if (kind === "ic_questions") {
+      const qs = extractBullets(body).filter((q) => q.length > 12).slice(0, 6);
+      if (qs.length >= 2) {
+        slides.push({
+          t: "generic",
+          c: {
+            sectionLabel: label,
+            title: `${qs.length} questions the Investment Committee must resolve`,
+            cards: qs.map((q, i) => ({ title: `Q${i + 1}`, body: q })),
+          },
+        });
         continue;
       }
     }
@@ -441,15 +465,84 @@ function extractPillars(body: string): TPL.PillarContent[] {
     }
     return pillars;
   }
-  // Pattern B: **Heading:** lines treated as pillars
-  const bold = Array.from(body.matchAll(/\*\*([^*:\n]{3,30})(?::|\b)\*\*\s*([^\n]*)/g));
+  // Pattern B: **Heading (optional metric):** body — bold-led paragraphs.
+  // Long headings are shortened to a clean label; the parenthetical metric is
+  // lifted into the pillar KPI so the column header stays tight.
+  const bold = Array.from(body.matchAll(/\*\*\s*([^*\n]{3,90}?)\s*\*\*\s*:?\s*([^\n]*)/g));
   if (bold.length >= 3) {
     for (const m of bold.slice(0, 3)) {
-      pillars.push({ heading: m[1].trim(), bullets: [stripMd(m[2])].filter(Boolean).slice(0, 4) });
+      const rawHead = m[1].trim();
+      const label = stripMd(rawHead.replace(/\s*[(:].*$/, "")).trim() || stripMd(rawHead);
+      const paren = /\(([^)]*[\d%₹$][^)]*)\)/.exec(rawHead);
+      const kpi = paren ? stripMd(paren[1]) : undefined;
+      const bulletText = stripMd(m[2]);
+      pillars.push({
+        heading: label,
+        bullets: bulletText ? splitSentences(bulletText).slice(0, 3) : [],
+        kpi,
+      });
     }
     return pillars;
   }
   return [];
+}
+
+function splitSentences(text: string): string[] {
+  return text.split(/(?<=[.;])\s+/).map((s) => s.trim()).filter((s) => s.length > 4);
+}
+
+/** Build a Deal Score scorecard from a "Dimension | Score | Rationale" table. */
+function buildScorecard(label: string, body: string): TPL.ScorecardContent | null {
+  const table = parseMarkdownTable(body);
+  if (table.length < 2) return null;
+  const header = table[0].map((h) => h.toLowerCase());
+  const di = header.findIndex((h) => /dimension|category|criteria|area/.test(h));
+  const si = header.findIndex((h) => /score|rating|\/\s*10/.test(h));
+  const ri = header.findIndex((h) => /rational|comment|note|assessment/.test(h));
+  const dIdx = di >= 0 ? di : 0;
+  const sIdx = si >= 0 ? si : 1;
+  const rIdx = ri >= 0 ? ri : 2;
+  const dims: TPL.ScoreDimension[] = [];
+  for (let r = 1; r < table.length; r++) {
+    const row = table[r];
+    const name = stripMd(row[dIdx] || "");
+    const scoreNum = parseFloat((row[sIdx] || "").replace(/[^\d.]/g, ""));
+    if (!name || !isFinite(scoreNum)) continue;
+    dims.push({ name, score: scoreNum, rationale: stripMd(row[rIdx] || "") });
+  }
+  if (dims.length < 2) return null;
+  const composite = findMetric(body, /composite[^\d]*([\d.]+\s*\/\s*10)/i)
+    || findMetric(body, /overall[^\d]*([\d.]+\s*\/\s*10)/i)
+    || `${(dims.reduce((a, d) => a + d.score, 0) / dims.length).toFixed(1)} / 10`;
+  const verdict = findMetric(body, /verdict[:\s]*([A-Za-z][A-Za-z\s/]{2,18})/i)
+    || scoreVerdict(parseFloat(composite));
+  return {
+    sectionLabel: label,
+    title: `Composite ${composite.replace(/\s/g, "")} — ${verdict}`,
+    composite: composite.replace(/\s+/g, ""),
+    verdict,
+    dimensions: dims,
+  };
+}
+
+function scoreVerdict(n: number): string {
+  if (!isFinite(n)) return "Assessed";
+  if (n >= 8) return "Strong";
+  if (n >= 6.5) return "Favourable";
+  if (n >= 5) return "Moderate";
+  return "Cautious";
+}
+
+/** Assertive thesis title from pillar headings. */
+function thesisAssertion(pillars: TPL.PillarContent[], meta: DealMeta): string {
+  const heads = pillars.map((p) => p.heading).filter(Boolean);
+  const tri = heads.filter((h) => /strateg|financ|operat|commercial|market/i.test(h)).slice(0, 3);
+  const tgt = meta.target ? ` to acquire ${meta.target}` : "";
+  if (tri.length >= 2) {
+    const list = tri.length === 3 ? `${tri[0]}, ${tri[1]} and ${tri[2]}` : tri.join(" and ");
+    return `The ${list.toLowerCase()} case${tgt}`;
+  }
+  return `The strategic case${tgt}`;
 }
 
 function findKpiLine(body: string): string | undefined {
@@ -772,6 +865,12 @@ function findEnterpriseValue(md: string): string | undefined {
 function findMetric(md: string, re: RegExp): string | undefined {
   const m = re.exec(md);
   return m ? m[1].replace(/\s+/g, "").trim() : undefined;
+}
+
+/** Sanitize a free-text value (deal size, metric) — strip markdown + stray
+ *  leading symbols like ">" / "~" so cover/subtitle values render clean. */
+function sanitizeValue(s: string | undefined): string {
+  return clean(s ?? "").replace(/^[>~≈±\s]+/, "").trim();
 }
 
 function parsePct(s: string): number {
