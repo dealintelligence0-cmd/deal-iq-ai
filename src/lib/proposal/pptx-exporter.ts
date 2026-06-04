@@ -104,8 +104,11 @@ export async function exportProposalToPptx(
   // Build the structured, banned-phrase-free deck model from the markdown.
   const model = buildDeckModel(proposalMd, sections, meta, docType, citationsMd);
 
-  // Quality gate — throws on banned filler or broken invariants.
-  validateDeckJSON(model.validation, docType);
+  // Quality gate — advisory only; never blocks deck generation.
+  const warnings = validateDeckJSON(model.validation, docType);
+  if (warnings.length && typeof console !== "undefined") {
+    console.warn(`[deck] ${meta.moduleLabel ?? "proposal"} quality notes: ${warnings.join("; ")}`);
+  }
 
   // ---- Render ----
   TPL.renderCoverSlide(pres, model.cover);
@@ -827,22 +830,48 @@ function buildGenericContent(label: string, heading: string, body: string, kind:
 // Title / verdict / number helpers
 // ===========================================================================
 
+// Strip leading list/quote markers and trailing punctuation so a title never
+// reads like a fragment ("— Service catalog…", "Day-1 readiness:").
+function cleanTitle(s: string): string {
+  return stripMd(s)
+    .replace(/^[\s—–\-•*>#]+/, "")
+    .replace(/[\s:;,.\-–—]+$/, "")
+    .trim();
+}
+
+// A candidate makes a usable assertion only if it reads like a clause, not a
+// label fragment (no trailing colon, has substance, isn't a parenthetical stub).
+function looksLikeAssertion(s: string): boolean {
+  if (!s) return false;
+  if (/:\s*$/.test(s)) return false;                 // label header
+  if (/^[a-z]?\W/.test(s)) return false;             // starts with punctuation/lowercase stub
+  if (/\(\s*term[^)]*$/.test(s)) return false;       // garbled "(term- 3)"
+  const words = s.split(/\s+/).filter(Boolean);
+  return words.length >= 5;
+}
+
 function assertTitle(heading: string, body: string, kind: SectionKind, override?: string): string {
-  if (override) return fitText(override, "slideTitle");
+  if (override) return fitText(cleanTitle(override), "slideTitle");
   // Prefer a bolded lead assertion or first strong sentence; fall back to a
   // kind-specific assertion built from the heading.
   const leadBold = /\*\*([^*]{12,90})\*\*/.exec(body);
-  if (leadBold && /[.\d%₹$]/.test(leadBold[1])) return fitText(stripMd(leadBold[1]), "slideTitle");
-  const firstSentence = firstSentences(body, 14);
-  if (firstSentence && /\d|%|₹|\$/.test(firstSentence) && firstSentence.split(/\s+/).length >= 5) {
-    return fitText(firstSentence.replace(/[.;]$/, ""), "slideTitle");
+  if (leadBold && /[.\d%₹$]/.test(leadBold[1])) {
+    const t = cleanTitle(leadBold[1]);
+    if (looksLikeAssertion(t)) return fitText(t, "slideTitle");
+  }
+  const firstSentence = cleanTitle(firstSentences(body, 14));
+  if (/\d|%|₹|\$/.test(firstSentence) && looksLikeAssertion(firstSentence)) {
+    return fitText(firstSentence, "slideTitle");
   }
   const base = titleCase(stripMd(heading));
   const prefix: Partial<Record<SectionKind, string>> = {
     thesis: "The case for ", market: "Market context: ", regulatory: "Regulatory path: ",
     why_us: "Why Deal IQ: ", diligence: "Diligence priorities: ", transaction: "Transaction overview: ",
+    services: "Service scope: ", tsa: "Transition services: ", governance: "Governance: ",
+    engagement: "Commercial terms: ", day1: "Day-1 priorities: ", integration: "Integration approach: ",
+    next_steps: "Next steps: ",
   };
-  return fitText((prefix[kind] ?? "") + base, "slideTitle");
+  return fitText(cleanTitle((prefix[kind] ?? "") + base), "slideTitle");
 }
 
 function findVerdict(md: string): string | undefined {

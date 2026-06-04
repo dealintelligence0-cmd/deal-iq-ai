@@ -138,7 +138,6 @@ function SynergyVisuals({ buyer, target, sector, geography, dealSize }: { buyer:
   const [viz, setViz] = useState<VizModel>(DEFAULT_VIZ);
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [pptBusy, setPptBusy] = useState(false);
   const [deckBusy, setDeckBusy] = useState(false);
   const output = useMemo(() => computeViz(viz), [viz]);
   const ccy = currencyMeta(viz.currency);
@@ -200,17 +199,6 @@ function SynergyVisuals({ buyer, target, sector, geography, dealSize }: { buyer:
 
   function copyInteractive() { navigator.clipboard.writeText(buildInteractiveMarkdown()); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   function printInteractive() { openMbbPrintWindow({ contentMarkdown: buildInteractiveMarkdown(), meta: { moduleLabel: "Interactive Synergy Model", buyer, target, sector, geography, dealSize } }); }
-  async function pptInteractive() {
-    setPptBusy(true);
-    try {
-      const { exportProposalToPptx } = await import("@/lib/proposal/pptx-exporter");
-      await exportProposalToPptx(buildInteractiveMarkdown(), { buyer, target, sector, geography, dealSize, moduleLabel: "Interactive Synergy Model" }, undefined, `deal-iq-interactive-synergy-${buyer || "buyer"}-${target || "target"}.pptx`);
-    } catch (e) {
-      alert("PPTX export failed: " + String(e));
-    } finally {
-      setPptBusy(false);
-    }
-  }
   // Consulting-grade deck built directly from the structured model (not prose).
   async function consultingDeck() {
     setDeckBusy(true);
@@ -254,12 +242,9 @@ function SynergyVisuals({ buyer, target, sector, geography, dealSize }: { buyer:
             <button onClick={printInteractive} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] dark:border-slate-700">
               <Printer className="h-3 w-3" /> PDF
             </button>
-            <button onClick={pptInteractive} disabled={pptBusy} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] disabled:opacity-50 dark:border-slate-700">
-              {pptBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
-            </button>
-            <button onClick={consultingDeck} disabled={deckBusy} title="Big4-grade deck built from this model"
+            <button onClick={consultingDeck} disabled={deckBusy} title="Big4 consulting-grade deck built from this model"
               className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
-              {deckBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Consulting Deck
+              {deckBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Consulting Deck (PPTX)
             </button>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
