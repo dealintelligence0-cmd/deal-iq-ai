@@ -43,8 +43,8 @@ type Props = {
 function formatDriver(d: ThesisDriver): string {
   if (d.value === null || d.value === undefined) return "—";
   if (typeof d.value === "number") {
-    if (d.unit === "USD_m") return `$${d.value}M`;
-    if (d.unit === "USD_k") return `$${d.value}K`;
+    if (d.unit === "USD_m") return d.value >= 1000 ? `$${(d.value / 1000).toFixed(2)}B` : `$${d.value}M`;
+    if (d.unit === "USD_k") return d.value >= 1000 ? `$${(d.value / 1000).toFixed(1)}M` : `$${d.value}K`;
     if (d.unit === "months") return `${d.value} mo`;
     if (d.unit === "weeks") return `${d.value} wk`;
     return String(d.value);
