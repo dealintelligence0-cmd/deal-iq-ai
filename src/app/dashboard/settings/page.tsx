@@ -32,6 +32,11 @@ export default function SettingsPage() {
   const [smartModel, setSmartModel] = useState<string | null>(null);
   const [econModel, setEconModel] = useState<string | null>(null);
 
+  // Active (live) model lists per tier — fetched from the provider so only
+  // models the provider currently offers are shown; retired models drop out.
+  const [activeModels, setActiveModels] = useState<Record<string, { candidates: string[]; all: string[]; live: boolean }>>({});
+  const [loadingModels, setLoadingModels] = useState<string | null>(null);
+
   // Key entry state
   const [fastKey, setFastKey] = useState("");
   const [smartKey, setSmartKey] = useState("");
@@ -115,6 +120,42 @@ async function saveProvider(tier: Tier, p: ProviderId) {
       const { data: ks } = await sb.rpc("ai_keys_status");
       if (ks) setKeysStatus(ks as KeyStatus[]);
     }
+  }
+
+  // Fetch the provider's currently-active model list for a tier.
+  async function loadActiveModels(tier: Tier) {
+    const provider = tier === "fast" ? fastProv : tier === "economic" ? econProv : smartProv;
+    if (provider === "free") {
+      setStatus("Free provider is rule-based — no live models to list.");
+      return;
+    }
+    setLoadingModels(tier);
+    try {
+      const r = await fetch("/api/ai/models", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tier, provider }),
+      });
+      const j = await r.json();
+      setActiveModels((prev) => ({ ...prev, [tier]: { candidates: j.candidates ?? [], all: j.all ?? [], live: !!j.live } }));
+      setStatus(j.live
+        ? `✓ ${(j.all?.length ?? 0)} active models found for ${provider}.`
+        : `Could not reach ${provider} model list — showing recommended defaults.`);
+    } catch {
+      setStatus("Failed to load active models.");
+    }
+    setLoadingModels(null);
+  }
+
+  // Manually pin a specific (active) model for a tier.
+  async function selectModel(tier: Tier, m: string) {
+    if (tier === "fast") setFastModel(m);
+    else if (tier === "economic") setEconModel(m);
+    else setSmartModel(m);
+    const { data: u } = await sb.auth.getUser();
+    if (!u.user) return;
+    const modelCol = tier === "fast" ? "bulk_model" : tier === "economic" ? "economic_model" : "premium_model";
+    await sb.from("ai_settings").update({ [modelCol]: m }).eq("user_id", u.user.id);
+    setStatus(`✓ ${tier} model pinned to ${m}`);
   }
 
  async function probe(tier: Tier) {
@@ -308,7 +349,41 @@ async function saveProvider(tier: Tier, p: ProviderId) {
                     ✓ {model}
                   </span>
                 )}
+                {meta.needsKey && (
+                  <button onClick={() => loadActiveModels(tier)} disabled={loadingModels === tier}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300">
+                    {loadingModels === tier ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    Refresh active models
+                  </button>
+                )}
               </div>
+
+              {activeModels[tier] && (
+                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+                  <p className="mb-2 text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                    {activeModels[tier].live
+                      ? `Active models offered by ${meta.label} — recommended first (click to pin):`
+                      : `${meta.label} list unavailable — recommended defaults:`}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(activeModels[tier].candidates.length ? activeModels[tier].candidates : activeModels[tier].all.slice(0, 12)).map((m) => (
+                      <button key={m} onClick={() => selectModel(tier, m)}
+                        className={`rounded border px-2 py-1 font-mono text-[10.5px] transition ${
+                          model === m
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+                            : "border-slate-200 bg-slate-50 text-slate-700 hover:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        }`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  {activeModels[tier].live && activeModels[tier].all.length > activeModels[tier].candidates.length && (
+                    <p className="mt-2 text-[10px] text-slate-400">
+                      {activeModels[tier].all.length} models live total · retired models are removed automatically.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
