@@ -69,16 +69,6 @@ const TIER_OPTIONS = [
 type OverlapResult = { name: string; ebitda_accretion_pct: number };
 type AnalysisMetrics = { name: string; duplicate_cost_savings_cr: number; cross_sell_opportunity_cr: number; partner_recommendation: string; overlap_index_pct: number };
 
-const PRESET_ANCHORS = [
-  { id: "wingreens", label: "Wingreens (Consumer Foods Preset)" },
-  { id: "tata_consumer", label: "Tata Consumer (FMCG Preset)" },
-  { id: "patanjali", label: "Patanjali (Ayurveda Preset)" },
-];
-const PRESET_CANDIDATES = [
-  { id: "safe_harvest", label: "Safe Harvest (Pesticide-Free Grains)" },
-  { id: "organic_india", label: "Organic India (Herbal Tea)" },
-  { id: "soulfull", label: "Soulfull (Millet Snacks)" },
-];
 
 const DEFAULT_OVERLAPS: OverlapResult[] = [
   { name: "Safe Harvest", ebitda_accretion_pct: 8.2 },
@@ -94,15 +84,73 @@ const DEFAULT_ANALYSIS: AnalysisMetrics = {
   overlap_index_pct: 85,
 };
 
+type PipelineDeal = { id: string; buyer?: string | null; target?: string | null; sector?: string | null; normalized_value_usd?: number | null };
+
 function BoltOnHub() {
   const [collapsed, setCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<"presets" | "live" | "custom">("presets");
-  const [anchorGroup, setAnchorGroup] = useState(PRESET_ANCHORS[0].id);
-  const [targetCandidate, setTargetCandidate] = useState(PRESET_CANDIDATES[0].id);
+  const [activeTab, setActiveTab] = useState<"live" | "custom">("live");
+  const [deals, setDeals] = useState<PipelineDeal[]>([]);
+  const [loadingPipeline, setLoadingPipeline] = useState(true);
+  const [liveAnchor, setLiveAnchor] = useState("");
+  const [liveTarget, setLiveTarget] = useState("");
+  const [customAnchor, setCustomAnchor] = useState("");
+  const [customTarget, setCustomTarget] = useState("");
   const [costEfficiency, setCostEfficiency] = useState(1.5);
   const [computed, setComputed] = useState(false);
 
+  // Live Pipeline reads the user's active deal pipeline.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/deals/fetch").then((x) => x.json());
+        setDeals(((r.deals ?? []) as PipelineDeal[]).filter((d) => d.buyer || d.target));
+      } catch {
+        setDeals([]);
+      } finally {
+        setLoadingPipeline(false);
+      }
+    })();
+  }, []);
+
+  const anchors = useMemo(() => {
+    const m = new Map<string, { name: string; count: number; sector: string | null }>();
+    for (const d of deals) {
+      const n = (d.buyer ?? "").trim();
+      if (!n) continue;
+      const e = m.get(n) ?? { name: n, count: 0, sector: d.sector ?? null };
+      e.count++;
+      m.set(n, e);
+    }
+    return Array.from(m.values()).sort((a, b) => b.count - a.count);
+  }, [deals]);
+
+  const targets = useMemo(() => {
+    const m = new Map<string, { name: string; sector: string | null }>();
+    for (const d of deals) {
+      const n = (d.target ?? "").trim();
+      if (!n) continue;
+      if (!m.has(n)) m.set(n, { name: n, sector: d.sector ?? null });
+    }
+    return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [deals]);
+
+  useEffect(() => { if (!liveAnchor && anchors.length) setLiveAnchor(anchors[0].name); }, [anchors, liveAnchor]);
+  useEffect(() => { if (!liveTarget && targets.length) setLiveTarget(targets[0].name); }, [targets, liveTarget]);
+
+  const activeTarget = (activeTab === "live" ? liveTarget : customTarget).trim();
+  const anchorSector = anchors.find((a) => a.name === liveAnchor)?.sector ?? null;
+  const targetSector = targets.find((t) => t.name === liveTarget)?.sector ?? null;
+  const overlapIndex = activeTab === "live" && anchorSector && targetSector
+    ? (anchorSector.toLowerCase() === targetSector.toLowerCase() ? 88 : 62)
+    : DEFAULT_ANALYSIS.overlap_index_pct;
+  const resultName = activeTarget || DEFAULT_ANALYSIS.name;
+  const overlapCards: OverlapResult[] = activeTarget
+    ? [{ name: activeTarget, ebitda_accretion_pct: DEFAULT_OVERLAPS[0].ebitda_accretion_pct * (overlapIndex / 85) }, ...DEFAULT_OVERLAPS.slice(1)]
+    : DEFAULT_OVERLAPS;
+
   function execute() {
+    if (activeTab === "live" && (!liveAnchor || !liveTarget)) return;
+    if (activeTab === "custom" && (!customAnchor.trim() || !customTarget.trim())) return;
     setComputed(true);
   }
 
@@ -134,46 +182,53 @@ function BoltOnHub() {
 
               {/* Tabs */}
               <div className="mb-3 flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
-                {(["presets", "live", "custom"] as const).map((t) => (
+                {(["live", "custom"] as const).map((t) => (
                   <button key={t} onClick={() => setActiveTab(t)}
                           className={`border-b-2 px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-wider transition ${activeTab === t
                             ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
                             : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>
-                    {t === "presets" ? "Presets" : t === "live" ? "Live Pipeline" : "Custom Input"}
+                    {t === "live" ? "Live Pipeline" : "Custom Input"}
                   </button>
                 ))}
               </div>
 
-              {activeTab === "presets" && (
-                <>
-                  <div className="mb-3">
-                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Anchor Group (Consolidator)</label>
-                    <select value={anchorGroup} onChange={(e) => setAnchorGroup(e.target.value)}
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800">
-                      {PRESET_ANCHORS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Bolt-On Target Candidate</label>
-                    <select value={targetCandidate} onChange={(e) => setTargetCandidate(e.target.value)}
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800">
-                      {PRESET_CANDIDATES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                    </select>
-                  </div>
-                </>
-              )}
-
               {activeTab === "live" && (
-                <p className="mb-3 rounded border border-indigo-200 bg-indigo-50 p-2 text-[11px] text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
-                  Live Pipeline mode reads from your active deal pipeline below. Pick a buyer in the original AI bolt-on engine to enable this surface.
-                </p>
+                <>
+                  {loadingPipeline ? (
+                    <p className="mb-3 flex items-center gap-1.5 text-[11px] text-slate-500"><Loader2 className="h-3 w-3 animate-spin" /> Loading your deal pipeline…</p>
+                  ) : anchors.length === 0 ? (
+                    <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                      No deals in your pipeline yet. Import deals to enable the live overlay.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="mb-3">
+                        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Anchor (Acquirer from pipeline)</label>
+                        <select value={liveAnchor} onChange={(e) => setLiveAnchor(e.target.value)}
+                                className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800">
+                          {anchors.map((a) => <option key={a.name} value={a.name}>{a.name}{a.count > 1 ? ` (${a.count} deals)` : ""}</option>)}
+                        </select>
+                      </div>
+                      <div className="mb-3">
+                        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-500">Bolt-On Target (from pipeline)</label>
+                        <select value={liveTarget} onChange={(e) => setLiveTarget(e.target.value)}
+                                className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800">
+                          {targets.map((t) => <option key={t.name} value={t.name}>{t.name}{t.sector ? ` · ${t.sector}` : ""}</option>)}
+                        </select>
+                      </div>
+                      <p className="mb-3 text-[10px] italic text-slate-500">
+                        {deals.length} live deals · {anchors.length} acquirers · {targets.length} targets from your pipeline.
+                      </p>
+                    </>
+                  )}
+                </>
               )}
 
               {activeTab === "custom" && (
                 <div className="mb-3 space-y-2">
-                  <input placeholder="Custom anchor (free text)"
+                  <input value={customAnchor} onChange={(e) => setCustomAnchor(e.target.value)} placeholder="Custom anchor (free text)"
                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" />
-                  <input placeholder="Custom target candidate"
+                  <input value={customTarget} onChange={(e) => setCustomTarget(e.target.value)} placeholder="Custom target candidate"
                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800" />
                 </div>
               )}
@@ -218,7 +273,7 @@ function BoltOnHub() {
                 <>
                   {/* EBITDA accretion grid */}
                   <div className="mb-3 grid grid-cols-3 gap-2">
-                    {DEFAULT_OVERLAPS.map((o) => {
+                    {overlapCards.map((o) => {
                       const scaled = o.ebitda_accretion_pct * costEfficiency;
                       return (
                         <div key={o.name} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center dark:border-slate-700 dark:bg-slate-800/50">
@@ -234,10 +289,10 @@ function BoltOnHub() {
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                        Detailed Metric Analysis: {DEFAULT_ANALYSIS.name}
+                        Detailed Metric Analysis: {resultName}
                       </span>
                       <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">
-                        Overlap Index: {DEFAULT_ANALYSIS.overlap_index_pct}%
+                        Overlap Index: {overlapIndex}%
                       </span>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
