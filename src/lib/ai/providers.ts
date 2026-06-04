@@ -257,34 +257,99 @@ export async function listActiveModels(provider: ProviderId, apiKey: string | nu
 }
 
 export type ActiveModels = {
-  /** Curated candidates that are confirmed live, in preference order. */
+  /** Recommended models in preference order: newest same-series live models
+   *  first, then curated picks confirmed live. Used to auto-select + lead the UI. */
   candidates: string[];
-  /** Every live model id the provider currently offers (for an "all models" view). */
+  /** Every live CHAT model id the provider currently offers (noise filtered). */
   all: string[];
   /** True when the live list was fetched; false means we fell back to curated. */
   live: boolean;
 };
 
+// --- model taxonomy (for surfacing newer models dynamically) -----------------
+const FAST_VARIANTS = ["nano", "mini", "flash", "lite", "small", "instant", "turbo", "haiku", "scout", "air"];
+const SMART_VARIANTS = ["pro", "opus", "sonnet", "large", "max", "ultra", "plus", "reasoner", "thinking", "maverick"];
+const KNOWN_VARIANTS = [...FAST_VARIANTS, ...SMART_VARIANTS];
+
+/** Ids that are clearly NOT general chat/generation models. */
+function isChatModel(id: string): boolean {
+  const s = normModelId(id);
+  return !/(embed|embedding|moderation|rerank|whisper|transcrib|tts|audio|speech|voice|image|imagen|dall-?e|veo|vision-only|ocr|guard|safety|aqa|bison|gecko|davinci-00|babbage|ada-00|search-|computer-use|realtime|-edit|-similarity|-code-search)/.test(s);
+}
+
+/** Brand/series root of a model id (gemini, gpt, claude, mistral, grok, qwen, llama, command, deepseek...). */
+function modelBrand(id: string): string {
+  const s = normModelId(id).replace(/^[^/]+\//, ""); // drop "vendor/" prefix
+  const m = /^(gemini|gemma|gpt|chatgpt|o\d|claude|ministral|mistral|codestral|magistral|grok|qwen\d?|qwq|llama|command|deepseek|phi|yi|jamba|nova|kimi|glm)/.exec(s);
+  return m ? m[1].replace(/\d+$/, "") : s.split(/[-_]/)[0];
+}
+
+/** Tier variant marker present in an id (flash / mini / pro / opus ...), or "". */
+function modelVariant(id: string): string {
+  const s = normModelId(id);
+  return KNOWN_VARIANTS.find((v) => new RegExp(`(^|[-/_])${v}([-/_]|$)`).test(s)) ?? "";
+}
+
+/** Numeric version that follows the brand (e.g. gemini-2.5-flash → 2.5, gpt-4.1 → 4.1). */
+function modelVersion(id: string): number {
+  const s = normModelId(id).replace(/^[^/]+\//, "").replace(/\d{6,8}/g, ""); // strip date snapshots
+  const brand = modelBrand(id);
+  const after = s.slice(s.indexOf(brand) + brand.length);
+  const m = /(\d+(?:\.\d+)?)/.exec(after);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+function variantTier(v: string): Tier | "any" {
+  if (FAST_VARIANTS.includes(v)) return "fast";
+  if (SMART_VARIANTS.includes(v)) return "smart";
+  return "any";
+}
+
 /**
- * Resolve the ACTIVE candidate list for a provider+tier: curated preference
- * order, filtered to what the provider currently offers, with any brand-new
- * matching-family live models appended. Obsolete/removed models drop out
- * automatically. Falls back to the curated list when the live list is empty.
+ * Resolve the ACTIVE model list for a provider+tier.
+ *
+ * Returns the live, chat-only model list (`all`) plus a `candidates` preference
+ * order that DYNAMICALLY includes newer same-series models the provider has
+ * shipped — so e.g. when Google releases gemini-3.x it appears automatically
+ * without any code change, ranked above the curated 2.5 picks. Retired models
+ * drop out. Falls back to the curated list when the live list is unreachable.
  */
 export async function resolveActiveCandidates(
   provider: ProviderId, tier: Tier, apiKey: string | null,
 ): Promise<ActiveModels> {
   const curated = getModelsForTier(provider, tier);
-  const all = await listActiveModels(provider, apiKey);
-  if (!all.length) return { candidates: curated, all: [], live: false };
+  const raw = await listActiveModels(provider, apiKey);
+  if (!raw.length) return { candidates: curated, all: [], live: false };
 
-  // Keep curated models that are still offered (loose family match).
-  const candidates = curated.filter((c) => all.some((a) => sameModelFamily(a, c)));
+  const chat = raw.filter(isChatModel);
+
+  // Curated models still offered (loose family match).
+  const curatedLive = curated.filter((c) => chat.some((a) => sameModelFamily(a, c)));
+
+  // Newer same-series live models the curated list doesn't know about yet:
+  // same brand + same tier variant, version >= the best curated version.
+  const curatedSeries = curated.map((c) => ({ brand: modelBrand(c), variant: modelVariant(c), version: modelVersion(c) }));
+  const newer = chat.filter((m) => {
+    if (curatedLive.some((c) => sameModelFamily(c, m))) return false; // already represented
+    const b = modelBrand(m), v = modelVariant(m), ver = modelVersion(m);
+    const t = variantTier(v);
+    if (t !== "any" && t !== tier) return false; // keep tier-appropriate variants
+    return curatedSeries.some((c) => c.brand === b && (c.variant === v || !c.variant) && ver >= c.version);
+  });
+  // Newest first.
+  newer.sort((a, b) => modelVersion(b) - modelVersion(a));
+
+  const candidates = dedupe([...newer, ...curatedLive]);
   return {
-    candidates: candidates.length ? candidates : curated.filter((c) => all.includes(normModelId(c))),
-    all,
+    candidates: candidates.length ? candidates : curated.filter((c) => chat.includes(normModelId(c))),
+    all: chat,
     live: true,
   };
+}
+
+function dedupe(xs: string[]): string[] {
+  const seen = new Set<string>();
+  return xs.filter((x) => { const k = normModelId(x); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
 export async function callProvider(

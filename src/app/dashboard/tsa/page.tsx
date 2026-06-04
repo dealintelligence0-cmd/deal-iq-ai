@@ -89,6 +89,7 @@ function TSAVisuals({ seller, buyer, sector, geography, dealSize }: { seller: st
   const [inrPerUsd, setInrPerUsd] = useState(83);
   const [copied, setCopied] = useState(false);
   const [pptBusy, setPptBusy] = useState(false);
+  const [deckBusy, setDeckBusy] = useState(false);
 
   // Auto-populate carve-out entities from selected pipeline deal
   useEffect(() => {
@@ -164,6 +165,26 @@ function TSAVisuals({ seller, buyer, sector, geography, dealSize }: { seller: st
       setPptBusy(false);
     }
   }
+  // Consulting-grade deck built directly from the service catalog.
+  async function consultingDeck() {
+    setDeckBusy(true);
+    try {
+      const { exportTsaConsultingDeck } = await import("@/lib/proposal/module-decks");
+      const toDisp = (usdK: number) => currency === "USD" ? usdK : Math.round((usdK * inrPerUsd / 100) * 10) / 10;
+      await exportTsaConsultingDeck({
+        meta: { buyer: parentGroup || seller || "Parent", target: buyerGroup || buyer || "Buyer", sector, geography, dealSize },
+        currencySymbol: currency === "USD" ? "$" : "₹",
+        currencyUnit: currency === "USD" ? "k" : " L",
+        carveTarget, adminOverheadPct,
+        services: services.map((s) => ({ category: s.category, title: s.title, sla_baseline: s.sla_baseline, duration_months: s.duration_months, monthly_cost_k: toDisp(s.monthly_cost_k) })),
+        totals: { directBilled: toDisp(totals.directBilled), overhead: toDisp(totals.overhead), total: toDisp(totals.total), activeServices: totals.activeServices },
+      }, `deal-iq-tsa-deck-${buyer || "buyer"}-${seller || "target"}.pptx`);
+    } catch (e) {
+      alert("Consulting deck export failed: " + String(e));
+    } finally {
+      setDeckBusy(false);
+    }
+  }
 
   return (
     <div className="card overflow-hidden">
@@ -209,6 +230,10 @@ function TSAVisuals({ seller, buyer, sector, geography, dealSize }: { seller: st
               </button>
               <button onClick={pptPlan} disabled={pptBusy} className="flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] disabled:opacity-50 dark:border-slate-700">
                 {pptBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
+              </button>
+              <button onClick={consultingDeck} disabled={deckBusy} title="Big4-grade deck built from this service catalog"
+                className="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+                {deckBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Consulting Deck
               </button>
             </div>
           </div>
