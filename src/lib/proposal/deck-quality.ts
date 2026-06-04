@@ -25,11 +25,33 @@ export const WORD_LIMITS = {
 export type WordLimitField = keyof typeof WORD_LIMITS;
 
 /**
+ * Strip residual markdown / formatting artifacts so nothing like `**`, `##`,
+ * backticks, blockquote `>` or list markers ever reaches a slide. Applied
+ * automatically by `fitText`, so every text container in the deck is clean.
+ */
+export function clean(text: string): string {
+  return (text ?? "")
+    .replace(/\*\*/g, "")              // bold markers
+    .replace(/(^|\s)\*(\S)/g, "$1$2")  // stray opening italics
+    .replace(/(\S)\*(\s|$)/g, "$1$2")  // stray closing italics
+    .replace(/`+/g, "")                // code ticks
+    .replace(/~~/g, "")                // strikethrough
+    .replace(/\[(\d+)\]/g, "")         // citation refs
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // md links → label text
+    .replace(/^\s{0,3}#{1,6}\s+/, "")          // leading heading hashes
+    .replace(/^\s{0,3}>\s?/, "")               // leading blockquote
+    .replace(/^\s{0,3}(?:[-*+]|\d+\.)\s+/, "") // leading list marker
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+/**
  * Truncate `text` to the word budget for `field`, appending an ellipsis when
  * trimmed. Always trims at a word boundary; never expands the container.
+ * Markdown artifacts are stripped first via `clean`.
  */
 export function fitText(text: string, field: WordLimitField): string {
-  const words = (text ?? "").trim().split(/\s+/).filter(Boolean);
+  const words = clean(text).split(/\s+/).filter(Boolean);
   const max = WORD_LIMITS[field];
   if (words.length <= max) return words.join(" ");
   return words.slice(0, max).join(" ") + "…";
