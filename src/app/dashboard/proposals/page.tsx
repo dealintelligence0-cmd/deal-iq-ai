@@ -12,7 +12,7 @@ import {
   FileText, Sparkles, Loader2, Copy, Printer,
   CheckCircle2, ChevronDown, History, Trash2, Plus, X, Download, Target,
 } from "lucide-react";
-import PageHeader from "@/components/dashboard/PageHeader";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import CritiquePanel from "@/components/critique/CritiquePanel";
 import { renderVisualProposal, renderCitations } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
@@ -555,9 +555,26 @@ async function promoteToPartnerGrade() {
         icon={FileText}
         title="Proposal Generator"
         subtitle="AI-powered consulting documents"
+        actions={
+          <button onClick={() => setShowHistory(!showHistory)} className={headerActionBtn}>
+            <History className="h-3.5 w-3.5" /> History ({history.length})
+          </button>
+        }
       />
       <div className="flex h-full min-h-screen flex-col gap-0 lg:flex-row">
       <aside className="w-full shrink-0 border-b border-slate-200 bg-white p-6 lg:w-80 lg:border-b-0 lg:border-r lg:overflow-y-auto">
+
+        {showHistory && history.length > 0 && (
+          <div className="mb-5 space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/10 dark:bg-white/5">
+            {history.map((h) => (
+              <button key={h.id} onClick={() => { setContent(h.content); setShowHistory(false); }}
+                className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left hover:bg-slate-50 dark:border-white/10 dark:bg-[#15151f]">
+                <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">{h.label}</p>
+                <p className="text-[10px] text-slate-400">{h.createdAt} · {h.provider}</p>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="mb-5">
           <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Document Type</label>
@@ -862,26 +879,6 @@ async function promoteToPartnerGrade() {
           )}
         </div>
 
-        {history.length > 0 && (
-          <div className="mt-6">
-            <button onClick={() => setShowHistory(!showHistory)}
-              className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <span className="flex items-center gap-1.5"><History className="h-3.5 w-3.5" /> History ({history.length})</span>
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showHistory ? "rotate-180" : ""}`} />
-            </button>
-            {showHistory && (
-              <div className="mt-2 space-y-1.5">
-                {history.map((h) => (
-                  <button key={h.id} onClick={() => setContent(h.content)}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left hover:bg-slate-50">
-                    <p className="truncate text-xs font-medium text-slate-700">{h.label}</p>
-                    <p className="text-[10px] text-slate-400">{h.createdAt} · {h.provider}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-slate-50 p-6">

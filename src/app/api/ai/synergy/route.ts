@@ -262,6 +262,8 @@ This rule is more important than any other formatting requirement. Coherence acr
       content: result.text,
       meta: { ambition, target_revenue, target_ebitda, buyer_revenue },
     });
+    const { pruneHistory } = await import("@/lib/ai/history");
+    await pruneHistory(admin, "ai_outputs", { user_id: user.id, module: "synergy" }, 20);
 
    // =====================================================================
 // PHASE 2 — Cognition spine hook (additive, non-blocking)
