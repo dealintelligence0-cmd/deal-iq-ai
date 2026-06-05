@@ -25,8 +25,8 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json() as { deal_ids?: string[]; chunk_size?: number };
-  const ids = Array.isArray(body.deal_ids) ? body.deal_ids : [];
-  if (ids.length === 0) return NextResponse.json({ error: "deal_ids required" }, { status: 400 });
+  const requestedIds = Array.isArray(body.deal_ids) ? body.deal_ids : [];
+  if (requestedIds.length === 0) return NextResponse.json({ error: "deal_ids required" }, { status: 400 });
 
   // Smaller chunks than the synchronous route because QStash gives us
   // unlimited parallelism — sequential 25-deal chunks fit comfortably in
@@ -34,6 +34,16 @@ export async function POST(req: Request) {
   const chunkSize = Math.max(10, Math.min(30, body.chunk_size ?? 25));
 
   const admin = createAdminClient();
+
+  // SECURITY: only enqueue deals the caller actually owns. Otherwise the job
+  // row (and the background worker) would process another tenant's deals.
+  const { data: ownedRows } = await admin
+    .from("deals")
+    .select("id")
+    .in("id", requestedIds)
+    .eq("created_by", user.id);
+  const ids = (ownedRows ?? []).map((r) => r.id as string);
+  if (ids.length === 0) return NextResponse.json({ error: "No deals you own were found in deal_ids" }, { status: 400 });
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += chunkSize) {
     chunks.push(ids.slice(i, i + chunkSize));

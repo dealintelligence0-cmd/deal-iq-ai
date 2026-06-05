@@ -48,14 +48,21 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const sb = await createClient();
   const viewer = await resolveViewer(sb);
-  if (viewer.kind === "none") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Read-only viewers (guests) may not save synergy models.
+  if (viewer.kind !== "admin" && viewer.kind !== "user") {
+    return NextResponse.json({ error: "Read-only access" }, { status: 403 });
+  }
   let body: Partial<SynergyModel>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   if (!body.account_name) return NextResponse.json({ error: "account_name required" }, { status: 400 });
 
   const admin = createAdminClient();
   const ws = await getActiveWorkspace(sb);
-  const payload = { ...DEFAULTS, ...body, workspace_id: ws.workspaceId, created_by: viewer.kind === "guest" ? null : (viewer as any).userId, updated_at: new Date().toISOString() };
+  // Require edit rights in the active workspace before writing.
+  if (!ws.workspaceId || (ws.role !== "owner" && ws.role !== "editor")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const payload = { ...DEFAULTS, ...body, workspace_id: ws.workspaceId, created_by: viewer.userId, updated_at: new Date().toISOString() };
 
   const { data, error } = await admin.from("synergy_models")
     .upsert(payload, { onConflict: "workspace_id,account_name" }).select().single();

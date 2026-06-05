@@ -39,10 +39,36 @@ const C = {
 };
 
 // ===========================================================================
+// Security — escape untrusted text before it lands in HTML.
+// All proposal/citation content originates from the LLM (steerable via
+// prompt-injection from fetched web research) and from web-research page
+// titles/URLs, so every text token must be HTML-escaped before it is
+// interpolated into the markup that callers feed to dangerouslySetInnerHTML.
+// ===========================================================================
+export function escapeHtml(text: string): string {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Allow only http(s) URLs; return "" for anything else (javascript:, data:, …). */
+function safeUrl(url: string): string {
+  const u = (url ?? "").trim();
+  if (/^https?:\/\//i.test(u)) return u;
+  return "";
+}
+
+// ===========================================================================
 // Inline markdown (bold, italic, code, citation refs)
 // ===========================================================================
 function renderInline(text: string): string {
-  return text
+  // Escape first so any raw HTML in the source is neutralised, THEN apply the
+  // markdown transforms (the markdown sigils *, [, ` are not escaped, so they
+  // still work while <, >, &, ", ' become entities).
+  return escapeHtml(text)
     .replace(/\*\*(.+?)\*\*/g, `<strong style="color:${C.ink};font-weight:700">$1</strong>`)
     .replace(/\*(.+?)\*/g, `<em style="color:${C.body};font-style:italic">$1</em>`)
     .replace(
@@ -149,8 +175,8 @@ function renderSynergyKpiBlock(text: string): string {
   const [, rev, cost, total] = m;
   const card = (label: string, value: string, accent: string, pale: string) => `
     <div style="flex:1;border:1px solid ${C.rule};border-top:3px solid ${accent};background:${pale};padding:14px 16px;border-radius:2px">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:${C.muted}">${label}</div>
-      <div style="font-size:26px;font-weight:700;color:${C.ink};margin-top:6px;font-family:Arial,sans-serif">${value.trim()}</div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:${C.muted}">${escapeHtml(label)}</div>
+      <div style="font-size:26px;font-weight:700;color:${C.ink};margin-top:6px;font-family:Arial,sans-serif">${escapeHtml(value.trim())}</div>
     </div>`;
   return `
 <div style="display:flex;gap:10px;margin:14px 0">
@@ -225,8 +251,8 @@ function maybeRenderKpiStrip(text: string, kind: SectionKind): string {
     const accent = palette[i % palette.length];
     return `
 <div style="flex:1;min-width:140px;border:1px solid ${C.rule};border-top:3px solid ${accent};background:#fff;padding:12px 14px;border-radius:2px">
-  <div style="font-size:9.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:${C.muted}">${m[1].trim()}</div>
-  <div style="font-size:20px;font-weight:700;color:${C.ink};margin-top:4px;line-height:1.1">${m[2].trim()}</div>
+  <div style="font-size:9.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:${C.muted}">${escapeHtml(m[1].trim())}</div>
+  <div style="font-size:20px;font-weight:700;color:${C.ink};margin-top:4px;line-height:1.1">${escapeHtml(m[2].trim())}</div>
 </div>`;
   }).join("");
   return `<div style="display:flex;flex-wrap:wrap;gap:10px;margin:12px 0">${cards}</div>`;
@@ -368,9 +394,11 @@ export function renderCitations(citationsMd: string): string {
     const m = /^\[(\d+)\]\s*(.+?)(?:\s*[—–-]\s*(https?:\/\/\S+))?$/.exec(line.trim());
     if (!m) return "";
     const [, n, title, url] = m;
+    const safeTitle = escapeHtml(title);
+    const href = url ? safeUrl(url) : "";
     return `<li style="font-size:10.5px;color:${C.body};margin:3px 0;line-height:1.5">
-  <span style="font-family:Arial,monospace;font-weight:700;color:${C.teal};margin-right:6px">[${n}]</span>
-  ${url ? `<a href="${url}" target="_blank" style="color:${C.body};text-decoration:none;border-bottom:1px dotted ${C.teal}">${title}</a>` : title}
+  <span style="font-family:Arial,monospace;font-weight:700;color:${C.teal};margin-right:6px">[${escapeHtml(n)}]</span>
+  ${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:${C.body};text-decoration:none;border-bottom:1px dotted ${C.teal}">${safeTitle}</a>` : safeTitle}
 </li>`;
   }).filter(Boolean).join("");
 

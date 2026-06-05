@@ -13,7 +13,10 @@ export const maxDuration = 120;
 export async function POST(req: NextRequest) {
   const sb = await createClient();
   const viewer = await resolveViewer(sb);
-  if (viewer.kind === "none") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Read-only viewers (guests) may not trigger AI narrative writes.
+  if (viewer.kind !== "admin" && viewer.kind !== "user") {
+    return NextResponse.json({ error: "Read-only access" }, { status: 403 });
+  }
 
   let body: { account_name?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -21,11 +24,15 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
   const ws = await getActiveWorkspace(sb);
+  // Require edit rights in the active workspace before writing.
+  if (!ws.workspaceId || (ws.role !== "owner" && ws.role !== "editor")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { data: model } = await admin.from("synergy_models")
-    .select("*").eq("workspace_id", ws.workspaceId ?? "").eq("account_name", body.account_name).maybeSingle();
+    .select("*").eq("workspace_id", ws.workspaceId).eq("account_name", body.account_name).maybeSingle();
   if (!model) return NextResponse.json({ error: "Model not found. Save it first." }, { status: 404 });
 
-  const userId = viewer.kind === "guest" ? null : (viewer as any).userId;
+  const userId = viewer.userId;
   let resolved = await resolveKey(admin, userId ?? "00000000-0000-0000-0000-000000000000", "smart");
   if (!resolved?.apiKey) resolved = await resolveKey(admin, userId ?? "", "economic");
   if (!resolved?.apiKey) resolved = await resolveKey(admin, userId ?? "", "fast");

@@ -26,9 +26,12 @@ export async function POST(req: Request) {
     results.push({ total: json.total ?? 0, succeeded: json.succeeded ?? 0 });
   }
 
+  // SECURITY: scope the cleanup to the caller's OWN deals. Previously this
+  // deleted every tenant's deals older than the cutoff via the service-role
+  // client (cross-tenant data loss triggerable by any authenticated user).
   const admin = createAdminClient();
   const cutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-  await admin.from("deals").delete().lt("deal_date", cutoff);
+  await admin.from("deals").delete().eq("created_by", user.id).lt("deal_date", cutoff);
 
   const total = results.reduce((a, b) => a + b.total, 0);
   const succeeded = results.reduce((a, b) => a + b.succeeded, 0);

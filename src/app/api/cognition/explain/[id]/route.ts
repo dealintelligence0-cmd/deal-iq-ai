@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runAiWithMemory } from "@/lib/cognition/ai-memory";
+import { userCanAccessCognitionScope } from "@/lib/auth/workspace-access";
 import { labelForKey } from "@/lib/cognition/keys";
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
 import type { ProviderId } from "@/lib/ai/providers";
@@ -43,6 +44,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   if (revErr || !rev) {
     return NextResponse.json({ error: "Revision not found" }, { status: 404 });
+  }
+
+  // SECURITY: only explain revisions in a scope the caller owns (this runs a
+  // paid AI call and reads another tenant's revision otherwise).
+  if (!(await userCanAccessCognitionScope(user.id, rev.workspace_id, rev.deal_id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // 2. Build a tiny context snapshot — what does the explainer need to know

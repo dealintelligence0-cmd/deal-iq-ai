@@ -6,11 +6,12 @@
  * a chunk of deals. Marks the enrichment_jobs row done/error so the UI
  * can stop polling.
  *
- * Security: verifySignatureAppRouter rejects any request whose signature
- * doesn't match QSTASH_CURRENT_SIGNING_KEY (or the rotation key).
- * In local dev where signing keys are unset, set
- *   QSTASH_NEXT_SIGNING_KEY=skip
- * to disable verification (the wrapper treats unset keys as skip).
+ * Security: every request is QStash-signature verified against
+ * QSTASH_CURRENT_SIGNING_KEY (or the rotation key) before any DB work.
+ * Verification is wired lazily (see POST below) so that:
+ *   - in PRODUCTION with the signing keys missing we FAIL CLOSED (503), and
+ *   - in local dev (keys unset) we don't crash at import/build time and run
+ *     the handler unsigned for convenience.
  */
 
 import { NextResponse } from "next/server";
@@ -37,12 +38,34 @@ async function handler(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
   }
-  const { job_id, user_id, deal_ids } = payload;
-  if (!job_id || !user_id || !Array.isArray(deal_ids) || deal_ids.length === 0) {
-    return NextResponse.json({ error: "Missing job_id / user_id / deal_ids" }, { status: 400 });
+  const { job_id } = payload;
+  if (!job_id) {
+    return NextResponse.json({ error: "Missing job_id" }, { status: 400 });
   }
 
   const admin = createAdminClient();
+
+  // SECURITY: derive user_id and deal_ids from the PERSISTED job row, never
+  // from the request payload. Even though QStash signs the payload, the job
+  // row is the single source of truth for who owns this work and which deals
+  // it covers — so a replayed/forged body cannot retarget another tenant.
+  const { data: job } = await admin
+    .from("enrichment_jobs")
+    .select("id, user_id, deal_ids")
+    .eq("id", job_id)
+    .maybeSingle();
+  if (!job) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+  const user_id = job.user_id as string;
+  const deal_ids = (job.deal_ids ?? []) as string[];
+  if (!user_id || deal_ids.length === 0) {
+    await admin
+      .from("enrichment_jobs")
+      .update({ status: "error", finished_at: new Date().toISOString(), error_message: "Job row missing user_id / deal_ids" })
+      .eq("id", job_id);
+    return NextResponse.json({ ok: false, reason: "bad-job-row" });
+  }
 
   // Mark job processing
   await admin
@@ -84,11 +107,13 @@ async function handler(request: Request) {
     blockFreeFallback: true,
   };
 
-  // Pull the deal rows
+  // Pull the deal rows — scoped to the job owner (defence in depth on top of
+  // the enqueue-time ownership filter).
   const { data: deals, error: dealsErr } = await admin
     .from("deals")
     .select("id,buyer,target,sector,country,deal_type,value_raw,normalized_value_usd,stake_percent,status")
-    .in("id", deal_ids);
+    .in("id", deal_ids)
+    .eq("created_by", user_id);
 
   if (dealsErr) {
     await admin
@@ -124,7 +149,7 @@ async function handler(request: Request) {
           risk_flag:      enriched.risk_flag,
           ai_confidence:  enriched.confidence,
           ai_enriched_at: new Date().toISOString(),
-        }).eq("id", deal.id);
+        }).eq("id", deal.id).eq("created_by", user_id);
 
         if (updErr) {
           failed++;
@@ -156,4 +181,25 @@ async function handler(request: Request) {
   return NextResponse.json({ ok: true, succeeded, failed });
 }
 
-export const POST = verifySignatureAppRouter(handler);
+export async function POST(request: Request): Promise<Response> {
+  const hasKeys = Boolean(
+    process.env.QSTASH_CURRENT_SIGNING_KEY && process.env.QSTASH_NEXT_SIGNING_KEY,
+  );
+
+  if (!hasKeys) {
+    // Fail closed in production — never run privileged work on an unverified
+    // request. In dev, allow unsigned calls (and avoid constructing the
+    // verifier, which throws at import when keys are absent).
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "QStash signing keys not configured" },
+        { status: 503 },
+      );
+    }
+    return handler(request);
+  }
+
+  // Construct the verified handler lazily so the verifier is only built when
+  // the signing keys actually exist (prevents the build-time import crash).
+  return verifySignatureAppRouter(handler)(request);
+}

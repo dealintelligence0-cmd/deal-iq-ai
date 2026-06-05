@@ -5,6 +5,21 @@ import type { Deal } from "@/lib/analytics";
 import { formatUsdShort } from "@/lib/analytics";
 
 /**
+ * Escape untrusted strings before interpolating them into the print-PDF HTML.
+ * Deal fields (buyer/target/sector/…) and the report title can contain markup
+ * sourced from ingested feeds or AI enrichment, so they must be neutralised
+ * before they reach document.write().
+ */
+function esc(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * Deal pipeline export utilities (CSV / JSON / PDF / PPTX).
  *
  * VISUAL UPGRADE ONLY: this file was retuned to the MBB / Big4 colour language
@@ -111,18 +126,18 @@ export function exportPdf(deals: Deal[], title = "Deal Pipeline Report"): void {
   const rows = deals
     .map(
       (d) => `<tr>
-        <td>${d.deal_date ?? "—"}</td>
-        <td><strong>${d.buyer ?? "—"}</strong></td>
-        <td>${d.target ?? "—"}</td>
-        <td>${d.sector ?? "—"}</td>
-        <td>${d.country ?? "—"}</td>
+        <td>${esc(d.deal_date ?? "—")}</td>
+        <td><strong>${esc(d.buyer ?? "—")}</strong></td>
+        <td>${esc(d.target ?? "—")}</td>
+        <td>${esc(d.sector ?? "—")}</td>
+        <td>${esc(d.country ?? "—")}</td>
         <td style="text-align:right">${d.normalized_value_usd ? formatUsdShort(d.normalized_value_usd) : "—"}</td>
-        <td style="text-transform:capitalize">${d.status ?? "—"}</td>
+        <td style="text-transform:capitalize">${esc(d.status ?? "—")}</td>
       </tr>`,
     )
     .join("");
 
-  win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+  win.document.write(`<!DOCTYPE html><html><head><title>${esc(title)}</title>
 <style>
 @page { size: A4; margin: 18mm 14mm 22mm; }
 * { box-sizing: border-box; }
@@ -153,7 +168,7 @@ td{padding:7px 10px;border-bottom:1px solid #${MBB.rule};color:#${MBB.body};vert
   <div><div class="name">${MBB.name}</div><div class="tag">${MBB.tagline}</div></div>
   <div class="ts">${new Date().toLocaleDateString()}<strong>CONFIDENTIAL</strong></div>
 </div>
-<h1>${title}</h1>
+<h1>${esc(title)}</h1>
 <div class="meta">${deals.length} transactions  ·  Total value ${formatUsdShort(total)}  ·  ${live} live / announced</div>
 <div class="stats">
   <div class="stat"><div class="l">Deals</div><div class="v">${deals.length}</div></div>

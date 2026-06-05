@@ -21,10 +21,16 @@ export const maxDuration = 300;
 const EMBED_PROVIDERS = ["openai", "google", "cohere", "openrouter", "nvidia", "together"] as const;
 
 export async function GET(req: NextRequest) {
-  // Auth: Vercel sends CRON_SECRET; in dev allow without
+  // Auth: Vercel sends CRON_SECRET. Fail closed in production if it is unset,
+  // otherwise an unauthenticated caller can trigger service-role loops over
+  // every user (key-burning / cost-exhaustion). Dev may run without it.
   const authHeader = req.headers.get("authorization");
   const expected = process.env.CRON_SECRET;
-  if (expected && authHeader !== `Bearer ${expected}`) {
+  if (!expected) {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 });
+    }
+  } else if (authHeader !== `Bearer ${expected}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

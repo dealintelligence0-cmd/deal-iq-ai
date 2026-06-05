@@ -246,11 +246,11 @@ useEffect(() => {
 
   useEffect(() => {
     (async () => {
-      const sb = (await import("@/lib/supabase/client")).createClient();
-      const { data } = await sb.from("proposals")
-        .select("id,proposal_type,buyer,target,content,provider,model,created_at")
-        .order("created_at", { ascending: false })
-        .limit(20);
+      // Server route (resolveDataOwner) so guests see the admin's proposal
+      // history; a client-side anon query returns nothing without a session.
+      const res = await fetch("/api/proposals");
+      if (!res.ok) return;
+      const { proposals: data } = await res.json() as { proposals?: Array<Record<string, any>> };
 
       if (data) {
         setHistory(data.map((d) => ({
