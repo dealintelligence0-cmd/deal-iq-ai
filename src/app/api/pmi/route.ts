@@ -48,7 +48,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const sb = await createClient();
   const viewer = await resolveViewer(sb);
-  if (viewer.kind === "none") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Read-only viewers (guests) may not create PMI playbooks.
+  if (viewer.kind !== "admin" && viewer.kind !== "user") {
+    return NextResponse.json({ error: "Read-only access" }, { status: 403 });
+  }
 
   let body: { account_name?: string; buyer_name?: string; sector?: string; geography?: string; use_ai?: boolean; deal_id?: string | null };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -56,7 +59,11 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
   const ws = await getActiveWorkspace(sb);
-  const userId = viewer.kind === "guest" ? null : (viewer as any).userId;
+  // Require edit rights in the active workspace before writing.
+  if (!ws.workspaceId || (ws.role !== "owner" && ws.role !== "editor")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const userId = viewer.userId;
 
   // Check existing
   const { data: existing } = await admin.from("pmi_playbooks")

@@ -53,10 +53,14 @@ export async function POST(req: Request) {
     primaryModel: settings?.bulk_model ?? undefined,
   };
 
+  // SECURITY: only ever read/write the caller's OWN deals. The admin client
+  // bypasses RLS, so we must scope by created_by — otherwise an authenticated
+  // user could pass arbitrary deal_ids and read/overwrite another tenant's data.
   const { data: deals, error: dealsErr } = await admin
     .from("deals")
     .select("id,buyer,target,sector,country,deal_type,value_raw,normalized_value_usd,stake_percent,status")
-    .in("id", deal_ids);
+    .in("id", deal_ids)
+    .eq("created_by", user.id);
 
   if (dealsErr) {
     return NextResponse.json({ error: dealsErr.message }, { status: 500 });

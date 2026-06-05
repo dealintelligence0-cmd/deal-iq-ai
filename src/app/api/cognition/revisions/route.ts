@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { listRevisions } from "@/lib/cognition/orchestrator";
+import { userCanAccessCognitionScope } from "@/lib/auth/workspace-access";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,11 @@ export async function GET(req: NextRequest) {
   const workspaceId = url.searchParams.get("workspace_id");
   const dealId = url.searchParams.get("deal_id");
   const key = url.searchParams.get("key") ?? undefined;
+
+  // SECURITY: verify the caller owns the requested workspace/deal scope.
+  if (!(await userCanAccessCognitionScope(user.id, workspaceId, dealId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const sinceIso = url.searchParams.get("since") ?? undefined;
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10), 100);
 

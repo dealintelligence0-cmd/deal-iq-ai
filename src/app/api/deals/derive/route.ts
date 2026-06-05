@@ -18,7 +18,8 @@ export async function POST() {
   const { data: fxSettings } = await admin.from("ai_settings")
     .select("fx_inr_usd").eq("user_id", user.id).maybeSingle();
   const fxRate = (fxSettings as Record<string, unknown> | null)?.fx_inr_usd as number | null ?? 83;
-  const { data: rows, error } = await admin.from("deals").select("*").limit(500);
+  // SECURITY: only derive over the caller's OWN deals — never every tenant's.
+  const { data: rows, error } = await admin.from("deals").select("*").eq("created_by", user.id).limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let updated = 0;

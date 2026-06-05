@@ -18,8 +18,13 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
+  // SECURITY: scope every deal read/write to the caller (admin client bypasses
+  // RLS). Without created_by an attacker could overwrite another tenant's deal.
+  const { data: owned } = await admin.from("deals").select("id").eq("id", deal_id).eq("created_by", user.id).maybeSingle();
+  if (!owned) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+
   // Cache check
-  const { data: cached } = await admin.from("deals").select("ai_enrichment, ai_enriched_at").eq("id", deal_id).maybeSingle();
+  const { data: cached } = await admin.from("deals").select("ai_enrichment, ai_enriched_at").eq("id", deal_id).eq("created_by", user.id).maybeSingle();
   if (cached?.ai_enrichment && cached.ai_enriched_at) {
     const age = Date.now() - new Date(cached.ai_enriched_at).getTime();
     if (age < 7 * 24 * 60 * 60 * 1000) {
@@ -171,7 +176,7 @@ Return JSON per schema.`;
     await admin.from("deals").update({
       ai_enrichment: parsed,
       ai_enriched_at: new Date().toISOString(),
-    }).eq("id", deal_id);
+    }).eq("id", deal_id).eq("created_by", user.id);
 
     return NextResponse.json({ ok: true, cached: false, ...parsed });
   } catch (e) {

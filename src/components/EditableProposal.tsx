@@ -9,6 +9,7 @@ import {
   renderSectionBody,
   replaceSection,
   renderCitations,
+  renderVisualProposal,
   type ProposalSection,
 } from "@/lib/proposal/visual-renderer";
 
@@ -128,7 +129,7 @@ export default function EditableProposal({ content, onContentChange, citationsMd
     return (
       <article
         className="max-w-none"
-        dangerouslySetInnerHTML={{ __html: content + (citationsMd ? renderCitations(citationsMd) : "") }}
+        dangerouslySetInnerHTML={{ __html: renderVisualProposal(content) + (citationsMd ? renderCitations(citationsMd) : "") }}
       />
     );
   }

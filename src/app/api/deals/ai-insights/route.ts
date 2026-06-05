@@ -17,8 +17,10 @@ export async function POST(req: Request) {
   const body = await req.json() as { deal_id: string; force?: boolean };
   if (!body.deal_id) return NextResponse.json({ error: "deal_id required" }, { status: 400 });
 
+  // SECURITY: scope to the caller's own deal — the admin client bypasses RLS,
+  // so reads/writes must be filtered by created_by to prevent cross-tenant IDOR.
   const admin = createAdminClient();
-  const { data: deal } = await admin.from("deals").select("*").eq("id", body.deal_id).maybeSingle();
+  const { data: deal } = await admin.from("deals").select("*").eq("id", body.deal_id).eq("created_by", user.id).maybeSingle();
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
   const trigger_events = scanTriggerEvents(deal);
@@ -189,7 +191,7 @@ Return ONLY valid JSON per schema above.`;
       targeting_recommendation: parsed.targeting_recommendation,
       targeting_reason: parsed.targeting_reason,
       confidence_level: parsed.confidence_level,
-    }).eq("id", body.deal_id);
+    }).eq("id", body.deal_id).eq("created_by", user.id);
 
     return NextResponse.json({ ok: true, cached: false, insight_sections: ins,
       deal_takeaway: parsed.deal_takeaway,

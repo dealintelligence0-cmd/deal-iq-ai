@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { reviseAssumption, getAssumption } from "@/lib/cognition/orchestrator";
+import { userCanAccessCognitionScope } from "@/lib/auth/workspace-access";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,12 @@ export async function GET(req: NextRequest) {
   const key = url.searchParams.get("key");
 
   if (!key) return NextResponse.json({ error: "key is required" }, { status: 400 });
+
+  // SECURITY: the orchestrator reads via the service-role client, so verify the
+  // caller actually owns the requested workspace/deal scope.
+  if (!(await userCanAccessCognitionScope(user.id, workspaceId, dealId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const a = await getAssumption(workspaceId || null, dealId || null, key);
   if (!a) return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -56,6 +63,11 @@ export async function PUT(req: NextRequest) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   if (!body.key) return NextResponse.json({ error: "key is required" }, { status: 400 });
+
+  // SECURITY: verify the caller owns the workspace/deal scope before writing.
+  if (!(await userCanAccessCognitionScope(user.id, body.workspace_id ?? null, body.deal_id ?? null, { write: true }))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   // Normalize value: caller can pass either { value: 42 } or { valueNumeric/valueText/valueJson }
   let valueNumeric: number | null = body.valueNumeric ?? null;

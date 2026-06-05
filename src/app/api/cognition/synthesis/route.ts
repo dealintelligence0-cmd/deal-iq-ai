@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { synthesize, briefFromRow } from "@/lib/cognition/synthesize";
+import { userCanAccessCognitionScope } from "@/lib/auth/workspace-access";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,11 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const workspaceId = url.searchParams.get("workspace_id");
   const dealId = url.searchParams.get("deal_id");
+
+  // SECURITY: verify the caller owns the requested workspace/deal scope.
+  if (!(await userCanAccessCognitionScope(user.id, workspaceId, dealId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const admin = createAdminClient();
   let q = admin
@@ -47,6 +53,11 @@ export async function POST(req: NextRequest) {
 
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+
+  // SECURITY: verify the caller owns the requested workspace/deal scope.
+  if (!(await userCanAccessCognitionScope(user.id, body.workspace_id ?? null, body.deal_id ?? null, { write: true }))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const brief = await synthesize({
