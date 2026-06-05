@@ -491,6 +491,10 @@ export default function TSAGeneratorPage() {
     if (data) setHistory(data as HistoryItem[]);
   }
 
+  // Load saved TSA history on mount (other modules already do this; without it
+  // the History counter sat at 0 until the first generate, then jumped).
+  useEffect(() => { reloadHistory(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
   async function deleteHistory(id: string) {
     if (!confirm("Delete this saved TSA?")) return;
     await sb.from("ai_outputs").delete().eq("id", id);

@@ -201,6 +201,8 @@ Generate the full carve-out rationale memo in markdown.`;
       cost_estimate_usd: Math.round(cost * 10000) / 10000,
       content,
     });
+    const { pruneHistory } = await import("@/lib/ai/history");
+    await pruneHistory(admin, "ai_outputs", { user_id: user.id, module: "tsa" }, 20);
 
 // =====================================================================
 // PHASE 3 — Cognition spine hook (TSA). Non-blocking, additive.

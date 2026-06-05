@@ -30,7 +30,7 @@ export async function GET() {
     .select("id,proposal_type,buyer,target,content,provider,model,created_at")
     .eq("user_id", owner.ownerId)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(20);
 
   if (error) return NextResponse.json({ error: error.message, proposals: [] }, { status: 500 });
   return NextResponse.json({ proposals: data ?? [] });

@@ -156,12 +156,13 @@ export default function UploadsPage() {
   const previewName = items.find((i) => i.id === previewId)?.file.name ?? "";
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <>
       <PageHeader
         icon={CloudUpload}
         title="Upload Deal Data"
         subtitle="Drop CSV, XLSX, XLS, TXT, or JSON files. We'll parse them in your browser and store them securely."
       />
+      <div className="mx-auto max-w-5xl">
 
       {/* PRIMARY PATH — v2 pipeline (one-click upload + ingest) */}
       <div className="mb-6">
@@ -239,6 +240,7 @@ export default function UploadsPage() {
           onClose={() => setPreviewId(null)}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }

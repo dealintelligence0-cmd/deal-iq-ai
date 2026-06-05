@@ -584,6 +584,8 @@ ${fullContext}` },
       content: result.text, provider: result.provider,
       model: result.model, via_fallback: result.viaFallback,
     }).select("id").single();
+    const { pruneHistory } = await import("@/lib/ai/history");
+    await pruneHistory(admin, "proposals", { user_id: user.id }, 20);
     await logActivity(supabase, "proposal_generated", "proposals", undefined, { type: proposal_type });
     return NextResponse.json({
       proposalId: insertedRow?.id,

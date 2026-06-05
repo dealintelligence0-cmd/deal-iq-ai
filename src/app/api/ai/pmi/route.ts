@@ -257,6 +257,8 @@ System dependency map (must explicitly cover): ${JSON.stringify(dependencyMap)}`
         key_risks, known_issues,
       },
     });
+    const { pruneHistory } = await import("@/lib/ai/history");
+    await pruneHistory(admin, "ai_outputs", { user_id: user.id, module: "pmi" }, 20);
 
     return NextResponse.json({
       content: result.text,

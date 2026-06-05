@@ -45,7 +45,7 @@ export default function ExecutiveBriefPage() {
   }, [deals, dealId]);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <>
       <PageHeader
         title="Executive Brief"
         subtitle="On-demand synthesis of the deal model — thesis, risks, and cross-module flags in one place."
@@ -66,6 +66,7 @@ export default function ExecutiveBriefPage() {
           </label>
         }
       />
+    <div className="mx-auto max-w-4xl px-6 py-8">
 
       <ExecutiveBrief dealId={dealId || null} workspaceId={null} dealLabel={selectedLabel} />
 
@@ -75,5 +76,6 @@ export default function ExecutiveBriefPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

@@ -165,7 +165,7 @@ export default function ResolutionTasksPage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-4">
+    <>
       <PageHeader
         title="Resolution Tasks"
         subtitle="Doubtful rows from intelligence-feed imports. Each one is a deal that needs your review before reaching the pipeline."
@@ -176,6 +176,7 @@ export default function ResolutionTasksPage() {
           </button>
         }
       />
+      <div className="mx-auto max-w-6xl space-y-4">
 
       {toast && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
@@ -452,5 +453,6 @@ export default function ResolutionTasksPage() {
         </div>
       )}
     </div>
+    </>
   );
 }
