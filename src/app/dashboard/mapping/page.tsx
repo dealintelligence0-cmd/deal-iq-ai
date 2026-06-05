@@ -14,6 +14,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 import { createClient } from "@/lib/supabase/client";
 import { parseStoredUpload } from "@/lib/supabase/parse-storage";
 import {
@@ -472,13 +473,11 @@ export default function MappingPage() {
 
   return (
     <div>
-      <h1 className="mb-2 flex items-center gap-2 text-2xl font-semibold text-slate-900">
-        <GitMerge className="h-6 w-6 text-indigo-600" />
-        File Mapping
-      </h1>
-      <p className="mb-5 text-sm text-slate-500">
-        Map source columns from uploaded files, cleanse/standardize rows, and import into your deals database.
-      </p>
+      <PageHeader
+        icon={GitMerge}
+        title="File Mapping"
+        subtitle="Map source columns from uploaded files, cleanse/standardize rows, and import into your deals database."
+      />
 
       {toast && (
         <div

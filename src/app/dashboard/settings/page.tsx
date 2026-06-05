@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PROVIDERS, type ProviderId } from "@/lib/ai/providers";
 import { CheckCircle2, XCircle, AlertCircle, Trash2, Key, Settings as SettingsIcon, Search, Loader2, RefreshCw, Shield } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 import { Sliders } from "lucide-react";
 import { scoreModels, DEFAULT_WEIGHTS_BY_MODULE, type RubricWeights } from "@/lib/ai/rubric";
 import KeyLibraryManager from "@/components/KeyLibraryManager";
@@ -212,12 +213,13 @@ async function saveProvider(tier: Tier, p: ProviderId) {
   const braveStatus = keysStatus.find((k) => k.kind === "brave");
   const serperStatus = keysStatus.find((k) => k.kind === "serper");
   return (
-    <div className="max-w-4xl space-y-6 p-2">
+    <div className="max-w-4xl space-y-6">
+      <PageHeader
+        icon={SettingsIcon}
+        title="AI Settings"
+        subtitle="Manage AI providers, API keys, and research tools."
+      />
       <KeyLibraryManager />
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">AI Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Manage AI providers, API keys, and research tools.</p>
-      </div>
 
       <MigrationHealthCard />
 

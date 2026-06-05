@@ -5,6 +5,7 @@ import {
   Download, FileSpreadsheet, FileJson, FileText, Presentation,
   Loader2, CheckCircle2, Filter,
 } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import { exportCsv, exportJson, exportPdfServer, exportPptx } from "@/lib/export";
 
@@ -68,16 +69,12 @@ export default function ExportsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
-          <Download className="h-5 w-5 text-indigo-500" />
-          Export Center
-        </h1>
-        <p className="mt-0.5 text-sm text-slate-500">
-          Download your deal data in 4 branded formats — PDF is generated server-side; PPTX uses branded consulting-grade slides.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Download}
+        title="Export Center"
+        subtitle="Download your deal data in 4 branded formats — PDF is generated server-side; PPTX uses branded consulting-grade slides."
+      />
 
       {loading ? (
         <div className="flex h-64 items-center justify-center">

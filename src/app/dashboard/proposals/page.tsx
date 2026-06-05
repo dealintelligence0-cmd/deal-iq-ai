@@ -12,6 +12,7 @@ import {
   FileText, Sparkles, Loader2, Copy, Printer,
   CheckCircle2, ChevronDown, History, Trash2, Plus, X, Download, Target,
 } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 import CritiquePanel from "@/components/critique/CritiquePanel";
 import { renderVisualProposal, renderCitations } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
@@ -549,17 +550,14 @@ async function promoteToPartnerGrade() {
   const selectedOption = PROPOSAL_OPTIONS.find((o) => o.value === proposalType);
 
   return (
-    <div className="flex h-full min-h-screen flex-col gap-0 lg:flex-row">
+    <>
+      <PageHeader
+        icon={FileText}
+        title="Proposal Generator"
+        subtitle="AI-powered consulting documents"
+      />
+      <div className="flex h-full min-h-screen flex-col gap-0 lg:flex-row">
       <aside className="w-full shrink-0 border-b border-slate-200 bg-white p-6 lg:w-80 lg:border-b-0 lg:border-r lg:overflow-y-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-            <FileText className="h-4 w-4 text-white" />
-          </div>
-          <div className="page-header">
-            <h1 className="text-lg font-semibold text-white">Proposal Generator</h1>
-            <p className="mt-1 text-xs text-white/60">AI-powered consulting documents</p>
-          </div>
-        </div>
 
         <div className="mb-5">
           <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Document Type</label>
@@ -1106,7 +1104,8 @@ async function promoteToPartnerGrade() {
           onClose={() => setCritiqueOpen(false)}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

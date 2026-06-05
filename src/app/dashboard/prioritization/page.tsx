@@ -26,6 +26,7 @@ import {
   Loader2, ArrowUpDown, Filter as FilterIcon, Sparkles,
   TrendingUp, ShieldAlert, DollarSign, Target, FileText,
 } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import ScoringMethodologyCard from "@/components/dashboard/ScoringMethodologyCard";
 
@@ -181,16 +182,12 @@ export default function PrioritizationPage() {
   const unscored = deals.filter((d) => d.priority_score == null && d.advisory_score == null).length;
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
-          <Target className="h-6 w-6 text-indigo-600" />
-          Deal Prioritization
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Composite Pursue Score blends partner-defined priority, advisory potential, deal size, and risk.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Target}
+        title="Deal Prioritization"
+        subtitle="Composite Pursue Score blends partner-defined priority, advisory potential, deal size, and risk."
+      />
 
       <ScoringMethodologyCard />
 

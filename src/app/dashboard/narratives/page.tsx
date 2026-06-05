@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Lightbulb, Loader2, RefreshCw, Search, ChevronRight, FileText } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 
 type NarrativeRow = {
   id: string;
@@ -102,16 +103,12 @@ export default function NarrativesPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
-          <Lightbulb className="h-6 w-6 text-amber-500" />
-          Account Narratives
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          For any account, synthesise a partner-ready 1-pager combining deals + signals + themes + bolt-ons + advisors. The AI pulls from all your existing intelligence.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Lightbulb}
+        title="Account Narratives"
+        subtitle="For any account, synthesise a partner-ready 1-pager combining deals + signals + themes + bolt-ons + advisors. The AI pulls from all your existing intelligence."
+      />
 
       {/* Generator */}
       <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">

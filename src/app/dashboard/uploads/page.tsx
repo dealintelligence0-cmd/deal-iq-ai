@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { CloudUpload, Sparkles } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 import { createClient } from "@/lib/supabase/client";
 import { parseFile, isSupported, type ParsedFile } from "@/lib/parsers";
 import Dropzone from "@/components/upload/Dropzone";
@@ -156,16 +157,11 @@ export default function UploadsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-8">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
-          <CloudUpload className="h-6 w-6 text-indigo-600" />
-          Upload Deal Data
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Drop CSV, XLSX, XLS, TXT, or JSON files. We'll parse them in your
-          browser and store them securely.
-        </p>
-      </div>
+      <PageHeader
+        icon={CloudUpload}
+        title="Upload Deal Data"
+        subtitle="Drop CSV, XLSX, XLS, TXT, or JSON files. We'll parse them in your browser and store them securely."
+      />
 
       {/* PRIMARY PATH — v2 pipeline (one-click upload + ingest) */}
       <div className="mb-6">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Users2, Loader2, Plus, Trash2, RefreshCw, X, Shield } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 
 type Workspace = {
   id: string;
@@ -139,16 +140,12 @@ export default function AdminWorkspacesPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
-          <Users2 className="h-6 w-6 text-indigo-600" />
-          Workspaces (Admin)
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Create shared workspaces where multiple users can collaborate on the same Account Narratives. Each user always has a personal workspace too.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Users2}
+        title="Workspaces (Admin)"
+        subtitle="Create shared workspaces where multiple users can collaborate on the same Account Narratives. Each user always has a personal workspace too."
+      />
 
       {error && (
         <div className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">{error}</div>

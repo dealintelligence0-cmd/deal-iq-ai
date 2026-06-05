@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
 import { TrendingUp, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import { generateOfflineSynergy } from "@/lib/proposal/offline-synergy";
@@ -663,21 +664,16 @@ export default function SynergyEnginePage() {
   hasOfflineFallback={true}
 />
 
-<div className="page-header">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-semibold text-white">
-              <TrendingUp className="h-5 w-5 text-indigo-400" />
-              Synergy Engine
-            </h1>
-            <p className="mt-1 text-sm text-white/50">AI-powered synergy model · sector-specific initiatives · benchmarked against real transactions</p>
-          </div>
-          <button onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">
+<PageHeader
+        icon={TrendingUp}
+        title="Synergy Engine"
+        subtitle="AI-powered synergy model · sector-specific initiatives · benchmarked against real transactions"
+        actions={
+          <button onClick={() => setShowHistory(!showHistory)} className={headerActionBtn}>
             <History className="h-3.5 w-3.5" /> History ({history.length})
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* v29 Visual Layer — sits above main grid, complements AI text */}
       <SynergyVisuals buyer={buyer} target={target} sector={sector} geography={geography} dealSize={dealSize} />

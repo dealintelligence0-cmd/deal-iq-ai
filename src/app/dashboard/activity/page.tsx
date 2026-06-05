@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Shield, Loader2, Activity } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 import { createClient } from "@/lib/supabase/client";
 
 type LogRow = {
@@ -39,16 +40,12 @@ export default function ActivityPage() {
   }, [sb]);
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
-          <Shield className="h-5 w-5 text-indigo-500" />
-          Activity & Audit Log
-        </h1>
-        <p className="mt-0.5 text-sm text-slate-500">
-          Last 200 actions performed by your account. Rate limits and security events are recorded here.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Shield}
+        title="Activity & Audit Log"
+        subtitle="Last 200 actions performed by your account. Rate limits and security events are recorded here."
+      />
 
       {loading ? (
         <div className="flex h-64 items-center justify-center">
