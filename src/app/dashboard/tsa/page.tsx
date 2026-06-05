@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
 import { ArrowLeftRight, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, Cloud, FileText, Users, Truck, BarChart3, Briefcase, Plus } from "lucide-react";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
@@ -614,21 +615,16 @@ export default function TSAGeneratorPage() {
         hasOfflineFallback={true}
       />
 
-      <div className="page-header">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-semibold text-white">
-              <ArrowLeftRight className="h-5 w-5 text-indigo-400" />
-              TSA Generator
-            </h1>
-            <p className="mt-1 text-sm text-white/50">AI-powered Transitional Service Agreement</p>
-          </div>
-          <button onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20">
-            <History className="h-3 w-3" /> History ({history.length})
+      <PageHeader
+        icon={ArrowLeftRight}
+        title="TSA Generator"
+        subtitle="AI-powered Transitional Service Agreement"
+        actions={
+          <button onClick={() => setShowHistory(!showHistory)} className={headerActionBtn}>
+            <History className="h-3.5 w-3.5" /> History ({history.length})
           </button>
-        </div>
-      </div>
+        }
+      />
 
 <TSAVisuals seller={seller} buyer={buyer} sector={sector} geography={geography} dealSize={dealSize} />
 

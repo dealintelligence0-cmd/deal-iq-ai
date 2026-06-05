@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Activity, AlertTriangle, RefreshCw, Loader2, Plus, X, Shield, Building2, TrendingUp, Sparkles, Clock, ArrowRight, Users, Briefcase } from "lucide-react";
+import PageHeader, { headerActionBtn, headerPrimaryBtn } from "@/components/dashboard/PageHeader";
 
 type SignalType = "margin_pressure" | "transformation_pressure" | "activist_activity" | "acquisition_intent" | "leadership_change";
 
@@ -233,32 +234,26 @@ export default function SignalsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
-            <Activity className="h-6 w-6 text-rose-600" />
-            Signal Intel Hub
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Proprietary signals stream: live distressed opportunities, leadership shifts, and debt events. Five signal types feed your proposal generator.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
-            <Sparkles className="mr-1 inline h-3 w-3" /> Strategy / Big-4 Intel
-          </span>
-          <button onClick={() => setAddOpen(true)} className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300 dark:hover:bg-slate-800">
-            <Plus className="h-4 w-4" /> Add company
-          </button>
-          <button onClick={() => scan()} disabled={scanning || companies.length === 0}
-                  className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50">
-            {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {scanning ? "Scanning…" : "Scan all"}
-          </button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Activity}
+        title="Signal Intel Hub"
+        subtitle="Proprietary signals stream: live distressed opportunities, leadership shifts, and debt events. Five signal types feed your proposal generator."
+        actions={
+          <>
+            <span className="flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-white/90">
+              <Sparkles className="h-3 w-3" /> Strategy / Big-4 Intel
+            </span>
+            <button onClick={() => setAddOpen(true)} className={headerActionBtn}>
+              <Plus className="h-3.5 w-3.5" /> Add company
+            </button>
+            <button onClick={() => scan()} disabled={scanning || companies.length === 0} className={headerPrimaryBtn}>
+              {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {scanning ? "Scanning…" : "Scan all"}
+            </button>
+          </>
+        }
+      />
 
       {lastRun && (
         <div className="flex items-center gap-3 text-[11px] text-slate-500">

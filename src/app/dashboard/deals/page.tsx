@@ -11,6 +11,7 @@ import {
   Briefcase, Loader2, Download, Trash2, ChevronUp, ChevronDown,
   ChevronLeft, ChevronRight, Sparkles, Target, AlertTriangle, TrendingUp,
 } from "lucide-react";
+import PageHeader, { headerActionBtn, headerPrimaryBtn, headerDangerBtn } from "@/components/dashboard/PageHeader";
 import { createClient } from "@/lib/supabase/client";
 import { fetchDeals, formatUsdShort, type Deal } from "@/lib/analytics";
 import { downloadCsv } from "@/lib/csv";
@@ -197,36 +198,29 @@ export default function PipelinePage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
-            <Briefcase className="h-6 w-6 text-indigo-600" />
-            Pipeline Manager
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {all.length.toLocaleString()} total · {filtered.length.toLocaleString()} matching filters
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {selected.size > 0 && (
-            <button onClick={bulkDelete} disabled={deleting}
-              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50">
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Delete {selected.size}
+      <PageHeader
+        icon={Briefcase}
+        title="Pipeline Manager"
+        subtitle={`${all.length.toLocaleString()} total · ${filtered.length.toLocaleString()} matching filters`}
+        actions={
+          <>
+            {selected.size > 0 && (
+              <button onClick={bulkDelete} disabled={deleting} className={headerDangerBtn}>
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Delete {selected.size}
+              </button>
+            )}
+            <button onClick={deriveAll} disabled={deriving} className={headerActionBtn}>
+              {deriving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {deriving ? "Deriving…" : "Derive Fields"}
             </button>
-          )}
-          <button onClick={deriveAll} disabled={deriving}
-            className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">
-            {deriving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {deriving ? "Deriving…" : "Derive Fields"}
-          </button>
-          <button onClick={exportCsv} disabled={sorted.length === 0}
-            className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50">
-            <Download className="h-4 w-4" />
-            Export CSV
-          </button>
-        </div>
-      </div>
+            <button onClick={exportCsv} disabled={sorted.length === 0} className={headerPrimaryBtn}>
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
+          </>
+        }
+      />
 
       <Top5DealsStrip deals={all} />
 

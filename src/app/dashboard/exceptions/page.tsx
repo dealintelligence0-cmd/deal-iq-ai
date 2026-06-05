@@ -10,6 +10,7 @@ import {
   XCircle,
   Filter,
 } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 import { createClient } from "@/lib/supabase/client";
 
 type Exception = {
@@ -80,16 +81,11 @@ export default function ExceptionsPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
-          <AlertTriangle className="h-6 w-6 text-amber-600" />
-          Data Exceptions
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Issues flagged by the cleansing engine during import. Review and
-          resolve as needed.
-        </p>
-      </div>
+      <PageHeader
+        icon={AlertTriangle}
+        title="Data Exceptions"
+        subtitle="Issues flagged by the cleansing engine during import. Review and resolve as needed."
+      />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-4">
         <StatCard label="Open issues" value={counts.total} tone="slate" />

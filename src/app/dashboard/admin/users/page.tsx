@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Shield, RefreshCw, Loader2, Copy, Trash2, UserCheck, Link2, ExternalLink } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 
 type CatalogRow = {
   module_key: string;
@@ -143,16 +144,12 @@ export default function AdminUsersPage() {
   }, {} as Record<string, CatalogRow[]>);
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
-          <Shield className="h-6 w-6 text-indigo-600" />
-          User Settings (Admin)
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Manage the single active invite link + the modules guests can see. Visitors with the link get instant portal access without signing up. Toggles apply live to all current guest sessions.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Shield}
+        title="User Settings (Admin)"
+        subtitle="Manage the single active invite link + the modules guests can see. Visitors with the link get instant portal access without signing up. Toggles apply live to all current guest sessions."
+      />
 
       {error && (
         <div className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">{error}</div>

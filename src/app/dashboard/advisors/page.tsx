@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Network, Loader2, RefreshCw, Plus, X, TrendingUp, AlertTriangle, Trophy, MapPin } from "lucide-react";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 
 type Leader = {
   advisor_id: string;
@@ -144,23 +145,18 @@ export default function AdvisorsPage() {
   const topAdvisorsForHeatmap = leaderboard.slice(0, 8).map((l) => l.display_name);
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
-            <Network className="h-6 w-6 text-sky-600" />
-            Advisor Ecosystem Map
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Who advised whom in your pipeline. AI extracts named advisors from deal headings and infers likely advisors for the rest. Click any whitespace deal to log the incumbent yourself.
-          </p>
-        </div>
-        <button onClick={extract} disabled={extracting}
-                className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 disabled:opacity-50 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-300">
-          {extracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          {extracting ? "Extracting…" : "Run extraction"}
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Network}
+        title="Advisor Ecosystem Map"
+        subtitle="Who advised whom in your pipeline. AI extracts named advisors from deal headings and infers likely advisors for the rest. Click any whitespace deal to log the incumbent yourself."
+        actions={
+          <button onClick={extract} disabled={extracting} className={headerActionBtn}>
+            {extracting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {extracting ? "Extracting…" : "Run extraction"}
+          </button>
+        }
+      />
 
       {lastRun && (
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">

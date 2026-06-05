@@ -7,6 +7,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
 import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, CheckSquare, Square, BarChart3, Plus, X } from "lucide-react";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
@@ -567,23 +568,18 @@ export default function PmiStudioPage() {
         economicProvider={{ tier: "economic", ...economicTier }}
         hasOfflineFallback={true}
       />
+      <PageHeader
+        icon={Layers}
+        title="PMI Studio"
+        subtitle="Post-Merger Integration · Synergy · Roadmap"
+        actions={
+          <button onClick={() => setShowHistory(!showHistory)} className={headerActionBtn}>
+            <History className="h-3.5 w-3.5" /> History ({history.length})
+          </button>
+        }
+      />
       <div className="flex h-full min-h-screen flex-col lg:flex-row">
         <aside className="w-full shrink-0 border-b border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#15151f] lg:w-80 lg:border-b-0 lg:border-r lg:p-6">
-          <div className="page-header">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <Layers className="h-5 w-5 text-white" />
-                <div>
-                  <h1 className="text-lg font-semibold text-white">PMI Studio</h1>
-                  <p className="text-[11px] text-white/60">Post-Merger Integration · Synergy · Roadmap</p>
-                </div>
-              </div>
-              <button onClick={() => setShowHistory(!showHistory)}
-                className="flex items-center gap-1 rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20">
-                <History className="h-3 w-3" /> {history.length}
-              </button>
-            </div>
-          </div>
 
           {showHistory && (
             <div className="mb-3 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#15151f]">

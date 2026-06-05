@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Target, RefreshCw, Loader2, Sparkles, TrendingUp, X, ChevronRight, AlertTriangle, ExternalLink, BarChart3, ChevronDown, ChevronUp, ArrowRight, Zap } from "lucide-react";
+import PageHeader from "@/components/dashboard/PageHeader";
 
 type Buyer = {
   buyer_name: string;
@@ -426,18 +427,12 @@ export default function BoltOnsPage() {
   const buyersWithShortlists = buyers.filter((b) => b.latest_shortlist !== null);
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-white">
-            <Target className="h-6 w-6 text-emerald-600" />
-            Buyer Acquisition Bolt-on Engine
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            For any acquirer in your pipeline, generate a 6-10 target bolt-on shortlist with strategic rationale, fit score, synergy thesis, and outreach angle.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Target}
+        title="Buyer Acquisition Bolt-on Engine"
+        subtitle="For any acquirer in your pipeline, generate a 6-10 target bolt-on shortlist with strategic rationale, fit score, synergy thesis, and outreach angle."
+      />
 
       {/* v29 Visual Layer — Bolt-On Hub above original generator */}
       <BoltOnHub />

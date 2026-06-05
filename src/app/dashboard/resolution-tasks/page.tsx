@@ -6,6 +6,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw, X, Save, FileText } from "lucide-react";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 
 type Task = {
   id: string;
@@ -164,23 +165,17 @@ export default function ResolutionTasksPage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-4 p-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Resolution Tasks</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Doubtful rows from intelligence-feed imports. Each one is a deal that needs your review before reaching the pipeline.
-          </p>
-        </div>
-        <button
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-        >
-          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-          Refresh
-        </button>
-      </div>
+    <div className="max-w-6xl space-y-4">
+      <PageHeader
+        title="Resolution Tasks"
+        subtitle="Doubtful rows from intelligence-feed imports. Each one is a deal that needs your review before reaching the pipeline."
+        actions={
+          <button onClick={load} disabled={loading} className={headerActionBtn}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Refresh
+          </button>
+        }
+      />
 
       {toast && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">

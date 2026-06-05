@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Compass, Flame, RefreshCw, ChevronRight, Loader2, Sparkles, TrendingUp, Key, BarChart3, ChevronDown, ChevronUp, ArrowRight, Building2, Activity, Info } from "lucide-react";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import { computeMomentum } from "@/lib/themes/momentum";
 
 type Theme = {
@@ -456,26 +457,18 @@ export default function ThemesPage() {
   const labelKeys = keys;
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
-            <Compass className="h-6 w-6 text-indigo-600" />
-            Thematic Intelligence
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            AI-clustered emerging M&amp;A themes from your deal pipeline.
-          </p>
-        </div>
-        <button
-          onClick={refresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
-        >
-          {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          {refreshing ? "Clustering deals…" : "Refresh themes"}
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Compass}
+        title="Thematic Intelligence"
+        subtitle="AI-clustered emerging M&A themes from your deal pipeline."
+        actions={
+          <button onClick={refresh} disabled={refreshing} className={headerActionBtn}>
+            {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {refreshing ? "Clustering deals…" : "Refresh themes"}
+          </button>
+        }
+      />
 
       {/* Interactive thematic radar — driven by live themes */}
       <ThematicRadar themes={themes} />

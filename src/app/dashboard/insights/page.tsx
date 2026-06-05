@@ -7,6 +7,7 @@ import {
   Lightbulb, Sparkles, Loader2, CheckCircle2, XCircle, AlertTriangle,
   RefreshCw, ChevronDown, ChevronUp, Info, Flame, ShieldAlert, Target,
 } from "lucide-react";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import { createClient } from "@/lib/supabase/client";
 
 type DealRow = {
@@ -208,23 +209,18 @@ export default function InsightsPage() {
   const highPriority = deals.filter((d) => (d.priority_score ?? 0) >= 8).length;
   const highRisk = deals.filter((d) => d.risk_flag === "high").length;
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold text-slate-900 dark:text-white">
-            <Lightbulb className="h-5 w-5 text-indigo-500" />
-            AI Insights
-          </h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            Automated deal scoring, risk flags, and strategic opportunities across your pipeline
-          </p>
-        </div>
-        <button onClick={loadDeals} disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-[#15151f] dark:text-slate-300">
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Lightbulb}
+        title="AI Insights"
+        subtitle="Automated deal scoring, risk flags, and strategic opportunities across your pipeline"
+        actions={
+          <button onClick={loadDeals} disabled={loading} className={headerActionBtn}>
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="card p-4 border-l-4 border-l-amber-500">

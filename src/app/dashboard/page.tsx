@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-  BarChart3, DollarSign, Target, TrendingUp, Loader2, Printer, X, Filter,
+  BarChart3, DollarSign, Target, TrendingUp, Loader2, Printer, X, Filter, LayoutDashboard,
 } from "lucide-react";
+import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import KpiCard from "@/components/dashboard/KpiCard";
 import RecentDealsTable from "@/components/dashboard/RecentDealsTable";
 import StrategicCallout from "@/components/dashboard/StrategicCallout";
@@ -108,21 +109,19 @@ return (
         </p>
       </div>
 
-      <div className="page-header no-print">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-white">Executive Dashboard</h1>
-            <p className="mt-1 text-sm text-white/60">Real-time pipeline intelligence powered by your imported deal data.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => window.print()}
-              className="flex items-center gap-1.5 rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Executive Dashboard"
+        subtitle="Real-time pipeline intelligence powered by your imported deal data."
+        actions={
+          <>
+            <button onClick={() => window.print()} className={headerActionBtn}>
               <Printer className="h-3.5 w-3.5" /> Export PDF
             </button>
             <p className="text-xs text-white/50">{new Date().toLocaleDateString()}</p>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* FILTER BAR */}
       <div className="mb-6 mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-[#15151f] no-print">
