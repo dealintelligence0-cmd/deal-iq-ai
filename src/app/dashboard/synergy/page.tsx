@@ -12,6 +12,7 @@ import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
 import { openMbbPrintWindow } from "@/lib/proposal/mbb-print";
 import { generateOfflineSynergy } from "@/lib/proposal/offline-synergy";
 import AIGenerateConfirm from "@/components/AIGenerateConfirm";
+import type { RubricWeights } from "@/lib/ai/rubric";
 import CognitionIndicators from "@/components/cognition/CognitionIndicators";
 import { createClient } from "@/lib/supabase/client";
 import { XAxis, YAxis, Legend, ResponsiveContainer, Tooltip, Area, AreaChart } from "recharts";
@@ -460,6 +461,7 @@ export default function SynergyEnginePage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [premiumTier, setPremiumTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
   const [economicTier, setEconomicTier] = useState<{ provider: string | null; model: string | null; hasKey: boolean }>({ provider: null, model: null, hasKey: false });
+  const [userWeights, setUserWeights] = useState<RubricWeights | null>(null);
 
   // History
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -469,7 +471,7 @@ export default function SynergyEnginePage() {
     const { data: u } = await sb.auth.getUser();
     if (!u.user) return;
     const { data } = await sb.from("ai_settings")
-      .select("premium_provider,premium_model,premium_key_encrypted,economic_provider,economic_model,economic_key_encrypted")
+      .select("premium_provider,premium_model,premium_key_encrypted,economic_provider,economic_model,economic_key_encrypted,rubric_weights")
       .eq("user_id", u.user.id).maybeSingle();
     if (data) {
       setPremiumTier({
@@ -480,6 +482,16 @@ export default function SynergyEnginePage() {
         provider: data.economic_provider, model: data.economic_model,
         hasKey: !!data.economic_key_encrypted && data.economic_provider !== "free",
       });
+      // Match the proposals page: support both a flat weights object and a
+      // per-module shape ({ synergy: {...}, proposal: {...} }).
+      const savedWeights = data.rubric_weights as Record<string, RubricWeights> | RubricWeights | null;
+      if (savedWeights) {
+        if ("cost" in (savedWeights as object)) {
+          setUserWeights(savedWeights as RubricWeights);
+        } else if ((savedWeights as Record<string, RubricWeights>).synergy) {
+          setUserWeights((savedWeights as Record<string, RubricWeights>).synergy);
+        }
+      }
     }
   }, [sb]);
 
@@ -662,6 +674,7 @@ export default function SynergyEnginePage() {
   premiumProvider={{ tier: "premium", ...premiumTier }}
   economicProvider={{ tier: "economic", ...economicTier }}
   hasOfflineFallback={true}
+  userWeights={userWeights ?? undefined}
 />
 
 <PageHeader
