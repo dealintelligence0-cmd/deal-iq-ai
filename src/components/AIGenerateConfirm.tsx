@@ -2,11 +2,22 @@
 
 "use client";
 
-import { useState } from "react";
-import { Sparkles, Zap, Cpu, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sparkles, Zap, Cpu, X, Loader2 } from "lucide-react";
 import { preCallEstimate, tierBadge } from "@/lib/ai/cost-estimator";
 import { PROVIDERS, getModelsForTier, type ProviderId } from "@/lib/ai/providers";
 import { scoreModels, DEFAULT_WEIGHTS_BY_MODULE, type RubricWeights, type ScoredModel } from "@/lib/ai/rubric";
+
+/** De-duplicate model ids while preserving order (recommended first). */
+function dedupeModels(xs: string[]): string[] {
+  const seen = new Set<string>();
+  return xs.filter((x) => {
+    const k = x.toLowerCase().replace(/^models\//, "").trim();
+    if (!x || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
 
 type AvailableTier = {
   tier: "premium" | "economic" | "offline";
@@ -33,10 +44,60 @@ export default function AIGenerateConfirm({
   const [premiumModel, setPremiumModel] = useState<string>(premiumProvider.model ?? "");
   const [economicModel, setEconomicModel] = useState<string>(economicProvider.model ?? "");
 
-  if (!open) return null;
+  // Live model lists. Seeded with the curated picks so the modal renders instantly,
+  // then replaced with the provider's full active model list fetched from
+  // /api/ai/models (so newer models like Gemini 3.x appear without a code change).
+  const curatedPremium = premiumProvider.provider ? getModelsForTier(premiumProvider.provider as ProviderId, "smart") : [];
+  const curatedEconomic = economicProvider.provider ? getModelsForTier(economicProvider.provider as ProviderId, "fast") : [];
+  const [premiumModels, setPremiumModels] = useState<string[]>(curatedPremium);
+  const [economicModels, setEconomicModels] = useState<string[]>(curatedEconomic);
+  const [loadingModels, setLoadingModels] = useState(false);
 
-  const premiumModels = premiumProvider.provider ? getModelsForTier(premiumProvider.provider as ProviderId, "smart") : [];
-  const economicModels = economicProvider.provider ? getModelsForTier(economicProvider.provider as ProviderId, "fast") : [];
+  // Fetch the full, live model list for each configured tier when the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    async function loadModels(provider: string | null, tier: "smart" | "fast"): Promise<string[]> {
+      if (!provider || provider === "free") return [];
+      try {
+        const res = await fetch("/api/ai/models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier, provider }),
+        });
+        if (!res.ok) return [];
+        const j = (await res.json()) as { candidates?: string[]; all?: string[]; live?: boolean };
+        // Recommended candidates first, then every other live model the provider offers.
+        return dedupeModels([...(j.candidates ?? []), ...(j.all ?? [])]);
+      } catch {
+        return [];
+      }
+    }
+
+    (async () => {
+      setLoadingModels(true);
+      const [prem, econ] = await Promise.all([
+        loadModels(premiumProvider.provider, "smart"),
+        loadModels(economicProvider.provider, "fast"),
+      ]);
+      if (cancelled) return;
+      if (prem.length) {
+        setPremiumModels(prem);
+        // Keep the saved model if it's still offered, otherwise lead with the top recommendation.
+        setPremiumModel((cur) => (cur && prem.includes(cur) ? cur : prem[0]));
+      }
+      if (econ.length) {
+        setEconomicModels(econ);
+        setEconomicModel((cur) => (cur && econ.includes(cur) ? cur : econ[0]));
+      }
+      setLoadingModels(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [open, premiumProvider.provider, economicProvider.provider]);
+
+  if (!open) return null;
 
   const premiumEst = premiumProvider.provider ? preCallEstimate(premiumProvider.provider, module) : null;
   const economicEst = economicProvider.provider ? preCallEstimate(economicProvider.provider, module) : null;
@@ -94,8 +155,9 @@ export default function AIGenerateConfirm({
                     </span>
                   </div>
 
-                  <p className="mt-0.5 text-[11px] text-purple-800 dark:text-purple-300">
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-purple-800 dark:text-purple-300">
                     {PROVIDERS[premiumProvider.provider as ProviderId]?.label}
+                    {loadingModels && <Loader2 className="h-3 w-3 animate-spin opacity-60" />}
                   </p>
 
                   {premiumModels.length > 1 && (
@@ -157,8 +219,9 @@ export default function AIGenerateConfirm({
                     </span>
                   </div>
 
-                  <p className="mt-0.5 text-[11px] text-emerald-800 dark:text-emerald-300">
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-emerald-800 dark:text-emerald-300">
                     {PROVIDERS[economicProvider.provider as ProviderId]?.label}
+                    {loadingModels && <Loader2 className="h-3 w-3 animate-spin opacity-60" />}
                   </p>
 
                   {economicModels.length > 1 && (
