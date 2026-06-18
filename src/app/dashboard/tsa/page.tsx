@@ -520,7 +520,7 @@ export default function TSAGeneratorPage() {
     setConfirmOpen(true);
   }
 
-  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
+  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string, keyId?: string) {
     setConfirmOpen(false);
     if (tier === "offline") {
       const md = generateOfflineTsa({
@@ -550,6 +550,7 @@ export default function TSAGeneratorPage() {
           close_date: closeDate, functions: selectedFns,
           duration, pricing_basis: pricing, constraints, tier,
           model_override: modelOverride,
+          key_id: keyId,
           mandate_type: mandateType,
           buyer_type: buyerTypeF,
           ownership_type: ownershipType,

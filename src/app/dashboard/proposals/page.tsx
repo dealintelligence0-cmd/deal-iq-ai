@@ -321,7 +321,8 @@ useEffect(() => {
 
   async function generate(
   tier: "premium" | "economic" | "offline" = "premium",
-  modelOverride?: string
+  modelOverride?: string,
+  keyId?: string
 ) {
     setGenerating(true); setError(null); setContent(null);
     try {
@@ -344,6 +345,7 @@ useEffect(() => {
           notes: useResearch && resolvedResearchBrief ? `${notes}\n\n${resolvedResearchBrief}` : notes,
           use_premium: tier === "premium",
 model_override: modelOverride,
+          key_id: keyId,
           research_mode: researchMode,
           generation_mode: generationMode,
           premium_mode: premiumMode,
@@ -1053,7 +1055,7 @@ async function promoteToPartnerGrade() {
     <AIGenerateConfirm
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={(tier, modelOverride) => {
+        onConfirm={(tier, modelOverride, keyId) => {
           setConfirmOpen(false);
           if (tier === "offline") {
             // Rule-based deterministic proposal — no AI key needed.
@@ -1085,7 +1087,7 @@ async function promoteToPartnerGrade() {
             }, ...prev].slice(0, 20));
             return;
           }
-          generate(tier, modelOverride);
+          generate(tier, modelOverride, keyId);
         }}
         module="proposal"
         premiumProvider={{ tier: "premium", ...premiumTier }}

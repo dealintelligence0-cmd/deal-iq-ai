@@ -553,7 +553,7 @@ export default function SynergyEnginePage() {
     if (cached) setContent(cached);
   }, []);
 
-  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
+  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string, keyId?: string) {
     setConfirmOpen(false);
     if (tier === "offline") {
       const md = generateOfflineSynergy({
@@ -584,6 +584,7 @@ export default function SynergyEnginePage() {
           buyer_revenue: buyerRevenue,
           ambition, notes, tier,
           model_override: modelOverride,
+          key_id: keyId,
           mandate_type: mandateType,
           buyer_type: buyerTypeF,
           ownership_type: ownershipType,
