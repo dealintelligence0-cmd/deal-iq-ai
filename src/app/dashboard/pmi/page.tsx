@@ -480,7 +480,7 @@ export default function PmiStudioPage() {
     setConfirmOpen(true);
   }
 
-  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string) {
+  async function generate(tier: "premium" | "economic" | "offline", modelOverride?: string, keyId?: string) {
     setConfirmOpen(false);
     if (tier === "offline") { generateOffline(); return; }
     if (!buyer || !target) return;
@@ -504,6 +504,7 @@ export default function PmiStudioPage() {
           output_mode: outputMode,
           tier,
           model_override: modelOverride,
+          key_id: keyId,
           mandate_type: mandateType,
           buyer_type: buyerTypeF,
           ownership_type: ownershipType,

@@ -95,14 +95,14 @@ export async function POST(req: NextRequest) {
     buyer, target, sector, geography, deal_size, deal_id,
     carve_target, parent_group, buyer_group,
     services = [], admin_overhead_pct, total_budget_k, direct_billed_k, overhead_k, active_services,
-    notes, tier = "premium", model_override,
+    notes, tier = "premium", model_override, key_id,
   } = body as {
     buyer?: string; target?: string; sector?: string; geography?: string;
     deal_size?: string; deal_id?: string;
     carve_target?: string; parent_group?: string; buyer_group?: string;
     services?: ServiceLine[]; admin_overhead_pct?: number;
     total_budget_k?: number; direct_billed_k?: number; overhead_k?: number; active_services?: number;
-    notes?: string; tier?: "premium" | "economic"; model_override?: string;
+    notes?: string; tier?: "premium" | "economic"; model_override?: string; key_id?: string;
   };
 
   // Carve-out entities — derive sensible defaults from buyer/target so the memo
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
 
   // Resolve AI key via the same path as synergy/pmi
   const admin = createAdminClient();
-  let resolved = await resolveKey(admin, user.id, tier === "premium" ? "smart" : "economic");
+  let resolved = await resolveKey(admin, user.id, tier === "premium" ? "smart" : "economic", key_id);
   if (!resolved?.apiKey) resolved = await resolveKey(admin, user.id, "economic");
   if (!resolved?.apiKey) resolved = await resolveKey(admin, user.id, "fast");
   if (!resolved?.apiKey || !resolved.provider) {
