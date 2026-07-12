@@ -23,6 +23,7 @@ import { splitIntoSections, type ProposalSection } from "@/lib/proposal/visual-r
 import { classifyHeading, type SectionKind } from "@/lib/proposal/mbb/section-classifier";
 import { getStoryline, type StorylineTemplate } from "@/lib/proposal/storyline-templates";
 import { fitText, clean, scrubBannedPhrases, validateDeckJSON } from "@/lib/proposal/deck-quality";
+import { assertProposalCoherence } from "@/lib/proposal/coherence";
 import * as TPL from "@/lib/proposal/deck-templates";
 
 export type DealMeta = {
@@ -85,6 +86,12 @@ export async function exportProposalToPptx(
   filename?: string,
   storylineId?: string,
 ): Promise<void> {
+  // Release-blocker gate: never write a deck whose narrative describes a
+  // different transaction than the deal record on the cover (entity data-bleed).
+  // Throws a user-facing error on high-confidence bleed; all callers wrap this
+  // in try/catch and surface the message instead of producing a wrong deck.
+  assertProposalCoherence(proposalMd, { buyer: meta.buyer, target: meta.target, sector: meta.sector, geography: meta.geography });
+
   const pres = new pptxgen();
   pres.defineLayout({ name: "DECK_16x9", width: 10.0, height: 5.625 });
   pres.layout = "DECK_16x9";
@@ -100,6 +107,10 @@ export async function exportProposalToPptx(
   if (storylineId) {
     sections = applyStorylineOrder(sections, getStoryline(storylineId));
   }
+  // Collapse duplicate single-instance sections (e.g. a Risk Register or Deal
+  // Thesis emitted twice) so the deck stops padding its slide count. Keeps the
+  // richest copy in the position of the first occurrence.
+  sections = dedupeSingleInstanceSections(sections);
 
   // Build the structured, banned-phrase-free deck model from the markdown.
   const model = buildDeckModel(proposalMd, sections, meta, docType, citationsMd);
@@ -177,9 +188,18 @@ function buildDeckModel(
   // ---- headline metrics for cover / verdict ----
   // Prefer the clean currency value parsed from the narrative; fall back to the
   // (sanitized) user-entered deal size. Avoids stray markdown like ">" leaking.
-  const ev = findEnterpriseValue(proposalMd) || sanitizeValue(meta.dealSize) || undefined;
   const netSyn = findMetric(proposalMd, /net\s+(?:run[-\s]?rate\s+)?synergy[^₹$\d]*([₹$€£]?\s?[\d.,]+\s*[BMK])/i)
     || findMetric(proposalMd, /total\s+value[^₹$\d]*([₹$€£]?\s?[\d.,]+\s*[BMK])/i);
+  // Deal size buckets ("INR 4bn-21bn") are ranges, not a single EV — never show
+  // a range in the precise EV callout.
+  const dealSizeClean = sanitizeValue(meta.dealSize);
+  const dealSizeIsRange = /[–—-]|to\b|\bbn\b.*\bbn\b/i.test(meta.dealSize ?? "");
+  let ev = findEnterpriseValue(proposalMd) || (dealSizeIsRange ? undefined : dealSizeClean) || undefined;
+  // Guard the EV↔synergy field-mapping bug: if the "EV" we parsed is actually
+  // the net-synergy figure, drop it rather than mislabel synergy as EV.
+  if (ev && netSyn && sameMoney(ev, netSyn)) {
+    ev = dealSizeIsRange ? undefined : (dealSizeClean || undefined);
+  }
   const verdict = findVerdict(proposalMd);
   const confidence = findMetric(proposalMd, /([\d]{1,3}\s?%)\s*confidence/i)
     || findMetric(proposalMd, /confidence[^\d]*([\d]{1,3}\s?%)/i);
@@ -919,6 +939,13 @@ function parseMoney(s: string | undefined): number {
   return neg ? -v : v; // in millions
 }
 
+/** True when two money strings resolve to the same magnitude (in millions). */
+function sameMoney(a: string, b: string): boolean {
+  const av = parseMoney(a), bv = parseMoney(b);
+  if (!av || !bv) return false;
+  return Math.abs(av - bv) < 0.01;
+}
+
 function fmtMoney(n: number): string {
   const abs = Math.abs(n);
   const s = abs >= 1000 ? `₹${(abs / 1000).toFixed(2)}B` : `₹${abs.toFixed(1)}M`;
@@ -961,6 +988,31 @@ function parseCitations(citationsMd: string): { n: string; text: string }[] {
 // ===========================================================================
 // Storyline ordering (unchanged behaviour)
 // ===========================================================================
+// Section kinds that should appear at most once in a deck. Repeat occurrences
+// are collapsed into the richest single copy.
+const SINGLE_INSTANCE_KINDS = new Set<SectionKind>([
+  "exec_summary", "thesis", "score", "synergy", "valuation", "scenario",
+  "risk", "contrarian", "ic_questions", "must_be_true", "recommendation",
+  "next_steps", "hundred_day", "governance",
+]);
+
+function dedupeSingleInstanceSections(sections: ProposalSection[]): ProposalSection[] {
+  const result: ProposalSection[] = [];
+  const slotPos = new Map<SectionKind, number>();
+  for (const sec of sections) {
+    const kind = classifyHeading(sec.heading);
+    if (!SINGLE_INSTANCE_KINDS.has(kind)) { result.push(sec); continue; }
+    const existing = slotPos.get(kind);
+    if (existing === undefined) {
+      slotPos.set(kind, result.length);
+      result.push(sec);
+    } else if ((sec.body?.length ?? 0) > (result[existing].body?.length ?? 0)) {
+      result[existing] = sec; // keep the richer duplicate, in the original slot
+    }
+  }
+  return result;
+}
+
 function applyStorylineOrder(
   sections: ProposalSection[],
   storyline: StorylineTemplate,

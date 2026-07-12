@@ -20,6 +20,7 @@ import { evaluateProposalQuality } from "@/lib/advanced/validators/quality_valid
 import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
+import { analyzeProposalCoherence } from "@/lib/proposal/coherence";
 
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -578,6 +579,19 @@ ${fullContext}` },
       }, { status: 500 });
     }
 
+    // Coherence gate (Sprint 0): if the model narrated a DIFFERENT transaction
+    // than the deal record (entity data-bleed), correct it once, then re-check.
+    let coherence = analyzeProposalCoherence(result.text, { buyer, target, sector, geography });
+    if (coherence.blocking) {
+      const fix = coherence.violations.find((v) => v.severity === "block")?.message ?? "";
+      const coherenceRetry: ChatMessage[] = [...messages, { role: "user", content:
+        `STOP. ${fix}\nThis document MUST be about the acquisition of "${target}" by "${buyer}" ` +
+        `in ${sector || "the stated sector"}. Do not mention any other companies as the parties. ` +
+        `Regenerate every section using ONLY these named parties.` }];
+      result = await routedCall(cfg, coherenceRetry, use_premium ? 10000 : 8000);
+      coherence = analyzeProposalCoherence(result.text, { buyer, target, sector, geography });
+    }
+
     const { data: insertedRow } = await admin.from("proposals").insert({
       user_id: user.id, proposal_type, client_name, buyer, target,
       sector, geography, deal_size, notes,
@@ -596,6 +610,11 @@ ${fullContext}` },
       qualityScore: evaluateProposalQuality(result.text).score,
       evidenceCoverage: body.research_docs ? 85 : 55,
       scenarios: scenarioCases,
+      coherence: {
+        ok: coherence.ok,
+        blocking: coherence.blocking,
+        violations: coherence.violations,
+      },
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
