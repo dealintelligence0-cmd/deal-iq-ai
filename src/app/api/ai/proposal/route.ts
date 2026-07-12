@@ -16,10 +16,11 @@ import { getAdvancedPromptBuilder } from "@/lib/advanced/prompts";
 import { deriveSynergies, buildSynergyLevers } from "@/lib/advanced/engines/synergy_engine";
 import { deriveDealRisks, buildRiskRegister } from "@/lib/advanced/engines/risk_engine";
 import { validateRequiredSections } from "@/lib/advanced/validators/output_validator";
-import { evaluateProposalQuality } from "@/lib/advanced/validators/quality_validator";
+import { evaluateProposalQuality, summarizeQuality } from "@/lib/advanced/validators/quality_validator";
 import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
+import { analyzeProposalCoherence } from "@/lib/proposal/coherence";
 
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
@@ -529,6 +530,7 @@ Non-negotiable quality bars:
 4) Include jurisdiction-specific regulatory pathway and filing implications (HSR, EU Merger, CCI, CMA, MOFCOM, SEBI as applicable).
 5) Show synergy derivation: every $ figure has format "[base] × [%] = $[number] [HIGH/MEDIUM/STRETCH]".
 6) End with explicit recommendation: Go / Conditional Go / No-Go and conditions precedent.
+7) PROVENANCE: label every quantum as either sourced or modelled. External market claims carry a [n] citation to LIVE WEB RESEARCH; internally-derived figures are tagged "(modelled)". Never present a modelled number as if it were a sourced fact.
 
 Risk & Mitigation MUST include Regulatory Compliance subsection referencing each flagged filing.
 Include section: ## Why NOT This Deal with 3 explicit disconfirming arguments.
@@ -578,6 +580,19 @@ ${fullContext}` },
       }, { status: 500 });
     }
 
+    // Coherence gate (Sprint 0): if the model narrated a DIFFERENT transaction
+    // than the deal record (entity data-bleed), correct it once, then re-check.
+    let coherence = analyzeProposalCoherence(result.text, { buyer, target, sector, geography });
+    if (coherence.blocking) {
+      const fix = coherence.violations.find((v) => v.severity === "block")?.message ?? "";
+      const coherenceRetry: ChatMessage[] = [...messages, { role: "user", content:
+        `STOP. ${fix}\nThis document MUST be about the acquisition of "${target}" by "${buyer}" ` +
+        `in ${sector || "the stated sector"}. Do not mention any other companies as the parties. ` +
+        `Regenerate every section using ONLY these named parties.` }];
+      result = await routedCall(cfg, coherenceRetry, use_premium ? 10000 : 8000);
+      coherence = analyzeProposalCoherence(result.text, { buyer, target, sector, geography });
+    }
+
     const { data: insertedRow } = await admin.from("proposals").insert({
       user_id: user.id, proposal_type, client_name, buyer, target,
       sector, geography, deal_size, notes,
@@ -594,8 +609,14 @@ ${fullContext}` },
       model: result.model,
       viaFallback: result.viaFallback,
       qualityScore: evaluateProposalQuality(result.text).score,
+      qualityScorecard: summarizeQuality(result.text),
       evidenceCoverage: body.research_docs ? 85 : 55,
       scenarios: scenarioCases,
+      coherence: {
+        ok: coherence.ok,
+        blocking: coherence.blocking,
+        violations: coherence.violations,
+      },
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

@@ -175,6 +175,8 @@ The sector-specific rationale for these synergies is based on benchmarks for the
 
 ## 02. Cost Synergies — ${fmt(costSyn)} Total
 
+**Basis:** ${(bench.cost * 100).toFixed(1)}% of ${fmt(combined)} combined revenue × ${mult.toFixed(2)}× (${ambLabel}) = ${fmt(costSyn)} run-rate. Sector precedent for ${S}: ${(bench.cost * 70).toFixed(1)}–${(bench.cost * 130).toFixed(1)}% of combined revenue in cost capture.
+
 Cost synergies are realised through five primary levers, with G&A overlap and Operations/Headcount driving the largest contribution. Realisation curve: 30% Y1 / 70% Y2 / 100% Y3.
 
 | Initiative | Category | Y1 | Y2 | Y3 | Confidence | Primary Owner |
@@ -184,6 +186,8 @@ ${costRows}
 > Cost synergies typically realise faster than revenue synergies because they are within the acquirer's direct control. Discipline in the first 90 days post-close is the strongest predictor of full-year-one capture.
 
 ## 03. Revenue Synergies — ${fmt(revSyn)} Total
+
+**Basis:** ${(bench.rev * 100).toFixed(1)}% of ${fmt(combined)} combined revenue × ${mult.toFixed(2)}× (${ambLabel}) = ${fmt(revSyn)} run-rate — deliberately below cost synergy, reflecting lower realisation confidence. Sector precedent for ${S}: ${(bench.rev * 70).toFixed(1)}–${(bench.rev * 130).toFixed(1)}% of combined revenue.
 
 Revenue synergies are slower to materialise but compound over time. Realisation curve: 20% Y1 / 60% Y2 / 100% Y3.
 

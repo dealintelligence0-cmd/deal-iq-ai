@@ -72,6 +72,79 @@ export function getSynergyBenchmark(sector: string): SynergyBenchmark {
   return SYNERGY_BENCHMARKS[matched] ?? SYNERGY_BENCHMARKS["Technology, Media & Telecom"];
 }
 
+/* ─── SECTOR KNOWLEDGE PACKS ───
+ * Depth beyond percent ranges: the real value levers, the named regulators and
+ * what each one GATES, the standard diligence reds, and the language insiders
+ * use. This is what turns "understands M&A" into "understands MY sector".
+ * Priority sectors are encoded here; others fall back to the generic block. */
+export type SectorPack = {
+  valueLevers: string[];
+  regulators: string[];      // "Name — what it gates"
+  diligenceReds: string[];
+  insiderTerms: string[];
+};
+export const SECTOR_PACKS: Record<string, SectorPack> = {
+  "Financial Services": {
+    valueLevers: [
+      "Funding-cost arbitrage — migrate target's book onto acquirer's cheaper deposit/wholesale funding",
+      "Capital optimisation — RWA netting, model harmonisation, and freed regulatory capital",
+      "Distribution — cross-sell into the acquirer's channel; tied-agent vs IFA channel economics",
+      "Cost-income ratio — back-office, core-platform and branch/channel overlap removal",
+      "Fee/NII mix — reprice and re-tier the combined book",
+    ],
+    regulators: [
+      "PRA / FCA (UK) — change-of-control approval GATES completion; conduct rules gate cross-sell",
+      "BaFin (DE) — owner-control procedure; Solvency II capital gates insurance carve-ins",
+      "RBI / IRDAI / SEBI (India) — licence transfer and FDI caps gate structure and timeline",
+      "ECB/SSM (EU) — significant-institution supervision gates capital and governance",
+    ],
+    diligenceReds: [
+      "Book quality — NPL/stage-2 migration, forbearance, and provisioning adequacy",
+      "Capital & liquidity — CET1, LCR/NSFR post-close; any AT1/Tier2 change-of-control clauses",
+      "Conduct/mis-selling tail — redress provisions, past business review exposure",
+      "Model risk — IRB/IFRS9 model approvals that do not transfer automatically",
+      "Deposit stickiness and funding concentration",
+    ],
+    insiderTerms: ["CET1", "RWA", "cost-income ratio", "NII", "NPL", "LCR/NSFR", "IRB models", "tied-agent", "embedded value", "combined ratio"],
+  },
+  "Life Sciences & Healthcare": {
+    valueLevers: [
+      "Pipeline/portfolio — prioritise assets by rNPV; kill or out-license the tail",
+      "Commercial footprint — rep-force overlap, GPO/payer leverage, launch-team consolidation",
+      "Manufacturing & CMC — network rationalisation, site consolidation, tech-transfer",
+      "R&D productivity — platform reuse, trial-site consolidation, MSL overlap",
+      "Procurement — API/excipient and clinical-CRO spend rebid",
+    ],
+    regulators: [
+      "FDA / EMA — approval continuity and site transfers GATE launch timing and synergy phasing",
+      "Antitrust (FTC/EC) — overlapping therapeutic areas gate divestiture remedies",
+      "HIPAA / GDPR — patient-data handling gates clinical-systems integration",
+      "Pricing/reimbursement bodies (CMS, NICE, G-BA) — gate revenue realisation",
+    ],
+    diligenceReds: [
+      "Patent cliff / LOE exposure and IP challenges",
+      "Clinical-trial read-out risk and protocol continuity",
+      "Payer/GPO concentration and rebate exposure",
+      "CMC/quality findings — 483s, warning letters, supply interruptions",
+      "KOL and clinical-talent retention",
+    ],
+    insiderTerms: ["rNPV", "LOE / patent cliff", "483 / warning letter", "tech-transfer", "GPO", "payer mix", "MSL", "IRA price negotiation", "orphan exclusivity"],
+  },
+};
+
+function buildSectorPackBlock(matched: string): string {
+  const pack = SECTOR_PACKS[matched];
+  if (!pack) return "";
+  return `
+## SECTOR KNOWLEDGE PACK — ${matched}
+Use these specifics; do NOT reason generically. Name the levers, regulators and diligence reds below where relevant.
+Value levers (how value is actually created here): ${pack.valueLevers.map((l) => `\n  - ${l}`).join("")}
+Named regulators and what each GATES: ${pack.regulators.map((r) => `\n  - ${r}`).join("")}
+Standard diligence reds to test: ${pack.diligenceReds.map((d) => `\n  - ${d}`).join("")}
+Insider vocabulary to use accurately: ${pack.insiderTerms.join(", ")}
+`;
+}
+
 export function buildIndustryContextBlock(sector: string, geography: string): string {
   const matched = matchSector(sector);
   const bench = getSynergyBenchmark(sector);
@@ -93,5 +166,5 @@ Regulatory: ${geo.regulatoryNote}
 Labor: ${geo.laborNote}
 Execution risk: ${geo.executionRisk}
 Cross-border complexity: ${geo.complexity.toUpperCase()}
-`;
+${buildSectorPackBlock(matched)}`;
 }

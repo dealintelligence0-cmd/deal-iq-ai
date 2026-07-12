@@ -38,3 +38,32 @@ export function evaluateProposalQuality(content: string): QualityScore {
 
   return { score: Math.max(0, Math.min(100, score)), numericDensity, repeatedPhrasePenalty, missingOwnerPenalty, missingJurisdictionPenalty, genericLanguagePenalty };
 }
+
+export type QualitySummary = {
+  score: number;
+  passesBar: boolean;
+  weakest: string;        // named dimension dragging the score down most
+  dimensions: Record<string, number>;
+};
+
+/**
+ * Turn the raw penalties into a partner-legible scorecard: pass/fail against a
+ * ship bar and the single weakest dimension to fix. Makes the rubric a gate
+ * with a named failure mode, not an opaque number.
+ */
+export function summarizeQuality(content: string, bar = 70): QualitySummary {
+  const q = evaluateProposalQuality(content);
+  const dimensions: Record<string, number> = {
+    "Evidence density": q.numericDensity < 2 ? 20 : 0,
+    "Language discipline": q.genericLanguagePenalty,
+    "Risk ownership": q.missingOwnerPenalty,
+    "Regulatory specificity": q.missingJurisdictionPenalty,
+    "Non-repetition": q.repeatedPhrasePenalty,
+  };
+  let weakest = "none";
+  let worst = 0;
+  for (const [dim, penalty] of Object.entries(dimensions)) {
+    if (penalty > worst) { worst = penalty; weakest = dim; }
+  }
+  return { score: q.score, passesBar: q.score >= bar, weakest, dimensions };
+}

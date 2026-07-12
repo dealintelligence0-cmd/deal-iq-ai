@@ -257,18 +257,25 @@ export async function refreshThemes(
     }
   }
 
-  // Build a precise diagnostic based on what actually happened
+  // Build the user-facing note. Raw model/labeler internals ("AI returned empty
+  // or placeholder content", "First error: …") are logged server-side only and
+  // NEVER surfaced to the partner-facing UI — the product must degrade silently.
+  if (labelErrors.length || fallbackUsed > 0) {
+    console.warn(
+      `[themes] refresh diagnostics — clustersFound=${diagnostic.clustersFound} ` +
+      `created=${clusters_created} fallbackUsed=${fallbackUsed} ` +
+      `labelErrors=${JSON.stringify(labelErrors.slice(0, 5))}`,
+    );
+  }
   let finalError: string | null = null;
   if (clusters_created === 0 && diagnostic.clustersFound > 0) {
-    // Clusters formed but none got persisted — all labelings failed
-    const firstErr = labelErrors[0] ?? "Unknown labeling error.";
-    finalError = `Clustering found ${diagnostic.clustersFound} candidate themes but the AI labeler failed for all of them. First error: ${firstErr}`;
+    // Clusters formed but none persisted — actionable, no raw internals.
+    finalError = `Found ${diagnostic.clustersFound} candidate themes but couldn't finalise them this run. Try refreshing again in a moment.`;
   } else if (clusters_created === 0) {
-    finalError = `Embedded ${embeddings_added} new deals but no clusters formed. ${diagSummary}. Your embeddings may be too diverse — try uploading more deals in the same sector.`;
-  } else if (fallbackUsed > 0) {
-    // Some clusters got labeled, some used the fallback — informational only
-    finalError = `Used deterministic fallback labels for ${fallbackUsed} of ${clusters_created} themes (AI labeling failed for those). First error: ${labelErrors[0] ?? "see logs"}`;
+    finalError = `Added ${embeddings_added} new deals but no themes formed yet — add more deals in the same sector to surface clusters.`;
   }
+  // fallbackUsed > 0 with themes created is a silent, successful degrade: themes
+  // were generated with auto-derived labels. No user-facing note.
 
   await sb.from("theme_refresh_runs").update({
     status: "completed",

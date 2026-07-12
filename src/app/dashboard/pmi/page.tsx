@@ -226,7 +226,7 @@ function PMIVisuals({ buyer, target, sector, geography, dealSize }: { buyer: str
                 <Plus className="h-3 w-3" /> Activity
               </button>
             </div>
-            <p className="mb-3 text-[10.5px] text-slate-500">Edit each activity — title, workstream, start/end, % complete and dependencies. Bars update live.</p>
+            <p className="mb-3 text-[10.5px] text-slate-500">Plan the integration approach you will pitch — each activity&apos;s workstream, sequencing and planned Day-100 coverage. This is a proposal artifact, not a live status tracker.</p>
 
             <div className="overflow-x-auto">
               <div style={{ minWidth: 860 }}>
@@ -571,8 +571,8 @@ export default function PmiStudioPage() {
       />
       <PageHeader
         icon={Layers}
-        title="PMI Studio"
-        subtitle="Post-Merger Integration · Synergy · Roadmap"
+        title="PMI Integration POV"
+        subtitle="The integration approach you pitch — not a live tracker. Plan the 100-day thesis, then export it into the deck."
         actions={
           <button onClick={() => setShowHistory(!showHistory)} className={headerActionBtn}>
             <History className="h-3.5 w-3.5" /> History ({history.length})
