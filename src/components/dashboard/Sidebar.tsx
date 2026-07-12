@@ -16,34 +16,35 @@ import ThemeToggle from "@/components/ThemeToggle";
 // Each nav item maps to a module_key from the catalogue; null = always visible (e.g. Dashboard home, Help)
 type NavItem = { label: string; href: string; icon: any; module: string | null; adminOnly?: boolean };
 
+// Nav is deliberately consolidated into TWO pillars — Deal Intelligence (find &
+// prioritise) and Outreach & Advisory (win the mandate) — plus a thin Admin /
+// System. Half-built experimental surfaces (cognition, insights, value-test,
+// exceptions, mapping) are intentionally NOT listed here; their routes remain
+// for R&D but must not dilute the partner-facing product.
 const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   { items: [
     { label: "Executive Dashboard", href: "/dashboard", icon: LayoutDashboard, module: null },
     { label: "Executive Brief", href: "/dashboard/brief", icon: ScrollText, module: null },
   ] },
   {
-    label: "Deal Data", items: [
+    label: "Deal Intelligence", items: [
       { label: "Import Deals",   href: "/dashboard/uploads",          icon: CloudUpload,    module: "import" },
       { label: "Deal Pipeline",  href: "/dashboard/deals",            icon: Briefcase,      module: "deals_data" },
-      { label: "Prioritization", href: "/dashboard/prioritization",   icon: Target,         module: "prioritization" },
-      { label: "Triage Queue",   href: "/dashboard/resolution-tasks", icon: ClipboardCheck, module: "triage" },
+      { label: "Origination Queue", href: "/dashboard/prioritization", icon: Target,        module: "prioritization" },
+      { label: "Data Triage",    href: "/dashboard/resolution-tasks", icon: ClipboardCheck, module: "triage" },
+      { label: "Themes Radar",   href: "/dashboard/themes",           icon: Sparkles,       module: "themes" },
+      { label: "Signal Intel Hub", href: "/dashboard/signals",        icon: Activity,       module: "signals" },
+      { label: "Bolt-on Engine", href: "/dashboard/boltons",          icon: Target,         module: "boltons" },
+      { label: "Advisor Map",    href: "/dashboard/advisors",         icon: Network,        module: "advisors" },
     ],
   },
   {
-    label: "Intelligence", items: [
-      { label: "Themes Radar",    href: "/dashboard/themes",  icon: Sparkles, module: "themes" },
-      { label: "Signal Intel Hub", href: "/dashboard/signals", icon: Activity, module: "signals" },
-      { label: "Bolt-on Engine",  href: "/dashboard/boltons", icon: Target,   module: "boltons" },
-      { label: "Advisor Map",     href: "/dashboard/advisors", icon: Network, module: "advisors" },
-      { label: "Account Narratives", href: "/dashboard/narratives", icon: Lightbulb, module: "narratives" },
-    ],
-  },
-  {
-    label: "Advisory Intelligence", items: [
-      { label: "M&A Proposals",  href: "/dashboard/proposals", icon: FileText,        module: "proposals" },
-      { label: "PMI Playbook Studio", href: "/dashboard/pmi",       icon: Layers,          module: "pmi" },
-      { label: "Synergy Quantification", href: "/dashboard/synergy",   icon: TrendingUp,      module: "synergy" },
-      { label: "TSA Generator",  href: "/dashboard/tsa",       icon: ArrowLeftRight,  module: "tsa" },
+    label: "Outreach & Advisory", items: [
+      { label: "M&A Proposals",  href: "/dashboard/proposals", icon: FileText,       module: "proposals" },
+      { label: "Synergy Quantification", href: "/dashboard/synergy", icon: TrendingUp, module: "synergy" },
+      { label: "TSA Generator",  href: "/dashboard/tsa",       icon: ArrowLeftRight, module: "tsa" },
+      { label: "PMI Integration POV", href: "/dashboard/pmi",  icon: Layers,         module: "pmi" },
+      { label: "Account Narratives", href: "/dashboard/narratives", icon: Lightbulb,  module: "narratives" },
     ],
   },
   {
@@ -187,7 +188,7 @@ export default function Sidebar() {
             )}
             {group.items.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
-              const isAdvisory = group.label === "Advisory Intelligence";
+              const isAdvisory = group.label === "Outreach & Advisory";
               const isAdminGroup = group.label === "Admin";
               return (
                 <Link key={item.href} href={item.href}
