@@ -347,6 +347,56 @@ connections, pruned storage) so the upgrade is a config change, not a rewrite.
 
 ---
 
+## 8b. Implementation status (this branch)
+
+The sprints below were started on `claude/deal-iq-review-roadmap-k0ndol`.
+Legend: ✅ shipped · ◐ partial/foundational · ☐ not started (larger infra).
+
+**Sprint 0 — release blockers ✅**
+- ✅ Entity-coherence gate `src/lib/proposal/coherence.ts` — deterministic,
+  unit-tested (4 cases); wired into generation (corrective retry + response
+  flag) and the PPTX exporter (hard pre-export block on high-confidence bleed).
+- ✅ Cover EV/synergy field-mapping fixed; deal-size ranges no longer shown as EV.
+- ✅ Duplicate single-instance sections collapsed to the richest copy.
+- ✅ Themes: raw AI-labeler failures no longer reach the UI (server-side logs only).
+- ◐ Deal-size ingest normalisation: exporter-side range guard shipped; a
+  first-class `{value, currency}` ingest field remains for Sprint 2 follow-up.
+
+**Sprint 1 — focus ✅**
+- ✅ Two-pillar nav (Deal Intelligence / Outreach & Advisory) + thin Admin.
+- ✅ Origination Queue / Data Triage relabels; PMI repositioned to "PMI
+  Integration POV" (advisory framing, tracker language removed from the page).
+- ◐ Cutting the PMI Gantt/progress *data model* is deferred — it changes the
+  module contract and needs product sign-off; framing is corrected now.
+
+**Sprint 2 — defensibility ◐**
+- ✅ Synergy basis lines ("X% of $Y × ambition = $Z", sector precedent) in the
+  offline generator; revenue framed below cost to fix the placeholder optics.
+- ✅ Provenance quality bar (sourced [n] vs "(modelled)") in the AI path.
+- ☐ Full triangulation-by-named-comparable on every headline (engine exists;
+  surfacing on each figure is follow-up).
+
+**Sprint 3 — sector depth ◐**
+- ✅ Sector knowledge packs for Financial Services + Life Sciences (value levers,
+  named regulators + what they gate, diligence reds, insider vocab).
+- ☐ Remaining priority sectors; deal-type-aware spine is scaffolded via
+  `advanced/prompts` but not yet fully content-wired.
+
+**Sprint 4 — enterprise trust ◐**
+- ✅ Tamper-evident export audit trail (generation ref in metadata + cover).
+- ◐ Key-crypto/RLS hardening landed in prior PRs; a full RLS audit, encrypted
+  BYO keys at rest, and the >60s async-job refactor remain (☐, infra-sized).
+
+**Sprint 5 — quality system ◐**
+- ✅ Rubric scorecard (`summarizeQuality`) surfaced on the proposal response —
+  pass/fail + named weakest dimension.
+- ☐ Adversarial red-team pass, won-deck few-shot library, and the edit/win-loss
+  feedback loop remain.
+
+The ☐ items are deliberately staged: they are infra-sized (DB migrations, async
+job queue, RLS audit) and need to be tested against the live Supabase/Vercel
+environment rather than shipped blind.
+
 ## 9. One-line summary
 
 > Deal IQ has a real moat in origination and a strong architectural intent
