@@ -16,7 +16,7 @@ import { getAdvancedPromptBuilder } from "@/lib/advanced/prompts";
 import { deriveSynergies, buildSynergyLevers } from "@/lib/advanced/engines/synergy_engine";
 import { deriveDealRisks, buildRiskRegister } from "@/lib/advanced/engines/risk_engine";
 import { validateRequiredSections } from "@/lib/advanced/validators/output_validator";
-import { evaluateProposalQuality } from "@/lib/advanced/validators/quality_validator";
+import { evaluateProposalQuality, summarizeQuality } from "@/lib/advanced/validators/quality_validator";
 import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
@@ -609,6 +609,7 @@ ${fullContext}` },
       model: result.model,
       viaFallback: result.viaFallback,
       qualityScore: evaluateProposalQuality(result.text).score,
+      qualityScorecard: summarizeQuality(result.text),
       evidenceCoverage: body.research_docs ? 85 : 55,
       scenarios: scenarioCases,
       coherence: {

@@ -98,7 +98,12 @@ export async function exportProposalToPptx(
   pres.title = `${meta.buyer} → ${meta.target} — ${meta.moduleLabel ?? "Advisory"}`;
   pres.author = meta.clientName || "Deal IQ AI";
   pres.company = "Deal IQ AI";
-  pres.subject = "Consulting-grade generated deal document";
+  // Tamper-evident export audit trail: a short generation reference derived from
+  // the deal parties + export time, stamped into document metadata AND onto the
+  // cover, so any leaked deck is traceable back to its source.
+  const genRef = makeGenRef(meta);
+  pres.subject = `Confidential · Deal IQ AI generated · Ref ${genRef} · ${new Date().toISOString()}`;
+  pres.revision = genRef;
 
   const docType = resolveDocType(meta.moduleLabel);
 
@@ -114,6 +119,8 @@ export async function exportProposalToPptx(
 
   // Build the structured, banned-phrase-free deck model from the markdown.
   const model = buildDeckModel(proposalMd, sections, meta, docType, citationsMd);
+  // Stamp the traceability reference onto the cover footer.
+  model.cover.preparedBy = `${model.cover.preparedBy}  ·  Ref ${genRef}`;
 
   // Quality gate — advisory only; never blocks deck generation.
   const warnings = validateDeckJSON(model.validation, docType);
@@ -1032,4 +1039,15 @@ function applyStorylineOrder(
 
 function slugify(s: string): string {
   return (s || "deal").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+}
+
+/** Short, traceable export reference: deal fingerprint + date + minute seed. */
+function makeGenRef(meta: DealMeta): string {
+  const seed = `${meta.buyer}|${meta.target}|${meta.moduleLabel ?? ""}|${Date.now()}`;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) { h = (h * 31 + seed.charCodeAt(i)) | 0; }
+  const fp = Math.abs(h).toString(36).toUpperCase().slice(0, 6).padStart(6, "0");
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return `DIQ-${ymd}-${fp}`;
 }
