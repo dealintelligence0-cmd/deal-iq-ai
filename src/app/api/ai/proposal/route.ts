@@ -530,6 +530,7 @@ Non-negotiable quality bars:
 4) Include jurisdiction-specific regulatory pathway and filing implications (HSR, EU Merger, CCI, CMA, MOFCOM, SEBI as applicable).
 5) Show synergy derivation: every $ figure has format "[base] × [%] = $[number] [HIGH/MEDIUM/STRETCH]".
 6) End with explicit recommendation: Go / Conditional Go / No-Go and conditions precedent.
+7) PROVENANCE: label every quantum as either sourced or modelled. External market claims carry a [n] citation to LIVE WEB RESEARCH; internally-derived figures are tagged "(modelled)". Never present a modelled number as if it were a sourced fact.
 
 Risk & Mitigation MUST include Regulatory Compliance subsection referencing each flagged filing.
 Include section: ## Why NOT This Deal with 3 explicit disconfirming arguments.
