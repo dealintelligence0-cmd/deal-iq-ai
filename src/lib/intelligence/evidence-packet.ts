@@ -21,6 +21,7 @@ import {
   type SourceRef,
   type SourceType,
   type PacketDealContext,
+  type ModuleSlice,
   type ProposalSlice,
   type SynergySlice,
   type PmiSlice,
