@@ -78,6 +78,25 @@ export async function researchDeal(
   };
 }
 
+// Intelligence Packet path (Phase 2). Runs research through the deterministic T0
+// packet builder. NOT yet consumed by any route — briefToPromptBlock() below remains
+// the raw fallback path that routes still use. Kept here so the packet pipeline has a
+// single entry point once routes migrate (Phase 6).
+export async function researchDealToPacket(
+  buyer: string, target: string, sector: string, geography: string,
+  tavilyKey: string,
+  deal: { deal_id?: string; buyer?: string; target?: string; sector?: string; geography?: string } = {},
+): Promise<{ brief: ResearchBrief; packet: import("@/lib/intelligence/packet-types").IntelligencePacket }> {
+  const brief = await researchDeal(buyer, target, sector, geography, tavilyKey);
+  const { buildIntelligencePacket } = await import("@/lib/intelligence/evidence-packet");
+  const packet = await buildIntelligencePacket(brief, {
+    deal_id: deal.deal_id,
+    buyer: deal.buyer ?? buyer, target: deal.target ?? target,
+    sector: deal.sector ?? sector, geography: deal.geography ?? geography,
+  });
+  return { brief, packet };
+}
+
 export function briefToPromptBlock(b: ResearchBrief): string {
   return `
 ## LIVE WEB RESEARCH (use this verbatim — cite sources)
