@@ -74,10 +74,17 @@ export async function POST(req: Request) {
     if (searchCipher) {
       const { data: dec } = await admin.rpc("decrypt_key", { cipher: searchCipher });
       const searchKey = dec as string;
-      const { researchDeal, briefToPromptBlock } = await import("@/lib/research/web-research");
-      const brief = await researchDeal(buyer, target, sector, geography, searchKey);
+      // Phase 6: route research through the Intelligence Packet (T0[/T1], cached +
+      // fingerprinted) and consume the synergy slice instead of the raw brief. Server-side
+      // the on-device tier is Null, so this is T0-only (verbatim claims) — equivalent
+      // information to the old briefToPromptBlock, just structured as evidence with [sN] refs.
+      const { researchDealToPacket } = await import("@/lib/research/web-research");
+      const { toSynergySlice, sliceToPromptBlock } = await import("@/lib/intelligence/evidence-packet");
+      const { packet } = await researchDealToPacket(buyer, target, sector, geography, searchKey, {
+        deal_id: body.deal_id, buyer, target, sector, geography,
+      });
       void provider;
-      researchBlock = briefToPromptBlock(brief);
+      researchBlock = sliceToPromptBlock(toSynergySlice(packet));
     }
   } catch { /* research is optional — proceed without */ }
   
@@ -211,7 +218,7 @@ This rule is more important than any other formatting requirement. Coherence acr
     target_revenue ? `Target Revenue: ${target_revenue}` : "",
     target_ebitda ? `Target EBITDA: ${target_ebitda}` : "",
     buyer_revenue ? `Buyer Revenue: ${buyer_revenue}` : "",
-    researchBlock ? "[USE RESEARCH] Cite specific findings from LIVE WEB RESEARCH using [1], [2] markers throughout." : "",
+    researchBlock ? "[USE RESEARCH] Cite specific findings from the INTELLIGENCE PACKET using its [sN] source markers throughout. This is unverified evidence, not established fact — attribute, do not assert." : "",
     `Analytical lever inputs (use these as percentage ranges; the run-rate dollar amounts MUST come from the CANONICAL DEAL MODEL above): ${JSON.stringify(synergyLevers)}`,
     `\n## SYNERGY MODULE OUTPUT REQUIREMENTS\n- Use the EXACT cost & revenue synergy figures from CANONICAL DEAL MODEL above.\n- If the model has empty cost_initiatives / rev_initiatives, derive 6-10 line items that SUM to the canonical run-rate (not exceed it).\n- Each initiative line: name, category, basis (e.g. "8% of $X SG&A overlap"), Y1/Y2/Y3 amounts, confidence, owner.\n- Currency throughout: ${body.deal_size?.match(/INR|₹/i) ? "INR" : body.deal_size?.match(/EUR|€/i) ? "EUR" : "USD"}.`,
   ].filter(Boolean).join("\n");

@@ -331,7 +331,9 @@ export function toProposalSlice(packet: IntelligencePacket): ProposalSlice {
   return { module: "proposal", ...sliceFor(packet, ["buyer", "target", "sector", "comparables", "risks"]) };
 }
 export function toSynergySlice(packet: IntelligencePacket): SynergySlice {
-  return { module: "synergy", ...sliceFor(packet, ["sector", "comparables", "buyer", "target"]) };
+  // Includes "risks": synergy output has a Synergy Realisation Risks section, and the raw
+  // block this slice replaces (briefToPromptBlock) carried live_risks — keep parity, no loss.
+  return { module: "synergy", ...sliceFor(packet, ["sector", "comparables", "buyer", "target", "risks"]) };
 }
 export function toPmiSlice(_packet: IntelligencePacket): PmiSlice {
   return { module: "pmi", claims: [], keywords: [], sources: [] }; // research-free for now
