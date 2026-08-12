@@ -222,6 +222,22 @@ This rule is more important than any other formatting requirement. Coherence acr
     { role: "user", content: userPrompt },
   ];
 
+  // [PHASE1-BENCHMARK] temp, dev-only — remove once the Intelligence Packet pipeline lands.
+  // Measures how much of the current synergy prompt is the raw research block (the part a
+  // packet could compress) vs. the total prompt. No behavior change.
+  if (process.env.NODE_ENV !== "production") {
+    const tok = (s: string) => Math.ceil((s || "").length / 4);
+    const totalTok = messages.reduce((a, m) => a + tok(m.content), 0);
+    const researchTok = tok(researchBlock);
+    console.info("[PHASE1-BENCHMARK][synergy]", {
+      hasResearch: !!researchBlock,
+      researchBlockChars: researchBlock.length,
+      researchBlockTokens: researchTok,
+      totalPromptTokens: totalTok,
+      researchSharePct: totalTok ? Math.round((researchTok / totalTok) * 1000) / 10 : 0,
+    });
+  }
+
   const cached = getSemanticCache({ userId: user.id, module: "synergy", messages, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
   if (cached) {
     return NextResponse.json({
