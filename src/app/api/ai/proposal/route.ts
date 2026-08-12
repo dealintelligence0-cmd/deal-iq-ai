@@ -555,6 +555,24 @@ ${regBlock}
 ${fullContext}` },
   ];
 
+  // [PHASE1-BENCHMARK] temp, dev-only — remove once the Intelligence Packet pipeline lands.
+  // Proposal's "research" is client-supplied free text (body.research_docs, capped at 4000
+  // chars before injection). Measure its token share of the total prompt. No behavior change.
+  if (process.env.NODE_ENV !== "production") {
+    const tok = (s: string) => Math.ceil((s || "").length / 4);
+    const totalTok = messages.reduce((a, m) => a + tok(m.content), 0);
+    const researchDocsRaw = body.research_docs ?? "";
+    const researchTok = tok(researchDocsRaw.slice(0, 4000));
+    console.info("[PHASE1-BENCHMARK][proposal]", {
+      researchMode: body.research_mode ?? "(none)",
+      researchDocsChars: researchDocsRaw.length,
+      researchDocsCharsInjected: Math.min(researchDocsRaw.length, 4000),
+      researchDocsTokens: researchTok,
+      totalPromptTokens: totalTok,
+      researchSharePct: totalTok ? Math.round((researchTok / totalTok) * 1000) / 10 : 0,
+    });
+  }
+
   try {
     if (premium_mode && body.research_mode === "web" && !body.research_docs) {
       return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
