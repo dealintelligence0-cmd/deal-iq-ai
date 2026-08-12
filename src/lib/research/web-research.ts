@@ -88,12 +88,15 @@ export async function researchDealToPacket(
   deal: { deal_id?: string; buyer?: string; target?: string; sector?: string; geography?: string } = {},
 ): Promise<{ brief: ResearchBrief; packet: import("@/lib/intelligence/packet-types").IntelligencePacket }> {
   const brief = await researchDeal(buyer, target, sector, geography, tavilyKey);
-  const { buildIntelligencePacket } = await import("@/lib/intelligence/evidence-packet");
-  const packet = await buildIntelligencePacket(brief, {
+  const { getOrBuildIntelligencePacket } = await import("@/lib/intelligence/packet-cache");
+  // Cache is fingerprinted (rule 8) and sessionStorage-backed (rule 7): a no-op server-side,
+  // a session memo in the browser. dealModelVersion is null — current packets do not depend
+  // on Deal Model state, so a model edit must not invalidate unchanged research.
+  const packet = await getOrBuildIntelligencePacket(brief, {
     deal_id: deal.deal_id,
     buyer: deal.buyer ?? buyer, target: deal.target ?? target,
     sector: deal.sector ?? sector, geography: deal.geography ?? geography,
-  });
+  }, undefined, { dealModelVersion: null });
   return { brief, packet };
 }
 
