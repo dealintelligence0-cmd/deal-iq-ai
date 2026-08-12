@@ -12,7 +12,8 @@
 // "Found in source" is never conflated with "true".
 
 // Bump PACKET_SCHEMA_VERSION when the packet SHAPE changes (fields added/removed/retyped).
-export const PACKET_SCHEMA_VERSION = 1 as const;
+// v2: added EvidenceClaim.t1Derived (Phase 4 — on-device T1 compression marker).
+export const PACKET_SCHEMA_VERSION = 2 as const;
 // Bump PROCESSOR_VERSION when T0/T1 EXTRACTION LOGIC changes (even if the shape is identical).
 export const PROCESSOR_VERSION = 1 as const;
 
@@ -52,6 +53,12 @@ export type EvidenceClaim = {
   // Which source(s) back this claim (SourceRef.id values). Empty when the claim is a
   // section-level summary with no single attributable source.
   sourceRefs: string[];
+  // True when `text` was replaced by an on-device (T1) compression that PASSED the T0
+  // re-validation pass (its tokens still appear in the source). Absent/false = verbatim
+  // T0 text. T1 output is advisory: this flag never implies factual truth, only that a
+  // compressed rendering was accepted. extractionFidelity is recomputed against the
+  // source for the compressed text when this is true.
+  t1Derived?: boolean;
 };
 
 export type PacketDealContext = {

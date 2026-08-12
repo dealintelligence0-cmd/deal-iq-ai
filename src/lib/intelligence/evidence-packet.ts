@@ -27,6 +27,12 @@ import {
   type PmiSlice,
   type TsaSlice,
 } from "@/lib/intelligence/packet-types";
+import { getOnDeviceAI, type OnDeviceAI, type OnDeviceKind } from "@/lib/ai/on-device";
+
+// Minimum re-validation fidelity to ACCEPT an on-device (T1) compression. Below this,
+// the compressed text has drifted from the source → reject it and keep the verbatim T0
+// claim. This is the safety gate that makes untrusted T1 output usable (rule 3).
+const T1_ACCEPT_MIN_FIDELITY = 0.6;
 
 // ─── Text utilities ─────────────────────────────────────────────────────
 
@@ -150,12 +156,21 @@ function extractKeywords(claims: EvidenceClaim[], max = 15): string[] {
 
 // ─── Packet builder ─────────────────────────────────────────────────────
 
-// Async signature is intentional: Phase 4 slots on-device T1 in here without changing
-// the contract. Phase 2 resolves synchronously (pure T0). Falls back cleanly to a
-// T0-only packet — identical shape — when no research/T1 is available.
+export type BuildPacketOpts = {
+  // Inject an OnDeviceAI adapter (tests). Defaults to getOnDeviceAI() feature-detection.
+  onDevice?: OnDeviceAI;
+  // Force a specific adapter kind, e.g. "null" to verify graceful T0-only fallback.
+  forceOnDevice?: OnDeviceKind;
+};
+
+// T0 → T1 → T0-validation. On-device T1 (compression) is applied per claim and only kept
+// when it re-validates against the source; otherwise the verbatim T0 claim stands. Falls
+// back cleanly to a T0-only packet — identical shape — when on-device AI is unavailable
+// (server-side, or Null adapter). Never touches the canonical Deal Model.
 export async function buildIntelligencePacket(
   brief: ResearchBrief,
   deal: PacketDealContext,
+  opts?: BuildPacketOpts,
 ): Promise<IntelligencePacket> {
   // 1) Sources from citations (deduped by URL already upstream, but guard again).
   const sources: SourceRef[] = [];
@@ -187,7 +202,10 @@ export async function buildIntelligencePacket(
   const rawClaims: RawClaim[] = sections.flatMap(([text, cat]) => splitIntoClaims(text, cat));
 
   // 3) Dedupe (exact-normalized + substring containment) and score each claim.
+  //    claimSourceText[i] holds the source text used to score claims[i] — reused by the
+  //    T1 validation pass below (empty string when the claim has no attributable source).
   const claims: EvidenceClaim[] = [];
+  const claimSourceText: string[] = [];
   const seenNorm: string[] = [];
   for (const rc of rawClaims) {
     const norm = normalizeForDedupe(rc.text);
@@ -201,10 +219,12 @@ export async function buildIntelligencePacket(
 
     let extractionFidelity: number;
     let sourceConfidence: number;
+    let sourceText = "";
     const sourceRefs: string[] = [];
     if (matched) {
       const snippet = (brief.citations.find((c) => c.title === matched.title)?.snippet) ?? matched.title;
-      extractionFidelity = computeExtractionFidelity(rc.text, `${matched.title} ${snippet}`);
+      sourceText = `${matched.title} ${snippet}`;
+      extractionFidelity = computeExtractionFidelity(rc.text, sourceText);
       sourceConfidence = sourceConfidenceFor(matched.sourceType);
       sourceRefs.push(matched.id);
     } else {
@@ -222,7 +242,11 @@ export async function buildIntelligencePacket(
       factuallyVerified: false, // NEVER set true — this pipeline does not assert truth.
       sourceRefs,
     });
+    claimSourceText.push(sourceText);
   }
+
+  // 4) T1 (on-device, ADVISORY): compress each source-attributed claim, then re-validate.
+  const t1Applied = await applyT1Compression(claims, claimSourceText, opts);
 
   const keywords = extractKeywords(claims);
 
@@ -235,8 +259,57 @@ export async function buildIntelligencePacket(
     sources,
     claims,
     keywords,
-    t1Applied: false, // pure T0 in Phase 2
+    t1Applied,
   };
+}
+
+// ─── T1: on-device compression + T0 re-validation ───────────────────────
+// Advisory only. For each claim that has an attributable source, ask on-device AI to
+// compress the claim text (task-specific Summarizer API, policy task "research-compress"),
+// then RE-VALIDATE the compressed text against the source (T0 fidelity check). A result is
+// kept only if it is actually shorter AND re-validates at or above T1_ACCEPT_MIN_FIDELITY;
+// otherwise the verbatim T0 claim stands. On-device unavailable / any null → no change.
+// Mutates `claims` in place and returns whether any T1 result was accepted.
+async function applyT1Compression(
+  claims: EvidenceClaim[],
+  claimSourceText: string[],
+  opts?: BuildPacketOpts,
+): Promise<boolean> {
+  const ai = opts?.onDevice ?? getOnDeviceAI(opts?.forceOnDevice ? { force: opts.forceOnDevice } : undefined);
+  if (!ai.isAvailable()) return false; // Null adapter / server-side → clean T0-only fallback.
+
+  let accepted = false;
+  for (let i = 0; i < claims.length; i++) {
+    const src = claimSourceText[i];
+    if (!src) continue; // no distinct source to re-validate against → never let T1 touch it.
+    const original = claims[i].text;
+
+    // T1 compression via the task-specific Summarizer API (rule 5). Untrusted output.
+    let compressed: string | null = null;
+    try {
+      compressed = await ai.summarize("research-compress", original, { context: src, length: "short" });
+    } catch {
+      compressed = null; // adapters shouldn't throw, but never let T1 break the packet.
+    }
+    if (!compressed) continue; // graceful: keep T0 claim.
+
+    const trimmed = compressed.trim();
+    if (!trimmed || trimmed.length >= original.length) continue; // no real compression → keep T0.
+
+    // T0 VALIDATION PASS: does the T1 output still appear in the source? Reject drift.
+    const fidelity = computeExtractionFidelity(trimmed, src);
+    if (fidelity < T1_ACCEPT_MIN_FIDELITY) continue; // T1 drifted/hallucinated → keep T0.
+
+    claims[i] = {
+      ...claims[i],
+      text: trimmed,
+      extractionFidelity: fidelity, // honest post-compression fidelity vs. the source.
+      factuallyVerified: false,     // still never asserted.
+      t1Derived: true,
+    };
+    accepted = true;
+  }
+  return accepted;
 }
 
 // ─── Per-module slices (rule 2) ─────────────────────────────────────────
