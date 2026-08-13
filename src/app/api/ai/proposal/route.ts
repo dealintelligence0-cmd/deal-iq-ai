@@ -21,6 +21,7 @@ import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
 import { analyzeProposalCoherence } from "@/lib/proposal/coherence";
+import { fitGroqTokenBudget } from "@/lib/ai/groq-budget";
 
 // Vercel: without this the function uses the platform default (~10-15s) and a long
 // premium generation is killed mid-flight — the client then sees "Failed to fetch"
@@ -590,27 +591,34 @@ ${fullContext}` },
     if (premium_mode && body.research_mode === "web" && !body.research_docs) {
       return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
     }
-    // Groq free tier caps Llama-70B at 12K tokens/minute; the proposal prompt is the
-    // largest in the app and routinely exceeds it (observed: 18,192 requested → 413).
-    // Same guard pmi/route.ts and synergy/route.ts already use — step down to the
-    // 8B model rather than failing the generation outright.
-    const estimatedTokens = messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0);
-    if (cfg.primaryProvider === "groq" && estimatedTokens > 11000 && cfg.primaryModel?.includes("70b")) {
-      cfg.primaryModel = "llama-3.1-8b-instant";
-    }
-    let result = await routedCall(cfg, messages, use_premium ? 10000 : 8000);
+    // Groq counts input + the RESERVED max_completion_tokens against one TPM allowance,
+    // so an oversized reservation 413s even when the prompt itself fits. Trim the
+    // reservation to what is actually left; if that is too little to write a complete
+    // proposal, fail immediately with guidance the partner can act on rather than
+    // surfacing a raw provider 413. Non-Groq providers are unaffected.
+    const budget = fitGroqTokenBudget({
+      provider: cfg.primaryProvider,
+      messages,
+      requestedMaxTokens: use_premium ? 10000 : 8000,
+      minUsefulOutput: 2500, // below this a proposal is a truncated fragment
+      moduleLabel: "proposal",
+    });
+    if (!budget.ok) return NextResponse.json({ error: budget.message }, { status: 400 });
+    const maxOut = budget.maxTokens;
+
+    let result = await routedCall(cfg, messages, maxOut);
 
     if (isAdvancedMode) {
       const validation = validateRequiredSections(result.text, mandate_type === "carve_out" ? ["Separation Critical Path","Stranded Cost Quantification","TSA Service Catalog","Standalone Capability Gap Analysis","Day-1 Cutover Plan","Customer Continuity Plan","Regulatory & Compliance Risks (deal-specific)","Technology Separation Blueprint"] : []);
       if (!validation.ok) {
         const retryMessages: ChatMessage[] = [...messages, { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` }];
-        result = await routedCall({ ...cfg, telemetry: tlm("retry_sections") }, retryMessages, use_premium ? 10000 : 8000);
+        result = await routedCall({ ...cfg, telemetry: tlm("retry_sections") }, retryMessages, maxOut);
       }
     }
     const quality = evaluateProposalQuality(result.text);
     if (isAdvancedMode && quality.score < 70) {
       const qualityRetry: ChatMessage[] = [...messages, { role: "user", content: `Quality score ${quality.score} is below threshold. Rewrite with higher numeric density, less repetitive language, explicit owners, and jurisdiction-specific regulatory detail.` }];
-      result = await routedCall({ ...cfg, telemetry: tlm("retry_quality") }, qualityRetry, use_premium ? 10000 : 8000);
+      result = await routedCall({ ...cfg, telemetry: tlm("retry_quality") }, qualityRetry, maxOut);
     }
 
     if (result.provider === "free" || result.model === "rules-v1") {
@@ -628,7 +636,7 @@ ${fullContext}` },
         `STOP. ${fix}\nThis document MUST be about the acquisition of "${target}" by "${buyer}" ` +
         `in ${sector || "the stated sector"}. Do not mention any other companies as the parties. ` +
         `Regenerate every section using ONLY these named parties.` }];
-      result = await routedCall({ ...cfg, telemetry: tlm("retry_coherence") }, coherenceRetry, use_premium ? 10000 : 8000);
+      result = await routedCall({ ...cfg, telemetry: tlm("retry_coherence") }, coherenceRetry, maxOut);
       coherence = analyzeProposalCoherence(result.text, { buyer, target, sector, geography });
     }
 
