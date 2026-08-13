@@ -18,6 +18,14 @@ import { reviseAssumption } from "@/lib/cognition/orchestrator";
 import { getActiveWorkspace } from "@/lib/workspaces/context";
 import { COGNITION_KEYS } from "@/lib/cognition/keys";
 
+// Vercel: without this the function uses the platform default (~10-15s) and a long
+// premium generation is killed mid-flight — the client then sees "Failed to fetch"
+// with no HTTP status. 60s is the Hobby/free-tier ceiling (tsa/route.ts already
+// sets its own). Long premium runs may still need the Phase 7B retry work.
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+
 export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
