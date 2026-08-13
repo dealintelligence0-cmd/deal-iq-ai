@@ -22,6 +22,14 @@ import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligen
 import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
 import { analyzeProposalCoherence } from "@/lib/proposal/coherence";
 
+// Vercel: without this the function uses the platform default (~10-15s) and a long
+// premium generation is killed mid-flight — the client then sees "Failed to fetch"
+// with no HTTP status. 60s is the Hobby/free-tier ceiling (tsa/route.ts already
+// sets its own). Long premium runs may still need the Phase 7B retry work.
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+
 export type ProposalType =
   | "advisory" | "executive_summary" | "board_memo"
   | "investment_teaser" | "integration_blueprint" | "hundred_day_plan";
@@ -581,6 +589,14 @@ ${fullContext}` },
   try {
     if (premium_mode && body.research_mode === "web" && !body.research_docs) {
       return NextResponse.json({ error: "Premium Mode requires research context before generation." }, { status: 400 });
+    }
+    // Groq free tier caps Llama-70B at 12K tokens/minute; the proposal prompt is the
+    // largest in the app and routinely exceeds it (observed: 18,192 requested → 413).
+    // Same guard pmi/route.ts and synergy/route.ts already use — step down to the
+    // 8B model rather than failing the generation outright.
+    const estimatedTokens = messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0);
+    if (cfg.primaryProvider === "groq" && estimatedTokens > 11000 && cfg.primaryModel?.includes("70b")) {
+      cfg.primaryModel = "llama-3.1-8b-instant";
     }
     let result = await routedCall(cfg, messages, use_premium ? 10000 : 8000);
 

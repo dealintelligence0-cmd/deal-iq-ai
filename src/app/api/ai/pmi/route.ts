@@ -16,6 +16,14 @@ import { BIG4_PMI_KIT } from "@/lib/proposal/big4-pmi-templates";
 import { buildAdvisoryRules } from "@/lib/ai/advisory-rules";
 import { getOrSeed, dealModelToPromptBlock } from "@/lib/intelligence/deal-model";
 
+// Vercel: without this the function uses the platform default (~10-15s) and a long
+// premium generation is killed mid-flight — the client then sees "Failed to fetch"
+// with no HTTP status. 60s is the Hobby/free-tier ceiling (tsa/route.ts already
+// sets its own). Long premium runs may still need the Phase 7B retry work.
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+
 
 
 export async function POST(req: Request) {
