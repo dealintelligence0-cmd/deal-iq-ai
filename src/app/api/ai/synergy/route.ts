@@ -110,6 +110,8 @@ export async function POST(req: Request) {
     primaryKey: resolved.apiKey,
     primaryModel: modelOverride || resolved.model || undefined,
     blockFreeFallback: true,
+    // PHASE 7A: telemetry attribution only — no routing/behaviour change.
+    telemetry: { userId: user.id, module: "synergy", operation: "generate" },
   };
 
   const systemPrompt = `You are a best-practice integration partner producing a detailed synergy model.

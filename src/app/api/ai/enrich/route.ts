@@ -51,6 +51,9 @@ export async function POST(req: Request) {
     primaryProvider: (settings?.bulk_provider as ProviderId) ?? "free",
     primaryKey: apiKey,
     primaryModel: settings?.bulk_model ?? undefined,
+    // PHASE 7A: telemetry attribution only. This route makes ONE cloud call PER DEAL —
+    // the highest-volume path in the app and the Phase 7D baseline.
+    telemetry: { userId: user.id, module: "enrich", operation: "deal_summary" },
   };
 
   // SECURITY: only ever read/write the caller's OWN deals. The admin client
