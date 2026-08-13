@@ -45,6 +45,63 @@ export type GroqBudgetResult =
  * @param minUsefulOutput Below this many output tokens the result would be a truncated
  *   fragment rather than a usable document, so we fail fast with guidance instead.
  */
+// Groq publishes TPM per model. 12,000 matches llama-3.3-70b-versatile; the smaller
+// instant models are provisioned lower, so they get a conservative figure — trimming
+// slightly more than necessary costs some output length, whereas trimming too little
+// reproduces the 413 we are eliminating.
+export function groqTpmFor(model?: string | null): number {
+  const m = (model ?? "").toLowerCase();
+  if (m.includes("8b") || m.includes("instant")) return 6000;
+  return GROQ_FREE_TPM;
+}
+
+// Below this an answer is a truncated fragment for ANY module, so there is no point
+// spending the call. Modules needing more (e.g. a full proposal) enforce their own
+// higher floor before reaching the router.
+export const MIN_VIABLE_OUTPUT = 700;
+
+export class GroqBudgetError extends Error {
+  readonly inputTokens: number;
+  constructor(message: string, inputTokens: number) {
+    super(message);
+    this.name = "GroqBudgetError";
+    this.inputTokens = inputTokens;
+  }
+}
+
+/**
+ * Platform-wide guard applied inside routedCall(), so every AI call site inherits it.
+ *
+ * Returns the completion reservation that actually fits Groq's TPM allowance. Non-Groq
+ * providers are returned unchanged. Throws GroqBudgetError when even a minimal answer
+ * cannot fit, which surfaces as a readable message instead of a provider 413.
+ */
+export function budgetedMaxTokens(
+  provider: string,
+  model: string | undefined,
+  messages: ChatMessage[],
+  requestedMaxTokens: number,
+): number {
+  if (provider !== "groq") return requestedMaxTokens;
+
+  const limit = groqTpmFor(model);
+  const inputTokens = estimateMessageTokens(messages);
+  const available = limit - inputTokens - SAFETY_MARGIN;
+
+  if (available >= requestedMaxTokens) return requestedMaxTokens;
+  if (available >= MIN_VIABLE_OUTPUT) return available;
+
+  throw new GroqBudgetError(
+    `This request needs about ${inputTokens.toLocaleString()} tokens of context, which exceeds ` +
+    `what Groq's free tier allows for ${model ?? "this model"} (${limit.toLocaleString()} tokens/minute ` +
+    `covering the prompt AND the reserved response together).\n\n` +
+    `Fix it by either switching this tier to a provider with larger limits — OpenAI gpt-4.1-mini, ` +
+    `Google gemini-2.5-flash or DeepSeek — in Settings → API Key Library, or upgrading Groq at ` +
+    `console.groq.com/settings/billing.`,
+    inputTokens,
+  );
+}
+
 export function fitGroqTokenBudget(args: {
   provider: string;
   messages: ChatMessage[];

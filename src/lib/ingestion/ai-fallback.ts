@@ -18,6 +18,7 @@ import { type ExtractionResult, type FieldEvidence } from "./types";
 import { readMergermarket } from "./columns";
 import { getFewShotExamples, formatExamplesForPrompt } from "./few-shot";
 import { callProvider, type ProviderId, type ChatMessage } from "@/lib/ai/providers";
+import { budgetedMaxTokens } from "@/lib/ai/groq-budget";
 
 const SYSTEM_PROMPT = `You are an M&A data extraction engine. Read the row and return a STRICT JSON object.
 
@@ -123,7 +124,11 @@ export async function runAIFallback(
 
   let text: string;
   try {
-    const result = await callProvider(opts.provider, opts.model, opts.apiKey, messages, 800);
+    // This path calls the provider directly rather than through routedCall, so it applies
+    // the same Groq TPM budgeting itself. Row prompts are small, but a wide row with long
+    // free-text fields can still push a batch over the cap.
+    const budgeted = budgetedMaxTokens(opts.provider, opts.model, messages, 800);
+    const result = await callProvider(opts.provider, opts.model, opts.apiKey, messages, budgeted);
     text = result.text;
   } catch {
     return { result: base, ai_payload: null };

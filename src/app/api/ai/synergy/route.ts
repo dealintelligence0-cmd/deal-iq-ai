@@ -267,11 +267,12 @@ This rule is more important than any other formatting requirement. Coherence acr
   }
 
   try {
-    // Groq free-tier TPM safety: swap to a smaller model if the prompt exceeds Llama 3.3 70B's 12K token cap
-  const estimatedTokens = messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0);
-  if (cfg.primaryProvider === "groq" && estimatedTokens > 11000 && cfg.primaryModel?.includes("70b")) {
-    cfg.primaryModel = "llama-3.1-8b-instant";
-  }
+    // Groq TPM is now budgeted centrally in routedCall (src/lib/ai/groq-budget.ts).
+    // The previous model-swap guard here could not work: it required primaryModel to be
+    // pinned (it is often undefined, and the router then probes and picks 70B anyway),
+    // it tested input tokens while ignoring the reserved completion tokens that actually
+    // cause the overage, and llama-3.1-8b-instant carries a LOWER allowance than the
+    // model it swapped away from.
     const result = await routedCall(cfg, messages, 6000);
     if (result.provider === "free" || result.model === "rules-v1") {
       return NextResponse.json({

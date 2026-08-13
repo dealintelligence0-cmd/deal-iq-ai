@@ -2,6 +2,7 @@
 
 import { callProvider, probeBestModel, type ChatMessage, type ChatResult, type ProviderId, type Tier } from "./providers";
 import { recordAiEvent, classifyFailure, type TelemetryContext } from "./telemetry";
+import { budgetedMaxTokens } from "./groq-budget";
 
 export type RouteConfig = {
   tier: Tier;
@@ -51,19 +52,25 @@ export async function routedCall(
     if (!p.ok) throw new Error(`Probe failed for ${cfg.primaryProvider}: ${p.error ?? "unknown"} (tried: ${p.tried.join(", ")})`);
     pModel = p.model!;
   }
+  // Groq counts input + the RESERVED completion tokens against one TPM allowance, so an
+  // oversized reservation 413s even when the prompt fits. Trim the reservation to what
+  // actually remains. Applied here so ALL call sites inherit it; throws a readable
+  // GroqBudgetError when not even a minimal answer fits. Non-Groq providers unchanged.
+  const primaryMaxTokens = budgetedMaxTokens(cfg.primaryProvider, pModel, messages, maxTokens);
+
   let lastError = "";
   try {
     let res;
     const t0 = Date.now();
     try {
-      res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
+      res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, primaryMaxTokens);
     } catch (e1) {
       lastError = e1 instanceof Error ? e1.message : String(e1);
       // This silent retry is a SECOND billable request. Recorded separately so the
       // baseline shows hidden retry volume rather than hiding it in the success event.
       emit("cloud", null, t0, cfg.primaryProvider, pModel, classifyFailure(e1));
       const t1 = Date.now();
-      res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, maxTokens);
+      res = await callProvider(cfg.primaryProvider, pModel, cfg.primaryKey, messages, primaryMaxTokens);
       emit("cloud", res, t1, cfg.primaryProvider, pModel, null);
       return { ...res, viaFallback: false };
     }
@@ -81,7 +88,8 @@ export async function routedCall(
       if (fModel) {
         const t2 = Date.now();
         try {
-          const res = await callProvider(cfg.fallbackProvider, fModel, cfg.fallbackKey ?? null, messages, maxTokens);
+          const fbMaxTokens = budgetedMaxTokens(cfg.fallbackProvider, fModel, messages, maxTokens);
+          const res = await callProvider(cfg.fallbackProvider, fModel, cfg.fallbackKey ?? null, messages, fbMaxTokens);
           emit("cloud_fallback", res, t2, cfg.fallbackProvider, fModel, reason);
           return { ...res, viaFallback: true, lastError };
         } catch (e3) {
