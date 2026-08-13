@@ -27,9 +27,11 @@ import { assembleWithinBudget, approxTokens, type PromptPart } from "@/lib/ai/pr
 // Vercel: without this the function uses the platform default (~10-15s) and a long
 // premium generation is killed mid-flight — the client then sees "Failed to fetch"
 // with no HTTP status. 60s is the Hobby/free-tier ceiling (tsa/route.ts already
-// sets its own). Long premium runs may still need the Phase 7B retry work.
+// sets its own). Telemetry measured 80s average for a proposal generate and 104s for a
+// retry, so 60s was BELOW real demand; 300s is the Vercel Pro ceiling and is clamped
+// down automatically on smaller plans.
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 
 export type ProposalType =
@@ -534,9 +536,15 @@ This rule is more important than any other formatting requirement. Coherence acr
 
   // Reserve enough for the 14-section document; only Groq imposes a combined cap, and
   // inputBudgetFor returns null (= no limit) for every other provider.
-  // 3,500 output tokens is ~2,600 words, which covers the 14 sections at their stated
-  // minimums; premium documents run longer.
-  const targetOutputTokens = use_premium ? 6000 : 3500;
+  // Only providers with a COMBINED input+output cap need a reduced reservation. Telemetry
+  // shows real proposals average ~7,650 output tokens, so trimming the reservation on an
+  // uncapped provider (Anthropic here) would truncate the document — the opposite of the
+  // intent. Uncapped providers keep the original reservation; Groq gets the tighter one,
+  // where a shorter complete document beats a 413.
+  const providerHasCombinedCap = inputBudgetFor(cfg.primaryProvider, cfg.primaryModel, 0) !== null;
+  const targetOutputTokens = providerHasCombinedCap
+    ? (use_premium ? 6000 : 3500)
+    : (use_premium ? 10000 : 8000);
   const inputBudget = inputBudgetFor(cfg.primaryProvider, cfg.primaryModel, targetOutputTokens);
   // On a combined-cap provider, cite fewer comparables — still real, verified transactions
   // from the library, just a shorter list — so the derived context above survives instead.
