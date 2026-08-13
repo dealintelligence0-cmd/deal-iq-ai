@@ -172,12 +172,8 @@ Output the new content of the section ABOVE (between --- markers). Do not includ
   ];
 
   try {
-    // Same Groq TPM guard as the other AI routes
-    const estimatedTokens = messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0);
-    if (cfg.primaryProvider === "groq" && estimatedTokens > 11000 && cfg.primaryModel?.includes("70b")) {
-      cfg.primaryModel = "llama-3.1-8b-instant";
-    }
-
+    // Groq TPM is now budgeted centrally in routedCall (src/lib/ai/groq-budget.ts);
+    // the old model-swap guard that stood here could not fire and would not have helped.
     const result = await routedCall(cfg, messages, 2500);
     if (result.provider === "free" || result.model === "rules-v1") {
       return NextResponse.json({
