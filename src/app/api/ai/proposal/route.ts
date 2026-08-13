@@ -21,7 +21,8 @@ import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
 import { analyzeProposalCoherence } from "@/lib/proposal/coherence";
-import { fitGroqTokenBudget } from "@/lib/ai/groq-budget";
+import { fitGroqTokenBudget, inputBudgetFor } from "@/lib/ai/groq-budget";
+import { assembleWithinBudget, approxTokens, type PromptPart } from "@/lib/ai/prompt-budget";
 
 // Vercel: without this the function uses the platform default (~10-15s) and a long
 // premium generation is killed mid-flight — the client then sees "Failed to fetch"
@@ -499,6 +500,62 @@ Rules:
 This rule is more important than any other formatting requirement. Coherence across modules is non-negotiable for a top-tier deliverable.`;
 
   
+  // Supporting context, assembled to fit the provider's budget.
+  //
+  // Providers like Groq's free tier cap input + reserved output TOGETHER (12,000 tok/min),
+  // so a prompt that is fine elsewhere cannot be sent as-is. Rather than fail — or push the
+  // partner onto a provider they may not have a key for — the DERIVED blocks below are
+  // compacted and, if still necessary, dropped in priority order until the request fits.
+  // Every one of them is re-derivable by the model from the canonical Deal Model, which is
+  // itself never droppable, and neither is the section checklist that defines the structure.
+  // On unconstrained providers nothing is dropped and the prompt is byte-identical to before.
+  const supportingParts: PromptPart[] = [
+    { label: "Advanced synergy reasoning", dropPriority: 5,
+      text: "## ADVANCED SYNERGY REASONING\n" + JSON.stringify(synergyLines, null, 2),
+      compact: "## ADVANCED SYNERGY REASONING\n" + JSON.stringify(synergyLines) },
+    { label: "Advanced risk reasoning", dropPriority: 4,
+      text: "## ADVANCED RISK REASONING\n" + JSON.stringify(riskLines, null, 2),
+      compact: "## ADVANCED RISK REASONING\n" + JSON.stringify(riskLines) },
+    { label: "Quantified synergy levers", dropPriority: 3,
+      text: "## QUANTIFIED SYNERGY LEVERS\n" + JSON.stringify(quantifiedLevers, null, 2),
+      compact: "## QUANTIFIED SYNERGY LEVERS\n" + JSON.stringify(quantifiedLevers) },
+    { label: "Quantified risk register", dropPriority: 2,
+      text: "## QUANTIFIED RISK REGISTER\n" + JSON.stringify(riskRegister, null, 2),
+      compact: "## QUANTIFIED RISK REGISTER\n" + JSON.stringify(riskRegister) },
+    { label: "Scenario cases", dropPriority: 1,
+      text: "## SCENARIO CASES\n" + JSON.stringify(scenarioCases, null, 2),
+      compact: "## SCENARIO CASES\n" + JSON.stringify(scenarioCases) },
+    { label: "Deal context", dropPriority: 7, text: ctxBlock },
+    // Regulatory screening is the last supporting block to go: filings are named in the
+    // output and are hard for the model to reconstruct.
+    { label: "Regulatory screening", dropPriority: 9, text: regBlock },
+    { label: "Full deal context", dropPriority: 6, text: fullContext },
+  ];
+
+  // Reserve enough for the 14-section document; only Groq imposes a combined cap, and
+  // inputBudgetFor returns null (= no limit) for every other provider.
+  // 3,500 output tokens is ~2,600 words, which covers the 14 sections at their stated
+  // minimums; premium documents run longer.
+  const targetOutputTokens = use_premium ? 6000 : 3500;
+  const inputBudget = inputBudgetFor(cfg.primaryProvider, cfg.primaryModel, targetOutputTokens);
+  // On a combined-cap provider, cite fewer comparables — still real, verified transactions
+  // from the library, just a shorter list — so the derived context above survives instead.
+  const comparablesForPrompt = inputBudget === null
+    ? comparablesBlock
+    : buildComparablesBlock(sector, geography, 2);
+  // Everything outside supportingParts is mandatory; charge it against the budget first.
+  const mandatoryTokens = approxTokens(finalSystemPrompt + advisoryRules + advisorBlock +
+    voiceDisciplineBlock + dealModelBlock + comparablesForPrompt) + 1200; // +checklist/instructions
+  const assembled = inputBudget === null
+    ? { text: supportingParts.map((p) => p.text).join("\n\n"), dropped: [] as string[], compacted: [] as string[], fits: true }
+    : assembleWithinBudget(supportingParts, Math.max(0, inputBudget - mandatoryTokens));
+  const supportingContext = assembled.text;
+  if (assembled.dropped.length || assembled.compacted.length) {
+    console.info("[prompt-budget][proposal]", {
+      provider: cfg.primaryProvider, dropped: assembled.dropped, compacted: assembled.compacted,
+    });
+  }
+
  const messages: ChatMessage[] = [
     // Stable across calls for the same mandate type — provider adapter applies caching where supported.
     { role: "system", stable: true, content: finalSystemPrompt
@@ -508,7 +565,7 @@ This rule is more important than any other formatting requirement. Coherence acr
     { role: "user", content:
       `${dealModelBlock}
 
-${comparablesBlock}
+${comparablesForPrompt}
 
 Generate the ${proposal_type.replace(/_/g, " ")} document. ${isAdvancedMode ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations." : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."}
 
@@ -549,24 +606,7 @@ Non-negotiable quality bars:
 Risk & Mitigation MUST include Regulatory Compliance subsection referencing each flagged filing.
 Include section: ## Why NOT This Deal with 3 explicit disconfirming arguments.
 
-## ADVANCED SYNERGY REASONING
-${JSON.stringify(synergyLines, null, 2)}
-
-## ADVANCED RISK REASONING
-${JSON.stringify(riskLines, null, 2)}
-
-## QUANTIFIED SYNERGY LEVERS
-${JSON.stringify(quantifiedLevers, null, 2)}
-
-## QUANTIFIED RISK REGISTER
-${JSON.stringify(riskRegister, null, 2)}
-
-## SCENARIO CASES
-${JSON.stringify(scenarioCases, null, 2)}
-
-${ctxBlock}
-${regBlock}
-${fullContext}` },
+${supportingContext}` },
   ];
 
   // [PHASE1-BENCHMARK] temp, dev-only — remove once the Intelligence Packet pipeline lands.
@@ -599,7 +639,10 @@ ${fullContext}` },
     const budget = fitGroqTokenBudget({
       provider: cfg.primaryProvider,
       messages,
-      requestedMaxTokens: use_premium ? 10000 : 8000,
+      // Reserve what the document actually needs, not a blanket 8-10k. The 14-section
+      // proposal lands around 2,500-3,500 words; over-reserving was itself most of the
+      // overage on providers that count input + reservation together.
+      requestedMaxTokens: targetOutputTokens,
       minUsefulOutput: 2500, // below this a proposal is a truncated fragment
       moduleLabel: "proposal",
     });

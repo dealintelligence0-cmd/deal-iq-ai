@@ -55,6 +55,20 @@ export function groqTpmFor(model?: string | null): number {
   return GROQ_FREE_TPM;
 }
 
+/**
+ * How many INPUT tokens a request may use if it wants to reserve `desiredOutput` for the
+ * answer. Returns null for providers with no combined cap, meaning "assemble everything".
+ * Lets a route build its prompt to fit rather than discovering the overflow at call time.
+ */
+export function inputBudgetFor(
+  provider: string,
+  model: string | undefined,
+  desiredOutput: number,
+): number | null {
+  if (provider !== "groq") return null;
+  return groqTpmFor(model) - SAFETY_MARGIN - desiredOutput;
+}
+
 // Below this an answer is a truncated fragment for ANY module, so there is no point
 // spending the call. Modules needing more (e.g. a full proposal) enforce their own
 // higher floor before reaching the router.
@@ -95,9 +109,9 @@ export function budgetedMaxTokens(
     `This request needs about ${inputTokens.toLocaleString()} tokens of context, which exceeds ` +
     `what Groq's free tier allows for ${model ?? "this model"} (${limit.toLocaleString()} tokens/minute ` +
     `covering the prompt AND the reserved response together).\n\n` +
-    `Fix it by either switching this tier to a provider with larger limits — OpenAI gpt-4.1-mini, ` +
-    `Google gemini-2.5-flash or DeepSeek — in Settings → API Key Library, or upgrading Groq at ` +
-    `console.groq.com/settings/billing.`,
+    `Shorten the input — trimming the notes field or any attached research usually clears it ` +
+    `immediately. If you also hold a key for a higher-limit provider you can set it as this ` +
+    `tier's default in Settings → API Key Library, but that is optional.`,
     inputTokens,
   );
 }
@@ -130,17 +144,16 @@ export function fitGroqTokenBudget(args: {
     inputTokens,
     available,
     message:
-      `This ${args.moduleLabel} needs about ${inputTokens.toLocaleString()} tokens of context, ` +
-      `which leaves too little of Groq's free-tier ${GROQ_FREE_TPM.toLocaleString()} tokens/minute ` +
-      `allowance to write a complete document (Groq counts your prompt AND the reserved response ` +
-      `against the same limit).\n\n` +
-      `Three ways forward:\n` +
-      `• Use a different provider for this tier — OpenAI gpt-4.1-mini, Google gemini-2.5-flash, ` +
-      `or DeepSeek all have far larger limits and comparable cost. Set one as your ` +
-      `Economic default in Settings → API Key Library.\n` +
-      `• Upgrade Groq to Dev Tier at console.groq.com/settings/billing.\n` +
-      `• Shorten the input — trim the notes field or reduce attached research context.\n\n` +
-      `Groq remains a good fit for shorter modules; it is this document's context size that ` +
-      `does not fit the free tier.`,
+      `This ${args.moduleLabel} still needs about ${inputTokens.toLocaleString()} tokens of context ` +
+      `after automatic trimming, which does not leave room for a complete document inside ` +
+      `Groq's free-tier ${GROQ_FREE_TPM.toLocaleString()} tokens/minute allowance (Groq counts the ` +
+      `prompt AND the reserved response against the same limit).\n\n` +
+      `Shorten the input and it will generate on Groq:\n` +
+      `• Trim the notes field — it is usually the largest free-text block.\n` +
+      `• Remove or shorten attached research context.\n` +
+      `• Fill in fewer optional deal fields for this run.\n\n` +
+      `Optional: if you also hold a key for a provider with larger limits, setting it as this ` +
+      `tier's default in Settings → API Key Library removes the ceiling entirely — but it is ` +
+      `not required, and Groq handles every other module comfortably.`,
   };
 }
