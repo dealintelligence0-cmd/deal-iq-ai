@@ -126,6 +126,8 @@ export async function POST(req: NextRequest) {
     primaryKey: resolved.apiKey,
     primaryModel: model_override ?? resolved.model ?? undefined,
     blockFreeFallback: true,
+    // PHASE 7A: telemetry attribution only — no routing/behaviour change.
+    telemetry: { userId: user.id, module: "tsa", operation: "generate" },
   };
 
   // Build user prompt with all interactive catalog data

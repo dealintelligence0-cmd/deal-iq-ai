@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@/lib/ai/providers";
+import { recordAiEvent } from "@/lib/ai/telemetry";
 
 export type SemanticCacheEntry = {
   key: string;
@@ -75,6 +76,14 @@ export function getSemanticCache(args: {
       best = { ...entry, similarity };
     }
   }
+  // PHASE 7A (measurement only): a hit is a cloud call avoided — the headline KPI.
+  // Record-only; the returned value and all cache behaviour are unchanged.
+  recordAiEvent({
+    userId: args.userId,
+    module: args.module,
+    operation: "semantic_cache",
+    decision: best ? "cache_hit" : "cache_miss",
+  });
   return best;
 }
 

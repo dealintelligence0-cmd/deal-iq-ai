@@ -176,12 +176,17 @@ if (!resolved.apiKey || resolved.provider === "free") {
 
 const modelOverride = ((body as unknown) as { model_override?: string }).model_override;
 
+// PHASE 7A (measurement only): attribution for telemetry. Each routedCall below tags a
+// DISTINCT operation so the baseline shows how often the retry chain fires and what it
+// costs — the input Phase 7B needs. No routing, retry, or prompt behaviour is changed.
+const tlm = (operation: string) => ({ userId: user.id, module: "proposal", operation });
 const cfg: RouteConfig = {
   tier: "smart",
   primaryProvider: resolved.provider as ProviderId,
   primaryKey: resolved.apiKey,
   primaryModel: modelOverride || resolved.model || undefined,
   blockFreeFallback: !allowFreeFallback,
+  telemetry: tlm("generate"),
 };
 
   const dealInput: DealInput = {
@@ -583,13 +588,13 @@ ${fullContext}` },
       const validation = validateRequiredSections(result.text, mandate_type === "carve_out" ? ["Separation Critical Path","Stranded Cost Quantification","TSA Service Catalog","Standalone Capability Gap Analysis","Day-1 Cutover Plan","Customer Continuity Plan","Regulatory & Compliance Risks (deal-specific)","Technology Separation Blueprint"] : []);
       if (!validation.ok) {
         const retryMessages: ChatMessage[] = [...messages, { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` }];
-        result = await routedCall(cfg, retryMessages, use_premium ? 10000 : 8000);
+        result = await routedCall({ ...cfg, telemetry: tlm("retry_sections") }, retryMessages, use_premium ? 10000 : 8000);
       }
     }
     const quality = evaluateProposalQuality(result.text);
     if (isAdvancedMode && quality.score < 70) {
       const qualityRetry: ChatMessage[] = [...messages, { role: "user", content: `Quality score ${quality.score} is below threshold. Rewrite with higher numeric density, less repetitive language, explicit owners, and jurisdiction-specific regulatory detail.` }];
-      result = await routedCall(cfg, qualityRetry, use_premium ? 10000 : 8000);
+      result = await routedCall({ ...cfg, telemetry: tlm("retry_quality") }, qualityRetry, use_premium ? 10000 : 8000);
     }
 
     if (result.provider === "free" || result.model === "rules-v1") {
@@ -607,7 +612,7 @@ ${fullContext}` },
         `STOP. ${fix}\nThis document MUST be about the acquisition of "${target}" by "${buyer}" ` +
         `in ${sector || "the stated sector"}. Do not mention any other companies as the parties. ` +
         `Regenerate every section using ONLY these named parties.` }];
-      result = await routedCall(cfg, coherenceRetry, use_premium ? 10000 : 8000);
+      result = await routedCall({ ...cfg, telemetry: tlm("retry_coherence") }, coherenceRetry, use_premium ? 10000 : 8000);
       coherence = analyzeProposalCoherence(result.text, { buyer, target, sector, geography });
     }
 

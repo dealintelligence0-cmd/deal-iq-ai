@@ -78,6 +78,8 @@ const admin = createAdminClient();
     primaryKey: resolved.apiKey,
     primaryModel: modelOverride || resolved.model || undefined,
     blockFreeFallback: true,
+    // PHASE 7A: telemetry attribution only — no routing/behaviour change.
+    telemetry: { userId: user.id, module: "pmi", operation: "generate" },
   };
 
   // Sector-specific functional emphasis (prevents generic output)
