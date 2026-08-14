@@ -21,6 +21,7 @@ import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
 import { analyzeProposalCoherence } from "@/lib/proposal/coherence";
+import { buildSectionRepairMessages, spliceRepairedSections, existingHeadings, repairMaxTokens } from "@/lib/proposal/section-repair";
 import { fitGroqTokenBudget, inputBudgetFor } from "@/lib/ai/groq-budget";
 import { assembleWithinBudget, approxTokens, type PromptPart } from "@/lib/ai/prompt-budget";
 
@@ -582,7 +583,8 @@ MANDATORY SECTION CHECKLIST — produce ALL 14 sections in this exact order, wit
 01. Executive Summary (120-180 words)
 02. Deal Thesis — Strategic / Financial / Operational (140-200 words)
 03. Deal Score — 4-row table (Market, Company, Synergy, Execution Risk inverted) with 0-10 scores and one-sentence rationale each
-04. Synergy Model — 3-year table (Year 1/2/3) for Revenue Synergy, Cost Synergy, One-time Integration Cost, Net Run-rate, with confidence labels HIGH/MEDIUM/STRETCH
+04. Synergy Model — 3-year table (Year 1/2/3) for Revenue Synergy, Cost Synergy, One-time Integration Cost, Net Run-rate, with confidence labels HIGH/MEDIUM/STRETCH.
+    Immediately after the table, state the bridge as one numeric sentence using these EXACT terms in this order: "revenue synergy" ... "cost synergy" ... "cost-to-achieve" ... then the net run-rate. This wording is required.
 05. Risk Engine — 6-row table (Risk, Type, Probability %, $ Impact, Mitigation, Owner with named human role)
 06. Valuation View (80-120 words) — implied EV/EBITDA, sector benchmark range, premium/discount with logic
 07. Scenario Analysis — Base/Upside/Downside table with synergy capture %, IRR, multiple, probability
@@ -660,8 +662,38 @@ ${supportingContext}` },
     let result = await routedCall(cfg, messages, maxOut);
 
     if (isAdvancedMode) {
-      const validation = validateRequiredSections(result.text, mandate_type === "carve_out" ? ["Separation Critical Path","Stranded Cost Quantification","TSA Service Catalog","Standalone Capability Gap Analysis","Day-1 Cutover Plan","Customer Continuity Plan","Regulatory & Compliance Risks (deal-specific)","Technology Separation Blueprint"] : []);
+      const requiredSections = mandate_type === "carve_out" ? ["Separation Critical Path","Stranded Cost Quantification","TSA Service Catalog","Standalone Capability Gap Analysis","Day-1 Cutover Plan","Customer Continuity Plan","Regulatory & Compliance Risks (deal-specific)","Technology Separation Blueprint"] : [];
+      let validation = validateRequiredSections(result.text, requiredSections);
       if (!validation.ok) {
+        // PHASE 7B: repair before regenerating. Telemetry measured the old path — resend
+        // the whole prompt and rewrite the entire document — at ~9,636 input tokens and
+        // ~104s, firing on 63% of generations. Ask only for the missing sections, with
+        // only the context they need, and splice them into the document that already
+        // passed everything else. The SAME validator still gates the result.
+        try {
+          const repairMessages = buildSectionRepairMessages({
+            missing: validation.missing,
+            dealModelBlock, buyer, target, sector, geography,
+            existing: existingHeadings(result.text),
+          });
+          const repair = await routedCall(
+            { ...cfg, telemetry: tlm("repair_sections") },
+            repairMessages,
+            repairMaxTokens(validation.missing),
+          );
+          const merged = spliceRepairedSections(result.text, repair.text);
+          const revalidated = validateRequiredSections(merged, requiredSections);
+          if (revalidated.ok) {
+            result = { ...result, text: merged };
+            validation = revalidated;
+          }
+        } catch {
+          // Repair is an optimisation, never a dependency — fall through to the full retry.
+        }
+      }
+      if (!validation.ok) {
+        // Unchanged fallback: if the targeted repair could not satisfy the validator, do
+        // exactly what this route did before, so the worst case is today's behaviour.
         const retryMessages: ChatMessage[] = [...messages, { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` }];
         result = await routedCall({ ...cfg, telemetry: tlm("retry_sections") }, retryMessages, maxOut);
       }
