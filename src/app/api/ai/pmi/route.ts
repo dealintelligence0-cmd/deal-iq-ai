@@ -19,9 +19,11 @@ import { getOrSeed, dealModelToPromptBlock } from "@/lib/intelligence/deal-model
 // Vercel: without this the function uses the platform default (~10-15s) and a long
 // premium generation is killed mid-flight — the client then sees "Failed to fetch"
 // with no HTTP status. 60s is the Hobby/free-tier ceiling (tsa/route.ts already
-// sets its own). Long premium runs may still need the Phase 7B retry work.
+// sets its own). Telemetry measured 80s average for a proposal generate and 104s for a
+// retry, so 60s was BELOW real demand; 300s is the Vercel Pro ceiling and is clamped
+// down automatically on smaller plans.
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 
 

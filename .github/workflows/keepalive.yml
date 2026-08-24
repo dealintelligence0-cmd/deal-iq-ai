@@ -1,0 +1,65 @@
+# Keeps the Supabase free-tier project from pausing.
+#
+# Supabase pauses a free project after 7 consecutive days with no database
+# activity. This calls /api/keepalive, which makes one real database round-trip,
+# so the project stays active even if nobody opens the site.
+#
+# It runs every 2 days, not every 7. GitHub's scheduled runs are best-effort and
+# can be delayed or skipped when the platform is busy, so the schedule leaves
+# room for two consecutive misses before the 7-day window is at risk.
+#
+# NOTE: GitHub disables scheduled workflows in a repository with no activity for
+# 60 days. Any push re-enables them, and this workflow can always be started by
+# hand from the Actions tab ("Run workflow").
+name: Supabase keepalive
+
+on:
+  schedule:
+    # 06:17 UTC every second day. An off-the-hour minute avoids the top-of-hour
+    # congestion that causes GitHub to delay scheduled jobs.
+    - cron: "17 6 */2 * *"
+  workflow_dispatch:
+
+# No repository permissions needed — this only makes an outbound HTTPS request.
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping the keepalive endpoint
+        env:
+          # Override by setting a repository variable named KEEPALIVE_URL
+          # (Settings -> Secrets and variables -> Actions -> Variables).
+          KEEPALIVE_URL: ${{ vars.KEEPALIVE_URL || 'https://deal-iq-ai.vercel.app/api/keepalive' }}
+        run: |
+          set -uo pipefail
+
+          # Up to 3 attempts: a cold serverless start can exceed a short timeout,
+          # and one transient failure should not read as "the database is down".
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt: GET $KEEPALIVE_URL"
+            body=$(curl --silent --show-error --max-time 60 \
+                        --header 'Cache-Control: no-cache' \
+                        --write-out '\n%{http_code}' \
+                        "$KEEPALIVE_URL") || body=""
+
+            status=$(printf '%s' "$body" | tail -n1)
+            payload=$(printf '%s' "$body" | sed '$d')
+            echo "HTTP $status"
+            echo "$payload"
+
+            # The endpoint reports ok:true only after Postgres actually answered.
+            # Checking the body matters: a 200 alone could be a cached response
+            # that never reached the database.
+            if [ "$status" = "200" ] && printf '%s' "$payload" | grep -q '"ok":true'; then
+              echo "Supabase reached — project activity recorded."
+              exit 0
+            fi
+
+            [ "$attempt" -lt 3 ] && sleep 20
+          done
+
+          echo "::error::Keepalive failed after 3 attempts. The Supabase project may pause if this keeps failing for 7 days."
+          exit 1

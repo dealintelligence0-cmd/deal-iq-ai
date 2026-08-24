@@ -21,14 +21,18 @@ import { buildScenarioCases } from "@/lib/advanced/engines/scenario_engine";
 import { getOrSeed, dealModelToPromptBlock, updateModel } from "@/lib/intelligence/deal-model";
 import { buildComparablesBlock, pickComparablesForModel } from "@/lib/intelligence/comparables";
 import { analyzeProposalCoherence } from "@/lib/proposal/coherence";
-import { fitGroqTokenBudget } from "@/lib/ai/groq-budget";
+import { buildSectionRepairMessages, spliceRepairedSections, existingHeadings, repairMaxTokens } from "@/lib/proposal/section-repair";
+import { fitGroqTokenBudget, inputBudgetFor } from "@/lib/ai/groq-budget";
+import { assembleWithinBudget, approxTokens, type PromptPart } from "@/lib/ai/prompt-budget";
 
 // Vercel: without this the function uses the platform default (~10-15s) and a long
 // premium generation is killed mid-flight — the client then sees "Failed to fetch"
 // with no HTTP status. 60s is the Hobby/free-tier ceiling (tsa/route.ts already
-// sets its own). Long premium runs may still need the Phase 7B retry work.
+// sets its own). Telemetry measured 80s average for a proposal generate and 104s for a
+// retry, so 60s was BELOW real demand; 300s is the Vercel Pro ceiling and is clamped
+// down automatically on smaller plans.
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 
 export type ProposalType =
@@ -499,6 +503,68 @@ Rules:
 This rule is more important than any other formatting requirement. Coherence across modules is non-negotiable for a top-tier deliverable.`;
 
   
+  // Supporting context, assembled to fit the provider's budget.
+  //
+  // Providers like Groq's free tier cap input + reserved output TOGETHER (12,000 tok/min),
+  // so a prompt that is fine elsewhere cannot be sent as-is. Rather than fail — or push the
+  // partner onto a provider they may not have a key for — the DERIVED blocks below are
+  // compacted and, if still necessary, dropped in priority order until the request fits.
+  // Every one of them is re-derivable by the model from the canonical Deal Model, which is
+  // itself never droppable, and neither is the section checklist that defines the structure.
+  // On unconstrained providers nothing is dropped and the prompt is byte-identical to before.
+  const supportingParts: PromptPart[] = [
+    { label: "Advanced synergy reasoning", dropPriority: 5,
+      text: "## ADVANCED SYNERGY REASONING\n" + JSON.stringify(synergyLines, null, 2),
+      compact: "## ADVANCED SYNERGY REASONING\n" + JSON.stringify(synergyLines) },
+    { label: "Advanced risk reasoning", dropPriority: 4,
+      text: "## ADVANCED RISK REASONING\n" + JSON.stringify(riskLines, null, 2),
+      compact: "## ADVANCED RISK REASONING\n" + JSON.stringify(riskLines) },
+    { label: "Quantified synergy levers", dropPriority: 3,
+      text: "## QUANTIFIED SYNERGY LEVERS\n" + JSON.stringify(quantifiedLevers, null, 2),
+      compact: "## QUANTIFIED SYNERGY LEVERS\n" + JSON.stringify(quantifiedLevers) },
+    { label: "Quantified risk register", dropPriority: 2,
+      text: "## QUANTIFIED RISK REGISTER\n" + JSON.stringify(riskRegister, null, 2),
+      compact: "## QUANTIFIED RISK REGISTER\n" + JSON.stringify(riskRegister) },
+    { label: "Scenario cases", dropPriority: 1,
+      text: "## SCENARIO CASES\n" + JSON.stringify(scenarioCases, null, 2),
+      compact: "## SCENARIO CASES\n" + JSON.stringify(scenarioCases) },
+    { label: "Deal context", dropPriority: 7, text: ctxBlock },
+    // Regulatory screening is the last supporting block to go: filings are named in the
+    // output and are hard for the model to reconstruct.
+    { label: "Regulatory screening", dropPriority: 9, text: regBlock },
+    { label: "Full deal context", dropPriority: 6, text: fullContext },
+  ];
+
+  // Reserve enough for the 14-section document; only Groq imposes a combined cap, and
+  // inputBudgetFor returns null (= no limit) for every other provider.
+  // Only providers with a COMBINED input+output cap need a reduced reservation. Telemetry
+  // shows real proposals average ~7,650 output tokens, so trimming the reservation on an
+  // uncapped provider (Anthropic here) would truncate the document — the opposite of the
+  // intent. Uncapped providers keep the original reservation; Groq gets the tighter one,
+  // where a shorter complete document beats a 413.
+  const providerHasCombinedCap = inputBudgetFor(cfg.primaryProvider, cfg.primaryModel, 0) !== null;
+  const targetOutputTokens = providerHasCombinedCap
+    ? (use_premium ? 6000 : 3500)
+    : (use_premium ? 10000 : 8000);
+  const inputBudget = inputBudgetFor(cfg.primaryProvider, cfg.primaryModel, targetOutputTokens);
+  // On a combined-cap provider, cite fewer comparables — still real, verified transactions
+  // from the library, just a shorter list — so the derived context above survives instead.
+  const comparablesForPrompt = inputBudget === null
+    ? comparablesBlock
+    : buildComparablesBlock(sector, geography, 2);
+  // Everything outside supportingParts is mandatory; charge it against the budget first.
+  const mandatoryTokens = approxTokens(finalSystemPrompt + advisoryRules + advisorBlock +
+    voiceDisciplineBlock + dealModelBlock + comparablesForPrompt) + 1200; // +checklist/instructions
+  const assembled = inputBudget === null
+    ? { text: supportingParts.map((p) => p.text).join("\n\n"), dropped: [] as string[], compacted: [] as string[], fits: true }
+    : assembleWithinBudget(supportingParts, Math.max(0, inputBudget - mandatoryTokens));
+  const supportingContext = assembled.text;
+  if (assembled.dropped.length || assembled.compacted.length) {
+    console.info("[prompt-budget][proposal]", {
+      provider: cfg.primaryProvider, dropped: assembled.dropped, compacted: assembled.compacted,
+    });
+  }
+
  const messages: ChatMessage[] = [
     // Stable across calls for the same mandate type — provider adapter applies caching where supported.
     { role: "system", stable: true, content: finalSystemPrompt
@@ -508,7 +574,7 @@ This rule is more important than any other formatting requirement. Coherence acr
     { role: "user", content:
       `${dealModelBlock}
 
-${comparablesBlock}
+${comparablesForPrompt}
 
 Generate the ${proposal_type.replace(/_/g, " ")} document. ${isAdvancedMode ? "Use mandate-specific advanced structure with analytically derived sections and explicit calculations." : "Open with the 10-section ADVISOR VERDICT, then continue with standard sections."}
 
@@ -517,7 +583,8 @@ MANDATORY SECTION CHECKLIST — produce ALL 14 sections in this exact order, wit
 01. Executive Summary (120-180 words)
 02. Deal Thesis — Strategic / Financial / Operational (140-200 words)
 03. Deal Score — 4-row table (Market, Company, Synergy, Execution Risk inverted) with 0-10 scores and one-sentence rationale each
-04. Synergy Model — 3-year table (Year 1/2/3) for Revenue Synergy, Cost Synergy, One-time Integration Cost, Net Run-rate, with confidence labels HIGH/MEDIUM/STRETCH
+04. Synergy Model — 3-year table (Year 1/2/3) for Revenue Synergy, Cost Synergy, One-time Integration Cost, Net Run-rate, with confidence labels HIGH/MEDIUM/STRETCH.
+    Immediately after the table, state the bridge as one numeric sentence using these EXACT terms in this order: "revenue synergy" ... "cost synergy" ... "cost-to-achieve" ... then the net run-rate. This wording is required.
 05. Risk Engine — 6-row table (Risk, Type, Probability %, $ Impact, Mitigation, Owner with named human role)
 06. Valuation View (80-120 words) — implied EV/EBITDA, sector benchmark range, premium/discount with logic
 07. Scenario Analysis — Base/Upside/Downside table with synergy capture %, IRR, multiple, probability
@@ -549,24 +616,7 @@ Non-negotiable quality bars:
 Risk & Mitigation MUST include Regulatory Compliance subsection referencing each flagged filing.
 Include section: ## Why NOT This Deal with 3 explicit disconfirming arguments.
 
-## ADVANCED SYNERGY REASONING
-${JSON.stringify(synergyLines, null, 2)}
-
-## ADVANCED RISK REASONING
-${JSON.stringify(riskLines, null, 2)}
-
-## QUANTIFIED SYNERGY LEVERS
-${JSON.stringify(quantifiedLevers, null, 2)}
-
-## QUANTIFIED RISK REGISTER
-${JSON.stringify(riskRegister, null, 2)}
-
-## SCENARIO CASES
-${JSON.stringify(scenarioCases, null, 2)}
-
-${ctxBlock}
-${regBlock}
-${fullContext}` },
+${supportingContext}` },
   ];
 
   // [PHASE1-BENCHMARK] temp, dev-only — remove once the Intelligence Packet pipeline lands.
@@ -599,7 +649,10 @@ ${fullContext}` },
     const budget = fitGroqTokenBudget({
       provider: cfg.primaryProvider,
       messages,
-      requestedMaxTokens: use_premium ? 10000 : 8000,
+      // Reserve what the document actually needs, not a blanket 8-10k. The 14-section
+      // proposal lands around 2,500-3,500 words; over-reserving was itself most of the
+      // overage on providers that count input + reservation together.
+      requestedMaxTokens: targetOutputTokens,
       minUsefulOutput: 2500, // below this a proposal is a truncated fragment
       moduleLabel: "proposal",
     });
@@ -609,8 +662,38 @@ ${fullContext}` },
     let result = await routedCall(cfg, messages, maxOut);
 
     if (isAdvancedMode) {
-      const validation = validateRequiredSections(result.text, mandate_type === "carve_out" ? ["Separation Critical Path","Stranded Cost Quantification","TSA Service Catalog","Standalone Capability Gap Analysis","Day-1 Cutover Plan","Customer Continuity Plan","Regulatory & Compliance Risks (deal-specific)","Technology Separation Blueprint"] : []);
+      const requiredSections = mandate_type === "carve_out" ? ["Separation Critical Path","Stranded Cost Quantification","TSA Service Catalog","Standalone Capability Gap Analysis","Day-1 Cutover Plan","Customer Continuity Plan","Regulatory & Compliance Risks (deal-specific)","Technology Separation Blueprint"] : [];
+      let validation = validateRequiredSections(result.text, requiredSections);
       if (!validation.ok) {
+        // PHASE 7B: repair before regenerating. Telemetry measured the old path — resend
+        // the whole prompt and rewrite the entire document — at ~9,636 input tokens and
+        // ~104s, firing on 63% of generations. Ask only for the missing sections, with
+        // only the context they need, and splice them into the document that already
+        // passed everything else. The SAME validator still gates the result.
+        try {
+          const repairMessages = buildSectionRepairMessages({
+            missing: validation.missing,
+            dealModelBlock, buyer, target, sector, geography,
+            existing: existingHeadings(result.text),
+          });
+          const repair = await routedCall(
+            { ...cfg, telemetry: tlm("repair_sections") },
+            repairMessages,
+            repairMaxTokens(validation.missing),
+          );
+          const merged = spliceRepairedSections(result.text, repair.text);
+          const revalidated = validateRequiredSections(merged, requiredSections);
+          if (revalidated.ok) {
+            result = { ...result, text: merged };
+            validation = revalidated;
+          }
+        } catch {
+          // Repair is an optimisation, never a dependency — fall through to the full retry.
+        }
+      }
+      if (!validation.ok) {
+        // Unchanged fallback: if the targeted repair could not satisfy the validator, do
+        // exactly what this route did before, so the worst case is today's behaviour.
         const retryMessages: ChatMessage[] = [...messages, { role: "user", content: `Retry strictly. Missing sections: ${validation.missing.join(", ")}.` }];
         result = await routedCall({ ...cfg, telemetry: tlm("retry_sections") }, retryMessages, maxOut);
       }
