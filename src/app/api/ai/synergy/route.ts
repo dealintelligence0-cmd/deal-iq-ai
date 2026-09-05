@@ -257,7 +257,7 @@ This rule is more important than any other formatting requirement. Coherence acr
     });
   }
 
-  const cached = getSemanticCache({ userId: user.id, module: "synergy", messages, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
+  const cached = await getSemanticCache({ userId: user.id, module: "synergy", messages, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
   if (cached) {
     return NextResponse.json({
       content: cached.content,
