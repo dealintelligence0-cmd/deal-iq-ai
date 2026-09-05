@@ -1,5 +1,27 @@
+// PHASE 7C — two-layer cache.
+//
+//   layer 1 (memory)  : free and instant, but dies with the serverless instance.
+//   layer 2 (database): survives instances, which is the only reason a hit is ever
+//                       possible for a partner who returns tomorrow.
+//
+// Baseline telemetry measured layer 1 alone at a 0% hit rate: on Vercel the process
+// that wrote an entry is almost never the process that could reuse it. Layer 2 is
+// consulted only on a layer-1 miss, and a layer-2 hit is promoted back into memory so
+// repeat lookups within one instance stay free.
+//
+// Both layers apply the SAME matching rules (same user, same module, same
+// provider/model salt, same TTL, same similarity threshold), so adding durability
+// cannot widen what counts as a match — it only changes how long a match survives.
+
 import type { ChatMessage } from "@/lib/ai/providers";
 import { recordAiEvent } from "@/lib/ai/telemetry";
+import {
+  getDurableExact,
+  getDurableCandidates,
+  setDurable,
+  promptHash,
+  type DurableHit,
+} from "@/lib/ai/durable-cache";
 
 export type SemanticCacheEntry = {
   key: string;
@@ -53,31 +75,61 @@ export function messagesToSemanticText(messages: ChatMessage[], salt = ""): stri
   return [salt, ...messages.map((message) => `${message.role}:${message.content}`)].join("\n");
 }
 
-export function getSemanticCache(args: {
+/** Does this stored prompt look close enough to be worth scoring? */
+function lengthComparable(storedChars: number, promptChars: number): boolean {
+  const delta = Math.abs(storedChars - promptChars) / Math.max(storedChars, promptChars, 1);
+  return delta <= 0.18;
+}
+
+export async function getSemanticCache(args: {
   userId: string;
   module: string;
   messages: ChatMessage[];
   salt?: string;
   threshold?: number;
-}): (SemanticCacheEntry & { similarity: number }) | null {
+}): Promise<(SemanticCacheEntry & { similarity: number }) | null> {
   const now = Date.now();
   const store = cacheStore();
   const prompt = messagesToSemanticText(args.messages, args.salt);
   const vector = vectorize(prompt);
-  let best: (SemanticCacheEntry & { similarity: number }) | null = null;
+  const threshold = args.threshold ?? SIMILARITY_THRESHOLD;
+  const salt = args.salt ?? "";
 
+  // ── Layer 1: memory ────────────────────────────────────────────────────────
+  let best: (SemanticCacheEntry & { similarity: number }) | null = null;
   for (const entry of store) {
     if (entry.userId !== args.userId || entry.module !== args.module) continue;
     if (now - entry.createdAt > CACHE_TTL_MS) continue;
-    const lengthDelta = Math.abs(entry.promptChars - prompt.length) / Math.max(entry.promptChars, prompt.length, 1);
-    if (lengthDelta > 0.18) continue;
+    if (!lengthComparable(entry.promptChars, prompt.length)) continue;
     const similarity = cosine(vector, entry.vector);
-    if (similarity >= (args.threshold ?? SIMILARITY_THRESHOLD) && (!best || similarity > best.similarity)) {
+    if (similarity >= threshold && (!best || similarity > best.similarity)) {
       best = { ...entry, similarity };
     }
   }
-  // PHASE 7A (measurement only): a hit is a cloud call avoided — the headline KPI.
-  // Record-only; the returned value and all cache behaviour are unchanged.
+
+  // ── Layer 2: database, only when memory missed ─────────────────────────────
+  // Exact match is tried first: it is one indexed lookup, and an identical prompt
+  // is the strongest possible match, so there is no reason to scan for a weaker one.
+  if (!best) {
+    const hash = promptHash(prompt);
+    const exact = await getDurableExact({ userId: args.userId, module: args.module, salt, hash });
+    if (exact) {
+      best = { ...toEntry(exact, args.userId, args.module), similarity: 1 };
+    } else {
+      for (const row of await getDurableCandidates({ userId: args.userId, module: args.module, salt })) {
+        if (!lengthComparable(row.promptChars, prompt.length)) continue;
+        const similarity = cosine(vector, row.vector);
+        if (similarity >= threshold && (!best || similarity > best.similarity)) {
+          best = { ...toEntry(row, args.userId, args.module), similarity };
+        }
+      }
+    }
+    // Promote a durable hit into memory so further lookups on THIS instance are free.
+    if (best) store.unshift({ ...best });
+  }
+
+  // PHASE 7A: a hit is a cloud call avoided — the headline KPI. Exactly one event is
+  // recorded per lookup regardless of which layer answered, so hit rate stays honest.
   recordAiEvent({
     userId: args.userId,
     module: args.module,
@@ -85,6 +137,20 @@ export function getSemanticCache(args: {
     decision: best ? "cache_hit" : "cache_miss",
   });
   return best;
+}
+
+function toEntry(hit: DurableHit, userId: string, module: string): SemanticCacheEntry {
+  return {
+    key: `${userId}:${module}:${hit.createdAt}`,
+    userId,
+    module,
+    provider: hit.provider,
+    model: hit.model,
+    content: hit.content,
+    createdAt: hit.createdAt,
+    vector: hit.vector,
+    promptChars: hit.promptChars,
+  };
 }
 
 export function setSemanticCache(args: {
@@ -98,6 +164,7 @@ export function setSemanticCache(args: {
 }): void {
   const store = cacheStore();
   const prompt = messagesToSemanticText(args.messages, args.salt);
+  const vector = vectorize(prompt);
   store.unshift({
     key: `${args.userId}:${args.module}:${Date.now()}`,
     userId: args.userId,
@@ -106,9 +173,24 @@ export function setSemanticCache(args: {
     model: args.model,
     content: args.content,
     createdAt: Date.now(),
-    vector: vectorize(prompt),
+    vector,
     promptChars: prompt.length,
   });
   const fresh = store.filter((entry) => Date.now() - entry.createdAt <= CACHE_TTL_MS).slice(0, MAX_ENTRIES);
   globalCache.__dealIqSemanticCache = fresh;
+
+  // Write through to the durable layer. Fire-and-forget by contract: this must never
+  // delay the response the partner is waiting on, and a database failure here must
+  // never turn a successful generation into an error.
+  setDurable({
+    userId: args.userId,
+    module: args.module,
+    salt: args.salt ?? "",
+    hash: promptHash(prompt),
+    content: args.content,
+    provider: args.provider,
+    model: args.model,
+    vector,
+    promptChars: prompt.length,
+  });
 }

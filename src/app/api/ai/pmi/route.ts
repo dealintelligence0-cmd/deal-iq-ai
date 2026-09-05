@@ -226,7 +226,7 @@ This rule is more important than any other formatting requirement. Coherence acr
 System dependency map (must explicitly cover): ${JSON.stringify(dependencyMap)}` },
   ];
 
-  const cached = getSemanticCache({ userId: user.id, module: "pmi", messages, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
+  const cached = await getSemanticCache({ userId: user.id, module: "pmi", messages, salt: `${cfg.primaryProvider}:${cfg.primaryModel ?? "auto"}` });
   if (cached) {
     return NextResponse.json({
       content: cached.content,
