@@ -1,12 +1,14 @@
 # Keeps the Supabase free-tier project from pausing.
 #
-# Supabase pauses a free project after 7 consecutive days with no database
-# activity. This calls /api/keepalive, which makes one real database round-trip,
-# so the project stays active even if nobody opens the site.
+# Supabase pauses a free project that lacks "sufficient user database activity
+# over the past week", where "a few user requests to the database each day" is
+# what keeps it awake. It is a DAILY VOLUME threshold, not a 7-day timer.
 #
-# It runs every 2 days, not every 7. GitHub's scheduled runs are best-effort and
-# can be delayed or skipped when the platform is busy, so the schedule leaves
-# room for two consecutive misses before the 7-day window is at risk.
+# DO NOT reduce this to every-other-day. That was the original schedule: one
+# request every 2 days (~0.5/day) never left a 7-day gap, every run reported
+# success, and the project paused anyway. Four visits a day, each issuing several
+# queries, puts activity comfortably above the threshold every single day and
+# still leaves room for GitHub to delay or skip individual runs.
 #
 # NOTE: GitHub disables scheduled workflows in a repository with no activity for
 # 60 days. Any push re-enables them, and this workflow can always be started by
@@ -15,9 +17,9 @@ name: Supabase keepalive
 
 on:
   schedule:
-    # 06:17 UTC every second day. An off-the-hour minute avoids the top-of-hour
-    # congestion that causes GitHub to delay scheduled jobs.
-    - cron: "17 6 */2 * *"
+    # Every 6 hours, at an off-the-hour minute — the top of the hour is when
+    # GitHub's scheduler is most congested and most likely to delay a run.
+    - cron: "17 */6 * * *"
   workflow_dispatch:
 
 # No repository permissions needed — this only makes an outbound HTTPS request.
