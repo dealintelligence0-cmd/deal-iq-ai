@@ -2,10 +2,19 @@
  * GET /api/keepalive
  *
  * WHY THIS EXISTS
- * Supabase pauses a free-tier project after 7 consecutive days with no database
+ * Supabase pauses a free-tier project that does not receive enough database
  * activity. A paused project takes the whole app down until someone restores it
- * by hand. This endpoint makes one real database round-trip so the project stays
- * active without anyone opening the site.
+ * by hand. This endpoint issues real database queries so the project stays active
+ * without anyone opening the site.
+ *
+ * THE RULE IS A DAILY VOLUME, NOT A 7-DAY TIMER — DO NOT "OPTIMISE" THE CADENCE
+ * Supabase's own guidance: a project is inactive if it lacks "sufficient user
+ * database activity over the past week", and "typically a few user requests to the
+ * database each day over the previous week is enough to keep the project from being
+ * paused". So ONE request every couple of days is not enough, even though it never
+ * leaves a 7-day gap. An earlier version of this file pinged once every 2 days —
+ * roughly 0.5 requests/day — and the project paused anyway despite every scheduled
+ * run reporting success. Hence: several queries per visit, several visits per day.
  *
  * WHY IT DOES NOT REUSE THE EXISTING CRONS
  * /api/cron/refresh-themes and /api/cron/scan-signals both return 503 in
@@ -55,7 +64,11 @@ export async function GET() {
   const sb = createClient(url, anonKey, { auth: { persistSession: false } });
   const startedAt = Date.now();
   let lastError = "";
+  const answered: string[] = [];
 
+  // Every table is queried on every call — deliberately NOT stopping at the first
+  // success. Supabase counts the NUMBER of user queries per day, so one query per
+  // visit is too thin a signal; this turns each visit into several.
   for (const table of PROBE_TABLES) {
     try {
       // A real, minimal SELECT. Deliberately NOT head:true — a HEAD reply carries no
@@ -67,21 +80,27 @@ export async function GET() {
       // No error, or an error Postgres itself produced (RLS refusal, unknown table),
       // both mean the database answered. Only transport failures mean it did not.
       if (!error || isDatabaseReply(error)) {
-        return NextResponse.json(
-          {
-            ok: true,
-            database: "reachable",
-            probe: table,
-            latencyMs: Date.now() - startedAt,
-            checkedAt: new Date().toISOString(),
-          },
-          { headers: { "Cache-Control": "no-store" } },
-        );
+        answered.push(table);
+        continue;
       }
       lastError = error.message;
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  if (answered.length > 0) {
+    return NextResponse.json(
+      {
+        ok: true,
+        database: "reachable",
+        queries: answered.length,
+        probes: answered,
+        latencyMs: Date.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   return NextResponse.json(
