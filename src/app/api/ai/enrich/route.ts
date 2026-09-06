@@ -10,6 +10,8 @@ import {
   type EnrichmentInput,
 } from "@/lib/ai/enrichment";
 import type { ProviderId } from "@/lib/ai/providers";
+import { assessEnrichmentT0, deriveEnrichmentT0 } from "@/lib/ai/enrich-t0";
+import { recordAiEvent } from "@/lib/ai/telemetry";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -75,10 +77,45 @@ export async function POST(req: Request) {
     summary?: string;
     error?: string;
     viaFallback?: boolean;
+    // PHASE 7D: true when deterministic logic answered and no cloud call was made.
+    viaT0?: boolean;
   }[] = [];
 
   for (const deal of (deals ?? []) as EnrichmentInput[]) {
     try {
+      // PHASE 7D — skip the cloud call when deterministic logic already has the answer.
+      // The gate only passes when every field the model would classify is ALREADY
+      // canonical, so the cloud's structured output would match the rules'. Anything
+      // missing or unrecognised falls through to the unchanged cloud path below.
+      const t0 = assessEnrichmentT0(deal);
+      if (t0.sufficient) {
+        const derived = deriveEnrichmentT0(deal);
+        const { error: t0Err } = await admin.from("deals").update({
+          buyer:          derived.clean_buyer || deal.buyer,
+          target:         derived.clean_target || deal.target,
+          deal_type:      derived.classified_deal_type,
+          status:         derived.deal_status,
+          ai_summary:     derived.ai_summary,
+          priority_score: derived.priority_score,
+          advisory_score: derived.advisory_score,
+          risk_flag:      derived.risk_flag,
+          ai_confidence:  derived.confidence,
+          ai_enriched_at: new Date().toISOString(),
+        }).eq("id", deal.id);
+
+        // A cloud call avoided — the headline KPI. Same module/operation as the cloud
+        // path so before/after is measured on identical terms.
+        recordAiEvent({
+          userId: user.id,
+          module: "enrich",
+          operation: "deal_summary",
+          decision: "t0_answered",
+        });
+
+        results.push({ id: deal.id, ok: !t0Err, summary: derived.ai_summary, viaT0: true, error: t0Err?.message });
+        continue;
+      }
+
       const messages = buildEnrichPrompt(deal);
       const res = await routedCall(cfg, messages, 1200);
       const enriched = parseEnrichmentResponse(deal.id, res.text, deal);
