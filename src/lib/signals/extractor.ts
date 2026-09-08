@@ -15,6 +15,8 @@
  */
 
 import { routedCall, type RouteConfig } from "@/lib/ai/router";
+import { recordAiEvent } from "@/lib/ai/telemetry";
+import { scanSignalVocabulary, selectSignalPassages } from "./passage-select";
 
 export type Signal = {
   signal_type: "margin_pressure" | "transformation_pressure" | "activist_activity" | "acquisition_intent" | "leadership_change";
@@ -66,14 +68,18 @@ RULES:
 - Output MUST be valid JSON. No trailing commas. No comments.`;
 
 function buildUserPrompt(companyName: string, filingType: string, fiscalPeriod: string | null, content: string): string {
-  // Cap input at 24K chars (~6K tokens) — focuses on the most signal-dense sections
-  const truncated = content.slice(0, 24_000);
+  // PHASE 7F — same ~24K char (~6K token) budget as before, but spent on the passages
+  // that can actually carry a signal instead of on whatever happens to come first.
+  // A head slice lands on the cover page, contents and risk-factor boilerplate of a
+  // 10-K, while MD&A and leadership changes sit much later. Passages are sliced
+  // verbatim, so evidence_quote remains word-for-word quotable.
+  const selected = selectSignalPassages(content, 24_000);
   return `COMPANY: ${companyName}
 FILING TYPE: ${filingType}${fiscalPeriod ? ` (${fiscalPeriod})` : ""}
 
-FILING CONTENT (truncated to ~24K chars)
-========================================
-${truncated}
+FILING CONTENT (most signal-dense passages, in document order; gaps marked)
+==========================================================================
+${selected}
 
 Extract advisory signals as JSON. If nothing concrete, return {"signals":[]}.`;
 }
@@ -140,6 +146,22 @@ export async function extractSignals(
   content: string
 ): Promise<ExtractResult> {
   let cost_usd = 0;
+
+  // PHASE 7F — every signal requires an evidence_quote taken word-for-word from the
+  // filing. A document with no vocabulary from any of the five categories has nothing
+  // to quote, so a signal returned for it would be ungrounded — which the prompt
+  // forbids anyway. Skip the call rather than pay for a guaranteed empty result.
+  // Deliberately near-impossible to trip: one term from one category anywhere in the
+  // document is enough to proceed.
+  const vocab = scanSignalVocabulary(content);
+  if (!vocab.present) {
+    recordAiEvent({
+      ...(routeCfg.telemetry ?? { module: "signals", operation: "filing_extraction" }),
+      decision: "t0_answered",
+    });
+    return { signals: [], error: null, cost_usd: 0 };
+  }
+
   try {
     const res = await routedCall(routeCfg, [
       { role: "system", content: SYSTEM_PROMPT, stable: true },
