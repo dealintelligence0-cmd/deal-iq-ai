@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
+import ProvenanceBadge, { provenanceFrom, type Provenance } from "@/components/ProvenanceBadge";
 import { Layers, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, CheckSquare, Square, BarChart3, Plus, X } from "lucide-react";
 import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import { generatePmiProposal, type PmiInput } from "@/lib/intelligence/pmi-engine";
@@ -367,6 +368,8 @@ export default function PmiStudioPage() {
   const [generating, setGenerating] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // PHASE 7G: how THIS result was produced. Set only from the response.
+  const [provenance, setProvenance] = useState<Provenance>(null);
   const [pptExporting, setPptExporting] = useState(false);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -514,6 +517,7 @@ export default function PmiStudioPage() {
       const j = await res.json();
       if (j.content) {
         setContent(j.content);
+        setProvenance(provenanceFrom(j));
         saveOutput("pmi", j.content);
         reloadHistory();
       } else if (j.error) alert("AI error: " + j.error);
@@ -797,7 +801,10 @@ export default function PmiStudioPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#15151f]">
                 <div>
-                  <p className="text-sm font-semibold">PMI Proposal</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">PMI Proposal</p>
+                    <ProvenanceBadge provenance={provenance} />
+                  </div>
                   <p className="text-xs text-slate-500">{target} · {buyer} · {sector} · {dealSize}</p>
                 </div>
                 <div className="flex gap-2">
@@ -811,7 +818,7 @@ export default function PmiStudioPage() {
                   <button onClick={downloadPptx} disabled={pptExporting} className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1.5 text-xs disabled:opacity-50">
                     {pptExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} PPTX
                   </button>
-                  <button onClick={() => { setContent(null); clearOutput("pmi"); }}
+                  <button onClick={() => { setContent(null); setProvenance(null); clearOutput("pmi"); }}
                     className="flex items-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
                     <Trash2 className="h-3 w-3" /> Clear
                   </button>

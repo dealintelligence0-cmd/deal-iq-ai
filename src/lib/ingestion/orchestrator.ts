@@ -18,6 +18,8 @@ import { readMergermarket } from "./columns";
 import { extractRow } from "./extractor";
 import { routeRow } from "./router";
 import { runAIFallback, type AIFallbackOptions } from "./ai-fallback";
+import { assessAiUsefulness } from "./ai-usefulness";
+import { recordAiEvent } from "@/lib/ai/telemetry";
 
 export type IngestOptions = {
   userId: string;
@@ -170,17 +172,35 @@ async function processRow(
   let result: ExtractionResult = extractRow(row);
 
   // 2. AI fallback for borderline rows
+  //
+  // PHASE 7E — the band tests CONFIDENCE, which is not the same as COMPLETENESS. A row
+  // can sit inside it with weak-but-present values for every field. runAIFallback only
+  // ever fills EMPTY fields, so on such a row every merge branch is skipped and the call
+  // cannot change a single value. assessAiUsefulness() detects exactly that case, making
+  // the skip provably lossless rather than a cost/quality trade.
   if (
     !result.is_digest &&
     opts.ai &&
     result.row_confidence >= aiBand.lo &&
     result.row_confidence < aiBand.hi
   ) {
-    try {
-      const aiOut = await runAIFallback(sb, row, result, opts.ai);
-      result = aiOut.result;
-    } catch {
-      // ignore — keep deterministic result
+    const usefulness = assessAiUsefulness(result);
+    if (usefulness.useful) {
+      try {
+        const aiOut = await runAIFallback(sb, row, result, opts.ai);
+        result = aiOut.result;
+      } catch {
+        // ignore — keep deterministic result
+      }
+    } else {
+      // A cloud call avoided. Recorded under the ingestion module so it lands in the same
+      // KPI as every other avoided call.
+      recordAiEvent({
+        userId: opts.userId,
+        module: "ingestion",
+        operation: "row_extraction",
+        decision: "t0_answered",
+      });
     }
   }
 

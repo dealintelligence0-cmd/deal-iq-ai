@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { saveDealContext, loadDealContext, saveOutput, loadOutput, clearOutput, resetIfNewDeal } from "@/lib/dealContext";
+import ProvenanceBadge, { provenanceFrom, type Provenance } from "@/components/ProvenanceBadge";
 import { TrendingUp, Loader2, Copy, Printer, CheckCircle2, Sparkles, History, Trash2, Download, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
 import PageHeader, { headerActionBtn } from "@/components/dashboard/PageHeader";
 import { renderVisualProposal } from "@/lib/proposal/visual-renderer";
@@ -454,6 +455,8 @@ export default function SynergyEnginePage() {
   const [generating, setGen] = useState(false);
   const [content, setContent] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // PHASE 7G: how THIS result was produced. Set only from the response.
+  const [provenance, setProvenance] = useState<Provenance>(null);
   const [pptExporting, setPptExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -594,6 +597,7 @@ export default function SynergyEnginePage() {
       const j = await res.json();
       if (j.content) {
         setContent(j.content);
+        setProvenance(provenanceFrom(j));
         saveOutput("synergy", j.content);
         loadHistory();
       } else {
@@ -814,7 +818,10 @@ export default function SynergyEnginePage() {
           {content && (
             <div className="card overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 dark:border-slate-800">
-                <span className="text-sm font-semibold text-slate-800 dark:text-white">Synergy Analysis — {target}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-800 dark:text-white">Synergy Analysis — {target}</span>
+                  <ProvenanceBadge provenance={provenance} />
+                </div>
                 <div className="flex gap-2">
                   <button onClick={copyText}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">
@@ -829,7 +836,7 @@ export default function SynergyEnginePage() {
                     className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">
                     {pptExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} PPTX
                   </button>
-                  <button onClick={() => { setContent(null); clearOutput("synergy"); }}
+                  <button onClick={() => { setContent(null); setProvenance(null); clearOutput("synergy"); }}
                     className="flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
                     <Trash2 className="h-3.5 w-3.5" /> Clear
                   </button>
